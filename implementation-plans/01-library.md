@@ -30,7 +30,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 
 | Stage | Name | Status | Blocked by |
 |---|---|---|---|
-| 1a | Package, license, fonts, colors, CI guards | Not started | — |
+| 1a | Package, license, fonts, colors, CI guards | In review | — |
 | 1b | Parser, features, presentation | Not started | — |
 | 1c | Document model, anchor, copy text | Not started | — |
 | 1d | Styler, edits, format commands, undo, byte limit | Not started | WAIT-2 (steps 5–6 only) |
@@ -208,3 +208,105 @@ When the stage definition of done holds except the second review, commit the sta
 Write `.claude/REVIEW_REQUEST` with the stage name, this plan path, and the commit.
 Stop.
 Do not start the next stage.
+
+## Implementation Notes
+
+### 1a — Package, license, fonts, colors, CI guards
+
+Branch `stage/1a-package` from `origin/main` 3c80aea. Toolchain: Xcode 27.1, Swift 6.4, macOS 27.2, Apple silicon.
+
+**Decisions (Itay, 2026-10-25).** Remember keys `decision:fortkeeps-markdown-fonts-2026-10-25` and `decision:fortkeeps-markdown-acks-2026-10-25`.
+
+- remember-mac has no `design/fonts/static/`. Itay approved downloading the four static Plex Sans files from IBM tag `@ibm/plex-sans@1.1.0`.
+- The remember-mac Plex Mono files match no IBM release. Their git blob SHAs differ from every tag from v5.2.1 to `@ibm/plex-mono@2.5.0`. Itay chose to download Plex Mono from `@ibm/plex-mono@1.1.0` instead. This deviates from "copy Plex Mono from remember-mac".
+- The fonts live in both `design/fonts/` and `Sources/MarkdownViews/Resources/Fonts/`. One test checks both copies.
+- The Acknowledgements list is `Acknowledgements/acknowledgements.json` (`name`, `package`, `license`, `file`) plus one license text file per entry. 1a lists IBM Plex only.
+
+**Files.**
+
+| Step | Files |
+|---|---|
+| 2 | `README.md` (trademark line) |
+| 4–8, 12 | `Package.swift` (tools 6.2, macOS 15, iOS 18, `.treatAllWarnings(as: .error)` on every target) |
+| 9–10 | `design/fonts/*`, `Sources/MarkdownViews/Resources/Fonts/*`, `design/fonts/README.md`, `Sources/MarkdownViews/MarkdownViews.swift` (`resourceBundle`) |
+| 11 | `Sources/MarkdownCore/DesignColors.swift` (`SRGBColor`, `ColorToken`, `DesignColors`) |
+| 13 | `scripts/check-coverage.py`, `Justfile` `coverage-check` |
+| 14 | `Acknowledgements/`, `Tests/MarkdownCoreTests/DependencyGuardTests.swift` |
+| 15 | `Tests/MarkdownCoreTests/DependencyGuardTests.swift` |
+| guards | `Tests/MarkdownCoreTests/SourceGuardTests.swift`, `scripts/check-core-modules.sh` |
+| tooling | `Justfile`, `.github/workflows/ci.yml`, `.swiftlint.yml`, `.swiftformat`, `ruff.toml`, `.gitignore`, `.claude/REVIEW_CONTRACT.md` |
+
+**Other deviations and additions.**
+
+- Warnings are errors through `.treatAllWarnings(as: .error)` in the manifest, not through `-Xswiftc` and not through `unsafeFlags`. Proof that a dependent package still builds: a scratch consumer depended on a copy of this package by a `file://` git URL, with an unused-variable warning added to the copy. `swift build` in the consumer printed `Build complete!`.
+- The UI-import rule has two checks. `SourceGuardTests` scans the source text, which covers code behind `#if` on every platform. `scripts/check-core-modules.sh` reads the compiler's loaded-module trace on macOS and iOS, which covers an indirect import. A probe showed that `import Cocoa` and `import WebKit` load AppKit, and that the text scan does not see this.
+- The file and network rule also flags `fopen`, `InputStream`, `OutputStream`, `NWConnection`, a `contentsOf:` read, and a `write(to:` file write. Design says MarkdownViews does not open a file or a network connection. The three names in the plan alone missed `Data(contentsOf:)`.
+- The denylist check scans `Package.swift` as well as `Package.resolved`. A binary target or a path package does not appear in `Package.resolved`.
+- The coverage gate fails when a MarkdownCore file is missing from the report. A file with no executable code (for example, a file with only a protocol) therefore fails. When that case appears, add a skip entry with a written reason.
+- The repo-level checks are Swift Testing tests in the test targets. They read the checkout through `#filePath`.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| The package builds for macOS and for iOS. | `just build`; `just ios-build` prints `ok: package builds for iOS` |
+| A test fails when `MarkdownCore` imports AppKit, UIKit, or SwiftUI. | `no MarkdownCore source imports a UI framework`, `uiImports finds each import form`, `scripts/check-core-modules.sh` |
+| A test fails when `MarkdownCore` or `MarkdownViews` uses `URLSession`, `FileManager`, or `FileHandle`. | `library sources use no file or network API` (both folders), `ioUses finds each file or network API` |
+| Each color constant equals the Design value. | `each DesignColors token equals its Design dark and light values` (reads the Design table), `every Design table token has a DesignColors constant` |
+| Each font file matches its recorded SHA-256. | `each font file matches its recorded SHA-256` (16 cases: 8 files, 2 copies), `each font folder holds exactly the recorded files` |
+| The acknowledgements check fails when a resolved package is missing from the list. | `acknowledgements check fails when a resolved package is missing from the list` |
+| The denylist check fails on a fixture `Package.resolved` that contains Sentry. | `denylist check fails on a Package.resolved that contains Sentry` (real sentry-cocoa 8.40.1 revision from `git ls-remote`) |
+
+Test helpers have their own tests: `parse reads a hex cell and an rgba cell`, `parse rejects a malformed color cell`, `parse rejects a log with no Color section`, `parse reads the file and SHA-256 cells of each table row`, `parse rejects a SHA-256 cell that is not 64 hex digits`, `parse rejects a file recorded twice`, `hits labels each hit with its file path`, `hits throws for a folder with no Swift file`.
+
+**Mutations.** Each mutation changes one clause. A scratch runner (not committed) applied each mutation, ran the named check, and restored the tree.
+
+| Mutation | Red |
+|---|---|
+| `pane.dark` red 0x16 → 0x17; `pill.dark` alpha .05 → .06; `line2.light` blue 0xC7 → 0xC8 | `each DesignColors token equals its Design dark and light values` |
+| `line2` dropped from the test token list; a new row added to the Design table | `every Design table token has a DesignColors constant` |
+| one byte appended to the bundled `IBMPlexSans-Regular.ttf`; to `design/fonts/IBMPlexMono-Medium.ttf` | `each font file matches its recorded SHA-256` |
+| extra file in the bundled Fonts folder; a bundled font deleted; a README row removed | `each font folder holds exactly the recorded files` |
+| README SHA-256 changed by one digit | `each font file matches its recorded SHA-256` |
+| `FontRecord` duplicate check removed; hex check removed | `parse rejects a file recorded twice`; `parse rejects a SHA-256 cell that is not 64 hex digits` |
+| color parser: rgba part count check removed; hex length check removed | `parse rejects a malformed color cell` |
+| color parser: stop at the next heading removed | `parse reads a hex cell and an rgba cell` |
+| `import AppKit` in `DesignColors.swift`; `#if os(iOS) import UIKit`; `import SwiftUI` in a subfolder | `no MarkdownCore source imports a UI framework` |
+| `import AppKit`; `#if os(macOS) import Cocoa`; `#if os(macOS) import WebKit` | `check-core-modules.sh`: `MarkdownCore loads a UI framework on macos` |
+| `#if os(iOS) import UIKit` | `check-core-modules.sh`: `... on ios` |
+| `FileManager` in MarkdownViews; `URLSession` in MarkdownCore; `Data(contentsOf:)` in MarkdownViews | `library sources use no file or network API` |
+| `append(` exclusion removed; `insert(` exclusion removed; `&` exclusion of `write(to:` removed; word boundary on the API names removed | `ioUses ignores code that does no I/O` |
+| `hits` empty-folder throw removed | `hits throws for a folder with no Swift file` |
+| repo `Package.resolved` with an unacknowledged swift-markdown pin | `repo Acknowledgements list names every package in Package.resolved` (the same pin with an entry stays green) |
+| `.package(` in `Package.swift` with no `Package.resolved` | `repo Acknowledgements list names every package in Package.resolved` |
+| `missingAcknowledgements` filter replaced | `acknowledgements check fails when a resolved package is missing from the list` |
+| repo `Package.resolved` with sentry-cocoa; `Package.swift` with a Sentry binary target | `repo manifest files link no denylisted package` |
+| denylist match made case-sensitive | `denylist check fails on a Package.resolved that contains Sentry`, `denylist check finds each listed vendor in a dependency URL` |
+| `Sentry` removed from the denylist | `denylist check fails on a Package.resolved that contains Sentry` |
+| untested public function in MarkdownCore | coverage gate: `1 uncovered function(s)` |
+| covered function with an unmarked uncovered line | coverage gate: the line is listed |
+| the same line marked `// coverage:ignore` with no reason | coverage gate fails; with `- <reason>` it passes |
+| MarkdownCore file with only a protocol | coverage gate: `not in the coverage report` |
+| unused `let` in MarkdownCore | `swift build`: `error: initialization of immutable value 'unused' was never used` |
+| `import AppKit` in MarkdownViews | `just ios-build`: `Unable to resolve module dependency: 'AppKit'` |
+
+Two mutants first went red for the wrong reason, so they were run again as valid code. `import AppKit` broke the iOS build before the trace was read. The script now checks each trace right after its build. A global `let` of `FileManager` failed on a concurrency error; a function form replaced it. The word boundaries before `contentsOf:` and `write(to:` survived their mutants, so they were removed. Without them the rules are stricter.
+
+Repo-file mutants ran against the built bundle with `xcrun xctest`. `swift build` and `swift test --skip-build` re-resolve packages: a stale `Package.resolved` was deleted (`ls Package.resolved` after `swift build`: no such file).
+
+**Probes past the plan.**
+
+- `scripts/check-coverage.py` with no argument: usage, exit 2. With a missing file, a non-JSON file, or `{}`: `error: cannot read coverage report ...`, exit 1.
+- A non-UTF-8 `Package.resolved` fails `repo Acknowledgements list names every package in Package.resolved` and `repo manifest files link no denylisted package`. It is not treated as missing.
+- Import forms `@_spi(Internal) import AppKit` and a tab-separated `import\tSwiftUI` were missed at first. Both are now test cases and are found.
+
+**Simplify pass.**
+
+1. The test-only `Row` type was replaced by `ColorToken`: about 5 lines.
+2. The four font tests became two parametrized tests over both copies, and the SHA test has no loop: about 14 lines.
+3. The two source scans share `SourceGuard.hits`: about 8 lines.
+4. The unused `import MarkdownCore` in MarkdownViews was removed: 1 line.
+5. Not shrunk: `FontFilesTests` repeats the three-line repo-root lookup from `RepoPath`, because the two test targets cannot share a file without a shared test-support target.
+
+**Not verified here.** The CI workflow has not run. It runs when the stage pull request opens.
+

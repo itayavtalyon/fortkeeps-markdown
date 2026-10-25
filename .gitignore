@@ -1,0 +1,25 @@
+# SwiftPM
+.build/
+.swiftpm/
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+.build-xcode/
+xcuserdata/
+*.xcuserstate
+
+# Tooling / OS
+.DS_Store
+*.log
+
+# iCloud Drive duplicate copies ("Foo 2.swift") compile as a second type.
+* [0-9].swift
+* [0-9][0-9].swift
+* [0-9].md
+* [0-9][0-9].md
+
+# Review handoff marker
+.claude/REVIEW_REQUEST
+.claude/settings.local.json

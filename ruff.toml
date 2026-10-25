@@ -1,0 +1,6 @@
+line-length = 120
+
+[lint]
+select = ["ALL"]
+# D203/D213 conflict with D211/D212; COM812 conflicts with the formatter.
+ignore = ["D203", "D213", "COM812"]

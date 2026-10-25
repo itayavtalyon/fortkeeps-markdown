@@ -1,0 +1,14 @@
+# SwiftFormat owns formatting; run `swiftformat .` to fix, `--lint` to check.
+--swiftversion 6.2
+
+# Explicit opinions (rest are SwiftFormat defaults).
+--self remove                 # drop redundant self.
+--importgrouping alpha        # sort imports
+--commas inline               # no trailing commas in single-line collections
+--trailingclosures            # use trailing closure syntax where unambiguous
+--wraparguments before-first  # multiline args wrap consistently
+--wrapparameters before-first
+--wrapcollections before-first
+--maxwidth 120
+
+--exclude .build

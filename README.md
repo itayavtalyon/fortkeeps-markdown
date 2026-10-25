@@ -7,3 +7,5 @@ The design lives in `design-logs/`, and the build plans live in `implementation-
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+"Fortkeeps" and the app icon are trademarks of the project owner.

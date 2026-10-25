@@ -27,7 +27,7 @@ Test that policy in the plan 01 test target.
 
 ## Design tasks (Interface)
 
-- WAIT-4: design the `FK Scroll` app icon in the Fortkeeps theme, for macOS and iOS, at every required size. Deliver it to `design/icon/`. Plan 02 stage 2d step 1 uses it.
+- WAIT-4: design the `FK Scroll` app icon in the Fortkeeps theme, for macOS and iOS, at every required size. Resolved: delivered to `design/icon/`. Plan 02 stage 2d step 1 uses it.
 
 ## Stages
 

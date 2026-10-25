@@ -1,6 +1,6 @@
 # 01 — Library
 
-**Design:** [`design-logs/001-markdown-library.md`](../design-logs/001-markdown-library.md) revision 3: Product, Host interface, View settings, Modes, Features, Parse, Document model, Rendering, Tasks, Direction, Editor, Format commands, Undo, Paste, the pure image rules, HTML, the pure link rules, Accessibility, Color, and Fonts.
+**Design:** [`design-logs/001-markdown-library.md`](../design-logs/001-markdown-library.md) revision 4: Product, Host interface, View settings, Modes, Features, Parse, Document model, Rendering, Tasks, Direction, Editor, Format commands, Undo, Paste, the pure image rules, HTML, the pure link rules, Accessibility, Color, and Fonts.
 **Next:** [02-apps.md](02-apps.md).
 
 ## Goal
@@ -31,7 +31,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 | Stage | Name | Status | Blocked by |
 |---|---|---|---|
 | 1a | Package, license, fonts, colors, CI guards | In review | — |
-| 1b | Parser, features, presentation | Not started | — |
+| 1b | Parser, features, presentation | In review | — |
 | 1c | Document model, anchor, copy text | Not started | — |
 | 1d | Styler, edits, format commands, undo, byte limit | Not started | WAIT-2 (steps 5–6 only) |
 | 1e | Paste, image and link classifiers, line diff, HTML policy | Not started | WAIT-1 (step 8 only) |
@@ -70,11 +70,12 @@ Must-pass tests:
 1. Add `MarkdownFeatures` with the seven fields and the defaults.
 2. Add the Fortkeeps value as a named constant.
 3. Add `MarkdownPresentation` with `titleLine` and `imageFallback`.
-4. Add `swift-markdown` at the newest release tag on the day this stage starts.
+4. Add swift-cmark from the fork and tag that Design › Product names. (Revision 3 named `swift-markdown` at the newest release tag. Round 8 replaced it.)
 5. Record that tag in Implementation Notes.
 6. Commit `Package.resolved`.
-7. Parse with the extensions that the true fields name.
+7. Parse with cmark-gfm, and attach the extensions that the true fields name.
 8. Apply the GFM tag filter only when `html` is true.
+9. When `html` is false, make each inline HTML node text, and parse each HTML block again as Design › Parse states.
 
 Must-pass tests:
 
@@ -84,8 +85,8 @@ Must-pass tests:
 - Each false field leaves its construct as text.
 - A leading `---` stays a thematic break.
 - The disallowed tag names appear as text when `html` is true.
-- The GFM spec tests pass with the defaults.
-- Log 010 cases 01–30 pass with the Fortkeeps value and `titleLine .hidden`.
+- The GFM spec 0.29 tests pass with the defaults, as Verification 4 states.
+- The parse tree of each log 010 case 01–30 matches its `.html` with the Fortkeeps value.
 
 ### 1c — Document model, anchor, copy text
 
@@ -97,6 +98,8 @@ Must-pass tests:
 6. Build the map from a source offset to a rendered position and back.
 7. Snap a selection on hidden syntax to the nearest content character.
 8. Treat a soft break as a space or as a line break by `softBreakAsLine`.
+9. Map the source positions of the nodes of a re-parsed HTML block (1b step 9) back to the document. Those nodes carry positions relative to the block.
+10. Build the log 010 `.expect.json` fields: title, tasks, block directions, and the card fields (variant, factSize, summary, statusFields, link, visibleLength), by Design › Fortkeeps later.
 
 Must-pass tests:
 
@@ -108,6 +111,8 @@ Must-pass tests:
 - A source-to-rendered-to-source round trip keeps each offset that is not on hidden syntax.
 - An anchor encodes and decodes to the same value.
 - With `.hidden`, a tick on line 5 flips the correct byte.
+- Every `.expect.json` field of log 010 cases 01–30 matches with the Fortkeeps value and `titleLine .hidden`, and each case passes the toggle test.
+- An offset inside a re-parsed HTML block maps to the correct document byte.
 
 ### 1d — Styler, edits, format commands, undo, byte limit
 
@@ -310,3 +315,102 @@ Repo-file mutants ran against the built bundle with `xcrun xctest`. `swift build
 
 **Not verified here.** The CI workflow has not run. It runs when the stage pull request opens.
 
+
+### 1b — Parser, features, presentation
+
+Branch `stage/1b-parser`, stacked on `stage/1a-package` (Itay said to keep implementing before the 1a pull request merged). Toolchain as 1a. Machine: Apple M1 Max.
+
+**Decisions (Itay, 2026-10-25).** Remember keys `decision:fortkeeps-markdown-parser-2026-10-25` and `decision:fortkeeps-markdown-cmark-fork-2026-10-25`. Design log 001 revision 4 records them (Round 8).
+
+- swift-markdown 0.9.0 cannot follow the feature fields. `CommonMarkConverter.parseString` always attaches `table`, `strikethrough`, and `tasklist`, never attaches `autolink` or `tagfilter`, and turns on smart punctuation unless told not to. Itay chose cmark-gfm directly. swift-markdown is dropped.
+- cmark-gfm's tasklist extension has two bugs: `- [ ] buy [x] item` is checked (`strstr` over the line), and a task inside a block quote is never found (the scanner runs from offset 0 of the raw line). Both are unchanged in github/cmark-gfm since 2019. Itay chose a fork: `github.com/itayavtalyon/swift-cmark`, branch `fix/tasklist-marker`, tag `0.9.0-fortkeeps.1` (commit a2f7fe6). **Pinned tag: `0.9.0-fortkeeps.1`** (step 5).
+- html false parses each HTML block again as full Markdown (Itay replaced "one paragraph, parsed inline"). Inline-only mode was tried first: it puts the whole input on line 1, so soft breaks never form (XML of `<div>\na\nb\n</div>` with `CMARK_OPT_INLINE_ONLY`: one text node `\na\nb\n`, all `sourcepos="1:..."`).
+- Log 010: Itay chose the tree check plus the card fields in MarkdownCore. **Agent call, for Itay to confirm in the PR:** the card fields, title, tasks, and directions go into 1c (steps 9–10), because the card fields need the title and the tasks. 1b checks the tree only.
+- **Agent call, for Itay to confirm in the PR:** the 10 GFM spec examples that conflict with a default extension are pinned to the extension output (Design Verification 4). Upstream runs those examples with no extensions; `MarkdownFeatures` cannot express "raw HTML without the tag filter".
+- Design correction: cmark-gfm is the GFM spec 0.29 (CommonMark 0.29). Revisions 1–3 said 0.31.2. Any cmark-gfm parser, swift-markdown included, has the same base.
+
+**Files.**
+
+| Step | Files |
+|---|---|
+| 1–3 | `Sources/MarkdownCore/MarkdownFeatures.swift` |
+| 4–6 | `Package.swift`, `Package.resolved`, `Acknowledgements/acknowledgements.json`, `Acknowledgements/swift-cmark.txt` (swift-cmark `COPYING`: BSD-2-Clause plus MIT notices) |
+| 7–9 | `Sources/MarkdownCore/ParsedMarkdown.swift` (internal; 1c builds the public model on it) |
+| tests | `MarkdownFeaturesTests`, `ParsedMarkdownTests`, `GFMSpecTests`, `Log010ConformanceTests`, `HTMLShape(Tests)` |
+| fixtures | `Tests/MarkdownCoreTests/Fixtures/gfm-spec/spec.txt` (swift-cmark 0.9.0 `test/spec.txt`, CC BY-SA 4.0, not shipped), `Fixtures/log010/` (remember-mac c673327 `design/markdown-conformance/cases`) |
+| fork | `itayavtalyon/swift-cmark`: `extensions/tasklist.c`, `test/regression.txt` (7 new examples) |
+
+`Package.swift` excludes `Fixtures` from the test target; the tests read the files from the checkout. Without the exclude, SwiftPM warns about 91 unhandled files.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| A new `MarkdownFeatures` matches the default column. | `a new MarkdownFeatures matches the Design default column` |
+| The Fortkeeps constant matches the Fortkeeps row. | `the Fortkeeps value matches the Design Fortkeeps row` |
+| Defaults render a table, a task, a strike, and an autolink. | `defaults render a table`, `... a task`, `... a strikethrough`, `... a bare URL as a link` |
+| Each false field leaves its construct as text. | `tables false ...`, `taskLists false ...`, `strikethrough false ...`, `autolink false leaves a bare URL as text`, `html false shows inline HTML as text`, `softBreakAsLine true ...` |
+| A leading `---` stays a thematic break. | `a leading thematic break line stays a thematic break` |
+| The disallowed tag names appear as text when `html` is true. | `defaults show a disallowed tag as text` (all nine names), `defaults keep an allowed tag next to a disallowed one` |
+| The GFM spec tests pass with the defaults. | `each GFM spec example renders its HTML with the defaults` (660), `a CommonMark HTML block example shows its disallowed tag as text with the defaults` (5), `a CommonMark example links its bare URL with the defaults` (5), `the spec fixture holds every example` (670 + 2 disabled) |
+| Log 010 cases 01–30 (tree). | `each log 010 case parses to the reference tree with the Fortkeeps value` (30), `the fixture holds cases 01 to 30` |
+
+The tag-filter expectations come from the spec's own HTML with the filter rule applied in the test. The autolink expectations were written by hand from the GFM autolink rules before the run (616 included). Example 610 differs from the spec text: cmark-gfm `url_match` has no preceding-character check, while `www_match` has one (autolink.c line 180).
+
+Log 010 tree check: `HTMLShape` compares element names, `href`, `checked`, and text with entities decoded and whitespace collapsed (the case README: compare structure, not attributes). `img` becomes the `Image: {alt}` link of `imageFallback .link`. Before the fork and the HTML-block re-parse, cases 12 and 21 failed; both pass now.
+
+**Fork verification.** `ctest` in the fork: 9 of 9 suites pass (spec, extensions, regression, smart punctuation, round trip, API). A differential run of unfixed 0.9.0 against the fix over all 748 examples of `spec.txt`, `extensions.txt`, `regression.txt`, and `smart_punct.txt` with every extension: only the 3 new regression examples differ. A second differential over 25 task edge forms (padding, tabs, `[]`, `[ ]x`, a marker on a later line, a marker at line end): no difference outside the fixed cases. Two behaviours of the first fix draft differed there (`- [ ]` at line end became a task, and a marker on the item's second line became a task); the final fix keeps the original scanner's spacechar class (space, tab, VT, FF) and requires the marker on the line that opens the item.
+
+**Mutations (Swift).** One clause each; the tree restored after each.
+
+| Mutation | Red |
+|---|---|
+| default `strikethrough` false | `a new MarkdownFeatures matches the Design default column`, `defaults render a strikethrough` |
+| Fortkeeps keeps `html` on | `the Fortkeeps value matches the Design Fortkeeps row` |
+| presentation default `.hidden`; `.link` | `a new MarkdownPresentation shows the title line in the body and images as text` |
+| `table` follows `taskLists`; `strikethrough` follows `autolink`; `autolink` follows `strikethrough`; `tasklist` follows `tables` | the matching `... false ...` test |
+| `tagfilter` never | `defaults show a disallowed tag as text`, `defaults keep an allowed tag next to a disallowed one` |
+| `UNSAFE` never | `defaults keep raw HTML` and both tag-filter tests |
+| `HARDBREAKS` never | `softBreakAsLine true ...`, `html false gives a former HTML block line breaks with softBreakAsLine` |
+| html-false pass never runs | 6 `html false ...` tests |
+| inline HTML not made text | `html false shows inline HTML as text`, `html false shows a disallowed tag as text` |
+| every line with `<` neutralized (probe skipped) | `html false keeps an autolink that starts a line of a former HTML block` |
+| only the first line neutralized | `html false converts every HTML block` and 5 more |
+| only the first HTML block converted | `html false converts every HTML block` |
+| sentinel ignores the literal | `html false keeps a control character that was already in an HTML block` |
+| backslash fallback empty | `html false neutralizes an HTML block whose text holds every spare control character` |
+| tab allowed as a sentinel | `html false never uses a tab as the stand-in for a bracket` |
+| restore never runs; skips text; skips code | 6 tests; 6 tests; `html false restores a neutralized bracket inside a code span` |
+| former block kept in the tree | 6 tests |
+| pre-check allows no indent | traps on `precondition(startsWithBracket)` with `html false turns a three-space-indented HTML block into a paragraph` (before the opener rule, this mutant recursed forever; that showed the need for the rule) |
+| `nodes()` ignores the type filter | traps on the `literal(of:)` unwrap (a container node has no literal) |
+
+Equivalent mutants, kept on purpose: the opener sent through the probe (an opener alone always opens an HTML block; the opener rule makes termination independent of the probe), and a looser indent pre-check (the probe still decides; the pre-check only skips probes). Timing evidence for the pre-check: 4.66 s before and 3.59 s after (debug build, 4.7 MB of HTML blocks); the probe without extensions brought it to 0.85 s in release.
+
+**Mutations (C, fork).** Each mutant recompiled with the object file, the extension archive, and the binary deleted first. An earlier batch kept a stale binary because make compares times by the second; its results were discarded.
+
+| Mutation | Red regression example |
+|---|---|
+| start-line check removed | marker on a later line (32) |
+| line end allowed after the marker | `- [ ]` at line end (31) |
+| checked from `strstr` over the line | `- [ ] buy [x] item` (27) |
+| marker searched at column 2 | block quote (28), nested quote (29) |
+| `X` not accepted | nested quote `[X]` (29) |
+| `]` check removed; `[` check removed; any middle character | near-miss markers (33) |
+
+Equivalent: `marker + 3 >= len` against `> len` (the line buffer ends with NUL, which is not a task space; `>=` kept so nothing reads past `len`), and advancing 3 from the offset (at that point the offset equals the first non-space position for every form tried, tabs included; the explicit `marker - offset + 3` stays correct if it ever does not).
+
+**Probes past the plan.** Empty text, a lone BOM, a BOM before a heading, CRLF inside an HTML block, a NUL byte (becomes U+FFFD), trailing double spaces in an HTML block (hard breaks, as CommonMark), 200 nested quotes and 200 nested lists around an HTML block: no crash, output as CommonMark gives. `cmark_gfm_core_extensions_ensure_registered` is guarded by `CMARK_RUN_ONCE`, so a parse may run on any thread.
+
+**Coverage.** `preconditionFailure(message)` and `precondition(_, message)` create autoclosures that count as uncovered functions (Remember `lesson:swift-coverage-autoclosure`). The NULL-on-malloc guards are force unwraps with a per-line SwiftLint disable and a reason. The one `precondition` has no message.
+
+**Simplify pass.**
+
+1. The inline-only init and its helpers were removed by the full re-parse: about 10 lines.
+2. The two iterator loops became one `nodes(in:ofType:)`: about 12 lines.
+3. `HTMLShape.attribute` uses a Foundation regex range instead of a force-tried `Regex`, and the entity decoder has one numeric branch: about 6 lines.
+4. Not shrunk: the extension table in `makeParser`; a dictionary is the same size and loses the order.
+
+**For 1c.** Nodes of a re-parsed HTML block carry positions relative to the block (step 9). The sentinel keeps byte lengths, so the mapping is the block's start line plus the per-line container prefix.
+
+**Not verified here.** CI has not run; nothing is pushed in this repo. The upstream pull requests are drafted, not opened.

@@ -1,0 +1,15 @@
+{
+  "originHash" : "3724be6e471a8a0c8f2ccea7a9cf1a1529385b9c36adf6dd41c375fc901c1878",
+  "pins" : [
+    {
+      "identity" : "swift-cmark",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/itayavtalyon/swift-cmark.git",
+      "state" : {
+        "revision" : "a2f7fe60799f680d338eaed38a317eb60168f011",
+        "version" : "0.9.0-fortkeeps.1"
+      }
+    }
+  ],
+  "version" : 3
+}

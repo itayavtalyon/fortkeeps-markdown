@@ -1,0 +1,32 @@
+{
+  "title": null,
+  "variant": "status",
+  "factSize": null,
+  "visibleLength": 199,
+  "link": null,
+  "summary": null,
+  "tasks": [],
+  "statusFields": [
+    "PATH",
+    "BRANCH",
+    "UPDATED",
+    "NEXT"
+  ],
+  "blocks": [
+    {
+      "type": "paragraph",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "paragraph",
+      "line": 2,
+      "dir": "ltr"
+    },
+    {
+      "type": "paragraph",
+      "line": 7,
+      "dir": "ltr"
+    }
+  ]
+}

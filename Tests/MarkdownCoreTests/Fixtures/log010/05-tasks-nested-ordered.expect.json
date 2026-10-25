@@ -1,0 +1,84 @@
+{
+  "title": "Move checklist",
+  "variant": "doc",
+  "factSize": null,
+  "visibleLength": 174,
+  "link": null,
+  "summary": {
+    "items": 6,
+    "done": 3,
+    "sections": 0
+  },
+  "tasks": [
+    {
+      "index": 0,
+      "line": 2,
+      "byteOffset": 22,
+      "checked": false,
+      "text": "Book the van"
+    },
+    {
+      "index": 1,
+      "line": 3,
+      "byteOffset": 42,
+      "checked": true,
+      "text": "Pack books"
+    },
+    {
+      "index": 2,
+      "line": 4,
+      "byteOffset": 62,
+      "checked": false,
+      "text": "Fiction"
+    },
+    {
+      "index": 3,
+      "line": 5,
+      "byteOffset": 79,
+      "checked": true,
+      "text": "Reference"
+    },
+    {
+      "index": 4,
+      "line": 8,
+      "byteOffset": 115,
+      "checked": false,
+      "text": "Star bullet task"
+    },
+    {
+      "index": 5,
+      "line": 9,
+      "byteOffset": 138,
+      "checked": true,
+      "text": "Plus bullet task"
+    }
+  ],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "h1",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "ordered_list",
+      "line": 2,
+      "dir": "ltr"
+    },
+    {
+      "type": "bullet_list",
+      "line": 8,
+      "dir": "ltr"
+    },
+    {
+      "type": "bullet_list",
+      "line": 9,
+      "dir": "ltr"
+    },
+    {
+      "type": "bullet_list",
+      "line": 10,
+      "dir": "ltr"
+    }
+  ]
+}

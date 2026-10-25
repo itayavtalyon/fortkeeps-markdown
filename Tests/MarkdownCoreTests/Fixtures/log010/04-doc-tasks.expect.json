@@ -1,0 +1,96 @@
+{
+  "title": "Into the Breach run",
+  "variant": "doc",
+  "factSize": null,
+  "visibleLength": 178,
+  "link": null,
+  "summary": {
+    "items": 7,
+    "done": 2,
+    "sections": 2
+  },
+  "tasks": [
+    {
+      "index": 0,
+      "line": 6,
+      "byteOffset": 71,
+      "checked": true,
+      "text": "Update the Deck"
+    },
+    {
+      "index": 1,
+      "line": 7,
+      "byteOffset": 93,
+      "checked": false,
+      "text": "Download Into the Breach"
+    },
+    {
+      "index": 2,
+      "line": 8,
+      "byteOffset": 124,
+      "checked": true,
+      "text": "Charge the controller"
+    },
+    {
+      "index": 3,
+      "line": 9,
+      "byteOffset": 152,
+      "checked": false,
+      "text": "Clear 20 GB"
+    },
+    {
+      "index": 4,
+      "line": 10,
+      "byteOffset": 170,
+      "checked": false,
+      "text": "Pick a squad"
+    },
+    {
+      "index": 5,
+      "line": 14,
+      "byteOffset": 200,
+      "checked": false,
+      "text": "Write up the run"
+    },
+    {
+      "index": 6,
+      "line": 15,
+      "byteOffset": 223,
+      "checked": false,
+      "text": "Rate it"
+    }
+  ],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "h1",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "paragraph",
+      "line": 2,
+      "dir": "ltr"
+    },
+    {
+      "type": "h2",
+      "line": 4,
+      "dir": "ltr"
+    },
+    {
+      "type": "bullet_list",
+      "line": 6,
+      "dir": "ltr"
+    },
+    {
+      "type": "h2",
+      "line": 12,
+      "dir": "ltr"
+    },
+    {
+      "type": "bullet_list",
+      "line": 14,
+      "dir": "ltr"
+    }
+  ]
+}

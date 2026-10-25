@@ -1,6 +1,6 @@
 # 001 - Fortkeeps Scroll and the FortkeepsMarkdown library
 
-Revision 3, 2026-10-25. Chief Architect wrote this revision on the box from Itay's decisions. Status: Design.
+Revision 4, 2026-10-25. The plan 01 implementer wrote this revision from Itay's stage 1b decisions (Round 8). Revision 3 was written by the Chief Architect. Status: Design.
 Rule source: the design-log-grill snapshot (2026-10-13). The Mac was offline, so the live rules were not read.
 Items that wait on someone other than the implementer carry the tag **WAIT-n**. They are listed in Known Limitations › Waiting items, with the stage each blocks. No other implementer choice is open.
 
@@ -244,6 +244,21 @@ Rounds 1–4 above stay as written. The answers in this round replace earlier an
 - **Q: Fortkeeps card heading sizes, and name clearance?**
   A: Card heading sizes go to the Fortkeeps adoption log. Name clearance happens when the name is final.
 
+### Round 8 (2026-10-25: Itay, plan 01 stage 1b)
+
+- **Q: swift-markdown 0.9.0 always attaches the table, strikethrough, and tasklist extensions, never attaches autolink or tagfilter, and has no option to change that. Which parser does MarkdownCore use?**
+  A: cmark-gfm directly, from the swift-cmark package. MarkdownCore attaches exactly the extensions that the true fields name. swift-markdown is dropped.
+- **Q: With html false, log 010 case 12 expects an HTML block to be a paragraph. cmark always builds the HTML block. What does html false do to an HTML block?**
+  A: Re-parse it. A later answer in this round replaces "one paragraph, parsed inline" with a full Markdown re-parse.
+- **Q: What does "log 010 cases 01–30 pass" check?**
+  A: The parse tree against each `.html`, and the `.expect.json` fields, including the Fortkeeps card fields (variant, factSize, summary, statusFields, link, visibleLength), in MarkdownCore.
+- **Q: Where does the parser change go?**
+  A: Revision 4 of this log.
+- **Q: cmark-gfm's tasklist extension marks `- [ ] buy [x] item` as checked, and never finds a task inside a block quote. What does the library do?**
+  A: Fork swift-cmark, fix the bugs, use the fork, and send the fix upstream to swiftlang/swift-cmark and github/cmark-gfm. The implementer drafts each pull request. Itay approves it before it opens.
+- **Q: The inline-only re-parse of an HTML block puts every line on line 1, so soft breaks never form. Use a full re-parse?**
+  A: Yes. A heading or list line inside such a block becomes a heading or a list, as in markdown-it.
+
 ## Design
 
 ### Product
@@ -270,7 +285,7 @@ Android is post-v1. A future design log covers the Android library and app.
 
 The license of the package and of the app targets is MIT.
 The app has an Acknowledgements screen.
-That screen lists every shipped dependency with its license name and its full license text: IBM Plex (SIL OFL 1.1), swift-markdown (Apache-2.0), swift-cmark (BSD-2-Clause), and every other package in `Package.resolved`.
+That screen lists every shipped dependency with its license name and its full license text: IBM Plex (SIL OFL 1.1), swift-cmark (BSD-2-Clause), and every other package in `Package.resolved`.
 A CI test fails when a resolved dependency is missing from that list.
 A CI test fails when `Package.resolved` or a target links a package on the analytics denylist.
 The denylist is: Firebase, Sentry, Amplitude, Mixpanel, Segment, AppCenter, Bugsnag, Crashlytics.
@@ -280,7 +295,8 @@ The README states that "Fortkeeps" and the app icon are trademarks of the projec
 The library follows SemVer.
 A breaking change to the public API needs a new major version and a new design log.
 `Package.resolved` is committed.
-The `swift-markdown` tag is pinned in plan 01 stage 1b. The implementer records it in Implementation Notes before 1b is done. The tag does not change after that without a new log.
+The swift-cmark tag is pinned in plan 01 stage 1b. The implementer records it in Implementation Notes before 1b is done. The tag does not change after that without a new log revision.
+Until swiftlang/swift-cmark ships the tasklist fix, the package is the fork `github.com/itayavtalyon/swift-cmark` at tag `0.9.0-fortkeeps.1`. That tag is swift-cmark 0.9.0 plus the fix. When upstream ships the fix, the package returns to swiftlang/swift-cmark.
 
 ### Host interface
 
@@ -371,7 +387,7 @@ Fortkeeps Scroll stores the anchor and the Lock state for each file path, for re
 |---|---|---|
 | strikethrough | true | False: `~~` stays literal text. |
 | autolink | true | False: a bare URL stays literal text. |
-| html | true | False: raw HTML shows as text. True: see HTML (WAIT-1). |
+| html | true | False: raw HTML shows as text, and an HTML block is parsed again as Markdown (see Parse). True: see HTML (WAIT-1). |
 | tables | true | False: a pipe table stays CommonMark paragraphs. |
 | taskLists | true | False: a task item is a plain list item. |
 | pasteHtml | true | False: paste inserts plain text. True: paste converts HTML. |
@@ -386,13 +402,17 @@ No other feature field exists.
 
 ### Parse
 
-The parser is `swift-markdown`, pinned as in Product.
-The parser is CommonMark 0.31.2 plus the GFM extensions that the feature fields turn on.
+The parser is cmark-gfm from the swift-cmark package, pinned as in Product.
+MarkdownCore calls cmark-gfm directly.
+The parser is the GFM spec 0.29, which is CommonMark 0.29 plus the GFM extensions that the feature fields turn on. cmark-gfm does not implement CommonMark 0.31.2. Revisions 1–3 named 0.31.2 in error.
 The table extension follows `tables`.
 The task-list extension follows `taskLists`.
 The strikethrough extension follows `strikethrough`.
 The autolink extension follows `autolink`.
 `html` true applies the GFM tag filter.
+`html` false makes each inline HTML node text.
+`html` false parses each HTML block again as Markdown. Before that parse, each line of the block that would open an HTML block has its `<` replaced by a control character of the same byte length. The `<` is restored in the text after the parse. The first line of the block is always replaced. This matches markdown-it with `html: false`, which never builds an HTML block.
+A task list item marker is found inside any container. The checked state comes from the item's own marker.
 The tag filter shows these tags as text: `title`, `textarea`, `style`, `xmp`, `iframe`, `noembed`, `noframes`, `script`, `plaintext`.
 Front matter, footnotes, math, highlight, and wiki links stay literal.
 A line of `---` is a CommonMark thematic break, not a metadata block.
@@ -801,6 +821,8 @@ This library is the Markdown source for Fortkeeps plan 18 stages 18e and 18f.
 Log 010 stays as written until that work starts.
 Fortkeeps consumes the package by SemVer tag after roadmap V1-42 (WAIT-5).
 The library passes log 010 conformance cases 01–30 with the Fortkeeps value before 18e starts.
+That check covers the parse tree against each `.html` and every `.expect.json` field.
+MarkdownCore computes the Fortkeeps card fields of log 010: variant, factSize, summary, statusFields, link, and visibleLength. Their rules are log 010 and its reference generator `design/markdown-conformance/tools/generate.py`. Where the two disagree, the implementer reports it and does not choose.
 Until the Android design log exists, log 010 stays the Fortkeeps Android reference.
 The adoption edit to log 010 records these overrides:
 - MD-43: a tick saves immediately.
@@ -856,7 +878,7 @@ The same text in Fortkeeps in `.rendered` mode with `titleLine .hidden` hides `T
 1. Each `MarkdownFeatures` default matches the table. The Fortkeeps value matches.
 2. With the defaults, a conformance file renders strikethrough, an autolink, a table, and a task. The disallowed tags appear as text.
 3. With html, strikethrough, and autolink false, those constructs appear as source characters. `softBreakAsLine` true gives a line break, and false gives a space.
-4. The GFM spec tests pass with the defaults. Log 010 cases 01–30 pass with the Fortkeeps value.
+4. The GFM spec 0.29 tests pass with the defaults. Ten CommonMark examples conflict with an extension that the defaults turn on: 140, 141, 142, 145, and 147 (tag filter), and 610, 614, 616, 619, and 620 (autolink). Each of those matches the extension output. Log 010 cases 01–30 pass with the Fortkeeps value.
 5. A mode switch from editor to rendered to editor keeps the caret offset and the first visible line within one line. Undo after the round trip restores the edit.
 6. A task click changes one byte and reports `checkbox`. Undo restores the byte and saves at once.
 7. Each format command toggles. Return continues a list and ends an empty item.
@@ -878,6 +900,9 @@ The same text in Fortkeeps in `.rendered` mode with `titleLine .hidden` hides `T
 A public host name that resolves to a private address is not refused.
 A single paragraph larger than 64 KiB is outside the 8 ms budget.
 A folder bookmark gives read access to the whole folder.
+cmark-gfm links `http://` text that follows `<` (GFM spec example 610). The spec text allows an extended autolink only after a line start, whitespace, `*`, `_`, `~`, or `(`. cmark-gfm checks that only for `www.`.
+The parser follows CommonMark 0.29, not 0.31.2. The differences (for example, new HTML block tag names and Unicode punctuation in emphasis) follow 0.29.
+With `html` false, a 4.7 MB document of 100,000 HTML blocks parses in 0.85 s in a release build on an Apple M1 Max. A 64 KiB document of the same shape parses in 12 ms.
 
 ### Waiting items
 

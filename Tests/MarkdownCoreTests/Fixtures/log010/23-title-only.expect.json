@@ -1,0 +1,17 @@
+{
+  "title": "Just a title",
+  "variant": "doc",
+  "factSize": null,
+  "visibleLength": 12,
+  "link": null,
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "h1",
+      "line": 0,
+      "dir": "ltr"
+    }
+  ]
+}

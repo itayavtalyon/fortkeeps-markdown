@@ -1,0 +1,22 @@
+{
+  "title": null,
+  "variant": "savedLink",
+  "factSize": null,
+  "visibleLength": 54,
+  "link": {
+    "form": "capture",
+    "url": "https://www.sqlite.org/fts5.html",
+    "title": "SQLite FTS5 Extension",
+    "excerpt": "/fts5.html"
+  },
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "paragraph",
+      "line": 0,
+      "dir": "ltr"
+    }
+  ]
+}

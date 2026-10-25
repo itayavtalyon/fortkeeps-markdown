@@ -1,0 +1,32 @@
+{
+  "title": "Book recommendations",
+  "variant": "doc",
+  "factSize": null,
+  "visibleLength": 140,
+  "link": null,
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "h1",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "paragraph",
+      "line": 2,
+      "dir": "ltr"
+    },
+    {
+      "type": "h2",
+      "line": 4,
+      "dir": "ltr"
+    },
+    {
+      "type": "bullet_list",
+      "line": 6,
+      "dir": "ltr"
+    }
+  ]
+}

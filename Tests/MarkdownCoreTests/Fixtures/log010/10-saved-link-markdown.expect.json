@@ -1,0 +1,27 @@
+{
+  "title": null,
+  "variant": "savedLink",
+  "factSize": null,
+  "visibleLength": 57,
+  "link": {
+    "form": "leading",
+    "url": "https://sqlite.org/fts5.html",
+    "title": "SQLite FTS5 docs",
+    "excerpt": "Read the prefix-query section before E2."
+  },
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "paragraph",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "paragraph",
+      "line": 2,
+      "dir": "ltr"
+    }
+  ]
+}

@@ -167,6 +167,68 @@ struct MarkdownStylerTests {
         ])
     }
 
+    @Test
+    func `an empty link text dims the whole link`() {
+        #expect(Self.spans("[](https://e.com)") == ["syntax:[", "syntax:](https://e.com)"])
+    }
+
+    @Test
+    func `a padded code span styles its padding as code`() {
+        #expect(Self.spans("`` `a` ``") == ["syntax:``", "code: `a` ", "syntax:``"])
+    }
+
+    @Test
+    func `indented block markers are still recognized`() {
+        #expect(Self.spans("  > q") == ["syntax:> ", "quote:q"])
+        #expect(Self.spans("   # h") == ["syntax:# ", "heading(level: 1):h"])
+    }
+
+    @Test
+    func `a backtick in a fence's info string makes the line text`() {
+        #expect(!MarkdownStyler(features: MarkdownFeatures()).styleLine("``` a`b", entering: .init(), caret: nil)
+            .exiting.isInFence)
+    }
+
+    @Test
+    func `a delimiter row ignores trailing blanks`() {
+        #expect(Self.spans("|---|  ") == ["syntax:|---|"])
+    }
+
+    @Test
+    func `styleText passes the caret to its line`() {
+        let lines = MarkdownStyler(features: MarkdownFeatures()).styleText("a\n- [ ] b", caret: 4)
+
+        #expect(lines[1].spans.map(\.token) == [.syntax, .syntax])
+    }
+
+    @Test(arguments: ["~~~", "``` x"])
+    func `a line that is not a matching closing fence stays code`(line: String) {
+        let styler = MarkdownStyler(features: MarkdownFeatures())
+        let open = styler.styleLine("```", entering: .init(), caret: nil).exiting
+
+        #expect(styler.styleLine(line, entering: open, caret: nil).spans.map(\.token) == [.code])
+    }
+
+    @Test
+    func `an uppercase X marks a checked task`() {
+        #expect(Self.spans("- [X] a") == ["syntax:- ", "checkbox(checked: true):[X]"])
+    }
+
+    @Test(arguments: ["####### x", "#x", "---", "a | b"])
+    func `a line that only looks like block syntax has no span`(line: String) {
+        #expect(Self.spans(line).isEmpty)
+    }
+
+    @Test
+    func `an escaped pipe in a table row is text`() {
+        #expect(Self.spans(#"| a \| b |"#) == ["syntax:|", "syntax:|"])
+    }
+
+    @Test
+    func `a hash after a list marker is not a heading`() {
+        #expect(Self.spans("- # x") == ["syntax:- "])
+    }
+
     // MARK: neighborhood
 
     @Test

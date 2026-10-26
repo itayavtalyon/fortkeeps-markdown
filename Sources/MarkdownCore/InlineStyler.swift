@@ -101,22 +101,14 @@ struct InlineStyler {
             add(inner.upperBound ..< outer.upperBound, .syntax)
         }
 
-        /// cmark gives a code span's content; the backtick runs sit around it,
-        /// past any padding space.
+        /// cmark's range of a code span is everything between its backtick
+        /// runs, padding included.
         private mutating func code(_ node: Node) {
             let content = range(of: node)
             let count = Int(node.pointee.backtick_count)
-            var open = content.lowerBound
-            while open > 0, bytes[open - 1] != UInt8(ascii: "`") {
-                open -= 1
-            }
-            var close = content.upperBound
-            while close < bytes.count, bytes[close] != UInt8(ascii: "`") {
-                close += 1
-            }
-            add(max(0, open - count) ..< open, .syntax)
-            add(open ..< close, .code)
-            add(close ..< min(bytes.count, close + count), .syntax)
+            add(max(0, content.lowerBound - count) ..< content.lowerBound, .syntax)
+            add(content, .code)
+            add(content.upperBound ..< min(bytes.count, content.upperBound + count), .syntax)
         }
 
         /// `[text](url)`, `![alt](url)`, `<url>`, or a bare URL from the

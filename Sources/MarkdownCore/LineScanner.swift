@@ -38,19 +38,19 @@ struct LineScanner {
     }
 
     mutating func readQuotes() {
-        while true {
-            let marker = indented(from: position)
-            guard marker < units.count, units[marker] == UInt16(UInt8(ascii: ">")) else { return }
+        var marker = indented(from: position)
+        while marker < units.count, units[marker] == UInt16(UInt8(ascii: ">")) {
             let end = marker + 1 < units.count && units[marker + 1] == Self.space ? marker + 2 : marker + 1
             syntax(marker ..< end)
             position = end
             isQuote = true
+            marker = indented(from: position)
         }
     }
 
     /// A run of three or more backticks or tildes opens a fence. A backtick
     /// fence's info string holds no backtick.
-    mutating func readOpeningFence() -> MarkdownStyler.LineState.Fence? {
+    mutating func readOpeningFence() -> CodeFence? {
         let start = indented(from: position)
         guard let fence = fenceRun(at: start), fence.length >= 3 else { return nil }
         if fence.character == UInt16(UInt8(ascii: "`")), units[(start + fence.length)...].contains(fence.character) {
@@ -61,23 +61,21 @@ struct LineScanner {
         return fence
     }
 
-    private func fenceRun(at start: Int) -> MarkdownStyler.LineState.Fence? {
+    private func fenceRun(at start: Int) -> CodeFence? {
         guard start < units.count,
               [UInt16(UInt8(ascii: "`")), UInt16(UInt8(ascii: "~"))].contains(units[start]) else { return nil }
         var end = start
         while end < units.count, units[end] == units[start] {
             end += 1
         }
-        return MarkdownStyler.LineState.Fence(character: units[start], length: end - start)
+        return CodeFence(character: units[start], length: end - start)
     }
 
     /// Inside a fence the line is code, unless it closes the fence: a run of
     /// the same character at least as long, then only blanks.
-    mutating func finishInFence(_ fence: MarkdownStyler.LineState.Fence) -> MarkdownStyler.StyledLine {
+    mutating func finishInFence(_ fence: CodeFence) -> MarkdownStyler.StyledLine {
         let start = indented(from: position)
-        if let run = fenceRun(at: start), run.character == fence.character, run.length >= fence.length,
-           skippingBlanks(from: start + run.length) == units.count
-        {
+        if let run = fenceRun(at: start), run.closes(fence), skippingBlanks(from: start + run.length) == units.count {
             syntax(start ..< units.count)
             return finish(exiting: MarkdownStyler.LineState())
         }
@@ -106,9 +104,8 @@ struct LineScanner {
             return isBlank(start + 1) ? start + 1 : nil
         }
         var end = start
-        while end < units.count, end - start < 9,
-              (UInt16(UInt8(ascii: "0")) ... UInt16(UInt8(ascii: "9"))).contains(units[end])
-        {
+        let digits = UInt16(UInt8(ascii: "0")) ... UInt16(UInt8(ascii: "9"))
+        while end < units.count, end - start < 9, digits.contains(units[end]) {
             end += 1
         }
         guard end > start, end < units.count,

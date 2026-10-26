@@ -33,7 +33,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 | 1a | Package, license, fonts, colors, CI guards | In review | — |
 | 1b | Parser, features, presentation | In review | — |
 | 1c | Document model, anchor, copy text | In review | — |
-| 1d | Styler, edits, format commands, undo, byte limit | Not started | WAIT-2 (steps 5–6 only) |
+| 1d | Styler, edits, format commands, undo, byte limit | In review (steps 5–6 wait) | WAIT-2 (steps 5–6 only) |
 | 1e | Paste, image and link classifiers, line diff, HTML policy | Not started | WAIT-1 (step 8 only) |
 | 1f | Views, modes, host protocol, cards, accessibility | Not started | — |
 
@@ -473,4 +473,42 @@ Bugs found by tests and coverage while building, all fixed with a test: an entit
 **Simplify pass.** (1) The builder became a top-level type in three files, and leaf content follows from the leaf kind (one switch instead of a 13-branch one). (2) `appendLines` lost its suffix fast path (equivalent to the per-character aligner). (3) Two equivalent clauses in the aligner were removed. (4) Not shrunk: `FortkeepsCard` and `SavedLink` mirror `generate.py` line by line on purpose, so a reviewer can compare them.
 
 **For 1d.** The styler should reuse `DocumentBuilder.span` and the aligner rules where it needs source positions.
+
+### 1d — Styler, edits, format commands, undo, byte limit
+
+Branch `stage/1d-editor`, stacked on `stage/1c-model`. Steps 5–6 (format commands) wait on WAIT-2 and are not built; the Command-K and toggle must-pass tests wait with them.
+
+**Files.** `Sources/MarkdownCore/MarkdownStyler.swift` (public styler, tokens, line state, `styleText`, `neighborhood`, `CodeFence`), `LineScanner.swift` (block syntax of one line), `InlineStyler.swift` (inline spans from an inline-only cmark parse), `Editing.swift` (`TextEdit`, `ListContinuation`, `UndoGrouping`, `ByteLimit`). Tests: `MarkdownStylerTests`, `EditingTests`, `StylerTimingTests`. `Justfile`: `timing`.
+
+**Design of the styler.** It styles one line at a time (log 010 X-16). The only state a line hands to the next is an open code fence (`LineState`). Block syntax comes from line rules: quote markers, a fence, list markers, a task marker after a list marker, an ATX heading, a table delimiter row, and pipes of a row that starts with `|`. Inline syntax comes from cmark with `CMARK_OPT_INLINE_ONLY` over the line's content: a node's range minus its children's range is syntax. A single line keeps cmark's positions right, except the autolink extension's, so a bare URL is found by search. A block style (heading, quote, fence code) comes before the inline spans that start where it starts. Positions are UTF-16 offsets.
+
+**Implementer choices for the deep review.**
+
+- A heading's syntax span holds the `#` run and the blanks after it; a quote's holds `>` and one space; a list marker's holds the marker and its blanks.
+- A table row is a line whose content starts with `|`; a row without a leading pipe is not dimmed.
+- A setext heading and a closing `#` sequence are not styled; a thematic break is not dimmed (neither is in Design's syntax list).
+- An image's alt text is not styled; the image collapse to one dimmed line belongs to the view (1f).
+- The caret counts as inside a task marker from just before `[` to just after `]`.
+- A plain Return (no list) and a caret jump close the typing run. Return, a format command, paste, list continuation, a checkbox click, Replace All, Resolve Apply, and a committed IME composition are each their own group (`UndoGrouping.Decision.ownGroup`). A typed run ends when a run that ends in whitespace is followed by typing at least 1 s later.
+- List continuation writes one space after the marker, keeps the quote prefix and the indentation, increments an ordered number, and keeps `.` or `)`. Return on an item with only its marker removes the marker and inserts no newline.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| One token test for each syntax Design lists. | `a heading dims its hashes ...`, `strong dims each double asterisk`, `emphasis dims each asterisk and each underscore`, `a code span dims its backticks`, `a quote dims its marker ...`, `a list marker is dimmed` (5), `a link dims its brackets and destination ...`, `a table row dims its pipes`, `a table delimiter row is dimmed`, `a code fence line is dimmed and opens a fence`, `strikethrough dims its tildes when strikethrough is on`, `tildes are text when strikethrough is off` |
+| A plain paragraph returns no syntax token. | `a plain paragraph has no syntax token` |
+| The caret-inside-marker case returns the raw marker. | `the caret inside a task marker shows the raw marker` |
+| Return in `- [x] a` yields `- [ ] `. | `pressing Return in a task item continues with an unchecked task` |
+| Return on an empty item ends the list. | `pressing Return on an empty item ends the list` (3) |
+| "hello world" with a 1 s pause, then one undo, removes "world" only. | `hello world typed with a 1 s pause then one undo removes world only` |
+| A paste is one undo group. | `an edit of its own kind is one undo group and ends the typing run` (paste and 7 more) |
+| 70 KB into 60 KB with 65,536: at most 65,536 bytes, no split grapheme, one group. | `a 70 KB paste into 60 KB with a 65,536 limit keeps the longest whole-grapheme prefix`, `the cut never splits a grapheme`; the cut and the insertion are one `TextEdit`, so one group |
+| 8 ms budget (steps 10–11). | `just timing`: `timing: 65325 bytes, 1071 restyles, p95 0.000169958 seconds, chip Apple M1 Max`. The default run skips the suite (`.enabled(if: FORTKEEPS_TIMING == "1")`). |
+
+**Mutations.** 38 one-clause mutants over the scanner, the inline styler, the styler, and the editing helpers. The ten that first survived each got a test (fence of the other character, closing run with text, `[X]`, seven hashes, `#x`, `---`, escaped pipe, row without a leading pipe, heading after a list marker, a pause of exactly 1 s). One survivor was equivalent and removed: the empty-selection test on an empty item (the marker pattern takes every blank, so an empty item never has content to select). One mutant was malformed (`nil ?? x`) and was run again in a valid form; it is red.
+
+**Coverage.** Two `??` fallbacks that cannot run were restructured (an ordered number of at most nine digits is a justified force unwrap; the neighborhood line is a count of line feeds). The padding loops of a code span were dead code (cmark's code range already spans the padding) and were removed.
+
+**Simplify pass.** (1) The code-span syntax is three `add` calls over cmark's range (8 lines removed). (2) `readQuotes` is a conditional loop instead of `while true`. (3) The fence type moved out of `LineState` and owns its `closes` rule. (4) Not shrunk: the scanner's small readers stay separate, one per block construct, so each maps to one Design line.
 

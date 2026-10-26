@@ -30,10 +30,14 @@ public enum ListContinuation {
         guard selection.lowerBound >= contentStart else { return nil }
         let markerStart = lineStart + match.1.utf16.count + match.2.utf16.count
         let content = units[contentStart ..< lineEnd]
-        if selection.isEmpty, content.allSatisfy({ $0 == 0x20 || $0 == 0x09 }) {
+        if content.allSatisfy({ $0 == 0x20 || $0 == 0x09 }) {
             return TextEdit(range: markerStart ..< lineEnd, replacement: "", selection: markerStart ..< markerStart)
         }
-        let marker = match.4.flatMap { Int($0) }.map { "\($0 + 1)" + (match.5 ?? ".") } ?? String(match.3)
+        var marker = String(match.3)
+        if let number = match.4, let delimiter = match.5 {
+            // At most nine digits, so the number fits an Int.
+            marker = "\(Int(number)! + 1)\(delimiter)" // swiftlint:disable:this force_unwrapping
+        }
         let prefix = "\n" + match.1 + match.2 + marker + " " + (match.7 == nil ? "" : "[ ] ")
         let caret = selection.lowerBound + prefix.utf16.count
         return TextEdit(range: selection, replacement: prefix, selection: caret ..< caret)
@@ -82,7 +86,7 @@ public struct UndoGrouping: Sendable {
                 ? .continueGroup : .newGroup
             isOpen = true
             lastTime = time
-            endsInWhitespace = text.last?.isWhitespace ?? false
+            endsInWhitespace = text.last.map(\.isWhitespace) == true
             return decision
         case .caretJump:
             isOpen = false

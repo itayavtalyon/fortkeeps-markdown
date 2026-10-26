@@ -24,18 +24,13 @@ public struct MarkdownStyler: Sendable {
 
     /// What one line hands to the next: an open code fence.
     public struct LineState: Equatable, Sendable {
-        struct Fence: Equatable {
-            let character: UInt16
-            let length: Int
-        }
-
-        let fence: Fence?
+        let fence: CodeFence?
 
         public init() {
             fence = nil
         }
 
-        init(fence: Fence?) {
+        init(fence: CodeFence?) {
             self.fence = fence
         }
 
@@ -112,10 +107,21 @@ public struct MarkdownStyler: Sendable {
         for (index, unit) in text.utf16.enumerated() where unit == 0x0A {
             starts.append(index + 1)
         }
-        let line = starts.lastIndex { $0 <= offset } ?? 0
+        let line = text.utf16.prefix(offset).count { $0 == 0x0A }
         let first = max(0, line - 1)
         let last = min(starts.count - 1, line + 1)
         let end = last + 1 < starts.count ? starts[last + 1] - 1 : text.utf16.count
         return starts[first] ..< end
+    }
+}
+
+/// An open code fence: its character and the length of its run.
+struct CodeFence: Equatable {
+    let character: UInt16
+    let length: Int
+
+    /// A run closes the fence when it uses the same character and is at least as long.
+    func closes(_ fence: CodeFence) -> Bool {
+        character == fence.character && length >= fence.length
     }
 }

@@ -43,6 +43,10 @@ ios-build:
     fi
     echo "ok: package builds for iOS"
 
+# The 8 ms restyle budget (design log 001 › Editor): release build, Apple silicon.
+timing:
+    FORTKEEPS_TIMING=1 swift test -c release --build-path '{{spm_build}}-release' --filter StylerTimingTests 2>&1 | grep -E 'timing:|passed|failed|error'
+
 lint:
     swiftlint lint --strict --quiet
     shellcheck scripts/*.sh

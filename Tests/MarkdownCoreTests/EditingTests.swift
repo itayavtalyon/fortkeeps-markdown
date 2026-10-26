@@ -14,7 +14,7 @@ struct EditingTests {
     // MARK: list continuation
 
     @Test
-    func `Return in a task item continues with an unchecked task`() {
+    func `pressing Return in a task item continues with an unchecked task`() {
         #expect(Self.pressReturn("- [x] a", at: 7) == "- [x] a\n- [ ] ")
     }
 
@@ -25,37 +25,37 @@ struct EditingTests {
         ("9. a", "9. a\n10. "),
         ("3) a", "3) a\n4) ")
     ])
-    func `Return in a list item continues the list with the same marker`(line: String, result: String) {
+    func `pressing Return in a list item continues the list with the same marker`(line: String, result: String) {
         #expect(Self.pressReturn(line, at: line.utf16.count) == result)
     }
 
     @Test
-    func `Return keeps the quote prefix and the indentation`() {
+    func `pressing Return keeps the quote prefix and the indentation`() {
         #expect(Self.pressReturn("> x\n>   - a", at: 11) == "> x\n>   - a\n>   - ")
     }
 
     @Test
-    func `Return in the middle of an item moves the rest to the new item`() {
+    func `pressing Return in the middle of an item moves the rest to the new item`() {
         #expect(Self.pressReturn("- ab", at: 3) == "- a\n- b")
     }
 
     @Test
-    func `Return puts the caret after the new marker`() {
+    func `pressing Return puts the caret after the new marker`() {
         #expect(ListContinuation.returnEdit(in: "- a", selection: 3 ..< 3)?.selection == 6 ..< 6)
     }
 
     @Test(arguments: [("- a\n- ", 6, "- a\n"), ("- [ ] ", 6, ""), ("> 1. ", 5, "> ")])
-    func `Return on an empty item ends the list`(text: String, caret: Int, result: String) {
+    func `pressing Return on an empty item ends the list`(text: String, caret: Int, result: String) {
         #expect(Self.pressReturn(text, at: caret) == result)
     }
 
     @Test(arguments: [("plain", 5), ("- a", 1), ("# h", 3)])
-    func `Return outside a list item content is a plain newline`(text: String, caret: Int) {
+    func `pressing Return outside a list item content is a plain newline`(text: String, caret: Int) {
         #expect(ListContinuation.returnEdit(in: text, selection: caret ..< caret) == nil)
     }
 
     @Test
-    func `Return replaces a selection inside the item`() {
+    func `pressing Return replaces a selection inside the item`() {
         #expect(ListContinuation.returnEdit(in: "- abc", selection: 3 ..< 4)
             == TextEdit(range: 3 ..< 4, replacement: "\n- ", selection: 6 ..< 6))
     }
@@ -83,6 +83,11 @@ struct EditingTests {
         let typing = first + second
 
         #expect(Self.textAfterOneUndo(typing) == "hello ")
+    }
+
+    @Test
+    func `a pause of exactly one second after whitespace ends the group`() {
+        #expect(Self.textAfterOneUndo([("hello ", 0), ("world", 1)]) == "hello ")
     }
 
     @Test

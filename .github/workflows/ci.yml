@@ -24,3 +24,5 @@ jobs:
         run: swift --version && xcodebuild -version
       - name: Gate
         run: just check
+      - name: Paste converter fuzz (10 minutes)
+        run: just fuzz

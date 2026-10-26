@@ -47,6 +47,10 @@ ios-build:
 timing:
     FORTKEEPS_TIMING=1 swift test -c release --build-path '{{spm_build}}-release' --filter StylerTimingTests 2>&1 | grep -E 'timing:|passed|failed|error'
 
+# The paste converter fuzz test for ten minutes, as CI runs it.
+fuzz:
+    FORTKEEPS_FUZZ_SECONDS=600 swift test --build-path '{{spm_build}}' --filter PasteFuzzTests 2>&1 | grep -E 'fuzz:|passed|failed|error'
+
 lint:
     swiftlint lint --strict --quiet
     shellcheck scripts/*.sh

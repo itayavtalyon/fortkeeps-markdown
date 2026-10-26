@@ -49,7 +49,7 @@ public struct MarkdownDocument: Sendable {
         let parsed = ParsedMarkdown(source, features: features)
         var builder = DocumentBuilder(source: source, features: features)
         let titleNode = Self.titleNode(in: parsed.root)
-        title = titleNode.map { builder.plainText(of: $0).trimmingCharacters(in: .whitespaces) }
+        title = titleNode.map { DocumentBuilder.plainText(of: $0).trimmingCharacters(in: .whitespaces) }
         builder.build(parsed.root, skipping: presentation.titleLine == .hidden ? titleNode : nil)
         blocks = builder.topLevelBlocks
         tasks = builder.tasks

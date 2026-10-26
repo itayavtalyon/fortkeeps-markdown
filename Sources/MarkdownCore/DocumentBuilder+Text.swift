@@ -26,7 +26,7 @@ extension DocumentBuilder {
                 images.append(RenderedText.Image(
                     offset: length,
                     destination: Self.url(child),
-                    alt: plainText(of: child),
+                    alt: Self.plainText(of: child),
                     sourceRange: span(of: child)
                 ))
                 appendHidden("\u{FFFC}", source: span(of: child))

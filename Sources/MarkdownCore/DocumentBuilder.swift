@@ -108,8 +108,8 @@ struct DocumentBuilder {
     }
 
     /// Text, code, and HTML characters of a node's inlines; a break is a space.
-    func plainText(of node: Node) -> String {
-        Self.children(of: node).map { child in
+    static func plainText(of node: Node) -> String {
+        children(of: node).map { child in
             switch Self.typeName(child) {
             case "text", "code", "html_inline": Self.literal(child)
             case "softbreak", "linebreak": " "

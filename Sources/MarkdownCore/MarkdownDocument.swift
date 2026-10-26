@@ -91,6 +91,20 @@ public struct MarkdownDocument: Sendable {
         return start ..< max(start, end)
     }
 
+    /// The heading block whose GFM slug is the fragment, or nil.
+    public func headingBlock(forFragment fragment: String) -> RenderedText.Block? {
+        let headings = rendered.blocks.filter {
+            if case .heading = $0.kind {
+                true
+            } else {
+                false
+            }
+        }
+        let utf16 = Array(rendered.string.utf16)
+        let slugs = GFMSlug.slugs(headings.map { String(decoding: utf16[$0.range], as: UTF16.self) })
+        return slugs.firstIndex(of: fragment).map { headings[$0] }
+    }
+
     static let bom = "\u{FEFF}"
 
     private static func droppingBOM(_ text: String) -> String {

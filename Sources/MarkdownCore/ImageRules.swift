@@ -47,9 +47,6 @@ public enum ImageRules {
 /// The scheme of a destination, lowercased, or nil for a relative path.
 enum URLScheme {
     static func of(_ destination: String) -> String? {
-        if destination.hasPrefix("//") {
-            return ""
-        }
         guard let match = destination.prefixMatch(of: /([A-Za-z][A-Za-z0-9+.\-]*):/) else { return nil }
         return match.1.lowercased()
     }

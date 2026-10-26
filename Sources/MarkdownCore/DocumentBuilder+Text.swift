@@ -117,7 +117,7 @@ extension DocumentBuilder {
                 ))
                 cursor = at + entityLength
             case .none:
-                let consumed = cursor < end ? scalarLength(at: cursor) : 0
+                let consumed = cursor < end ? min(scalarLength(at: cursor), end - cursor) : 0
                 runs.append(RenderedText.Run(
                     rendered: rendered, renderedLength: scalar.utf16.count, source: cursor, sourceLength: consumed,
                     text: nil
@@ -142,7 +142,10 @@ extension DocumentBuilder {
         if hint >= sourceEnd, hint < end, aligns(literal, from: hint, before: end) {
             return hint
         }
-        return (sourceEnd ..< end).first { aligns(literal, from: $0, before: end) } ?? max(hint, sourceEnd)
+        return (sourceEnd ..< max(sourceEnd, end)).first { aligns(literal, from: $0, before: end) } ?? max(
+            hint,
+            sourceEnd
+        )
     }
 
     /// True when every scalar of the literal matches the source from the offset.

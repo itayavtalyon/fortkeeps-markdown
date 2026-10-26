@@ -21,7 +21,14 @@ struct ImageRulesTests {
             == .local(URL(fileURLWithPath: "/Users/me/notes/my pic.png")))
     }
 
-    @Test(arguments: ["../pic.png", "img/../../pic.png", "%2E%2E/pic.png", "/etc/pic.png", "bad%zzpath.png"])
+    @Test(arguments: [
+        "../pic.png",
+        "img/../../pic.png",
+        "%2E%2E/pic.png",
+        "/etc/pic.png",
+        "/Users/me/notes/pic.png",
+        "bad%zzpath.png"
+    ])
     func `a path that leaves the document folder or is not a plain relative path is refused`(destination: String) {
         #expect(ImageRules.classify(destination, documentURL: Self.document) == .refused)
     }
@@ -59,7 +66,8 @@ struct ImageRulesTests {
         "192.168.1.1", "198.18.0.1", "198.19.255.255", "224.0.0.1", "239.255.255.255", "240.0.0.1", "255.255.255.255",
         "::", "::1", "[::1]", "fc00::1", "fdff::1", "fe80::1", "febf::1", "::ffff:127.0.0.1", "::ffff:7f00:1",
         "fe80::1%en0",
-        "2130706433", "0x7f.1", "0177.0.0.1", "127.1", "0x7f000001", "017700000001", "127.0.0.01", "1:2:3"
+        "2130706433", "0x7f.1", "0177.0.0.1", "127.1", "0x7f000001", "017700000001", "127.0.0.01", "1:2:3",
+        "0x8.8.8.8", "134744072", "8.8.010.8", "256.1.1.1", "8.8.8.256", "08.8.8.8", "0x.1.1.1", "1..1.1"
     ])
     func `each blocklist form is refused`(host: String) {
         #expect(ImageRules.isBlockedHost(host))
@@ -73,7 +81,7 @@ struct ImageRulesTests {
         "172.32.0.1",
         "198.20.0.1",
         "223.255.255.255",
-        "2001:db8::1",
+        "2001:db8::1", "[2001:db8::1]",
         "::ffff:8.8.8.8",
         "local.example.com",
         "1.example.com"

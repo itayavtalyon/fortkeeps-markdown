@@ -34,7 +34,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 | 1b | Parser, features, presentation | In review | — |
 | 1c | Document model, anchor, copy text | In review | — |
 | 1d | Styler, edits, format commands, undo, byte limit | In review (steps 5–6 wait) | WAIT-2 (steps 5–6 only) |
-| 1e | Paste, image and link classifiers, line diff, HTML policy | Not started | WAIT-1 (step 8 only) |
+| 1e | Paste, image and link classifiers, line diff, HTML policy | In review (step 8 waits) | WAIT-1 (step 8 only) |
 | 1f | Views, modes, host protocol, cards, accessibility | Not started | — |
 
 ### 1a — Package, license, fonts, colors, CI guards
@@ -511,4 +511,55 @@ Branch `stage/1d-editor`, stacked on `stage/1c-model`. Steps 5–6 (format comma
 **Coverage.** Two `??` fallbacks that cannot run were restructured (an ordered number of at most nine digits is a justified force unwrap; the neighborhood line is a count of line feeds). The padding loops of a code span were dead code (cmark's code range already spans the padding) and were removed.
 
 **Simplify pass.** (1) The code-span syntax is three `add` calls over cmark's range (8 lines removed). (2) `readQuotes` is a conditional loop instead of `while true`. (3) The fence type moved out of `LineState` and owns its `closes` rule. (4) Not shrunk: the scanner's small readers stay separate, one per block construct, so each maps to one Design line.
+
+### 1e — Paste, image and link classifiers, line diff, HTML policy
+
+Branch `stage/1e-paste`, stacked on `stage/1d-editor`.
+
+**Step 8 (HTML policy) waits on WAIT-1.** Until then `html` true shows raw HTML as text: the rendered model draws an HTML block's literal and an inline HTML node's characters as plain text, as it does for `html` false. The one difference is structure: `html` false re-parses an HTML block as Markdown (1b), `html` true keeps one block of literal text.
+
+**Files.** `PasteConverter.swift` (`pasteText`, `markdown(fromHTML:)`, block renderer, table renderer), `InlineRenderer.swift` (atoms, whitespace collapse, emphasis, links, images, code spans), `MarkdownEscaper.swift`, `HTMLParser.swift` (hand-written tokenizer and tree builder, `HTMLNode`), `ImageRules.swift` (`ImageSource`, `ImageRules`, `URLScheme`, `FolderPath`), `IPAddress.swift`, `LinkRules.swift` (`LinkTarget`, `LinkRules`, `GFMSlug`), `LineDiff.swift`, and `MarkdownDocument.headingBlock(forFragment:)`. Tests: `PasteConverterTests`, `PasteGoldenTests` (20 samples in `Fixtures/paste`), `PasteFuzzTests`, `ImageRulesTests`, `LinkRulesTests`, `LineDiffTests`. `Justfile`: `fuzz`. CI: a 10-minute fuzz step.
+
+**Implementer choices for the deep review.**
+
+- A line break is a backslash and a newline (`\` at the line end), visible but robust where trailing spaces are not.
+- Spaces at the edge of an emphasis move outside it (`a<b> bold </b>c` → `a **bold** c`), so the delimiters stay flanking.
+- A link destination with a space, a parenthesis, or `<`/`>` is wrapped in `<…>`.
+- A list item's nested blocks are indented by the marker's width: 2 for `- `, 3 for `1. ` (as Design says), 4 for `10. `.
+- A `code` element that holds a line break is a block (a fence); any other `code` is a code span.
+- `hr` follows the table's last row (its children, so nothing).
+- Entities decode through cmark's own HTML5 table (`houdini_unescape_html_f`), so every named entity is covered without a second table.
+- Escaping: `` ` `` and `[` always; `*` and `~` when either neighbor is not a space; `_` the same, except inside a word; `<` before a letter, `/`, `!`, or `?`; `&` before a name that cmark decodes (`&unknown;` stays); `\` before ASCII punctuation; `|` in a table cell; at a line start, the first character of a heading, quote, list item, ordered marker delimiter, thematic break, or setext underline.
+- Image rules: a local destination is a relative path; an absolute path is refused even inside the folder. A host whose dot-separated parts are all numbers (decimal, octal, `0x` hex, or empty) is an IPv4 literal and is refused unless it is canonical dotted decimal outside the blocked ranges. An unreadable IPv6 literal (a zone index included) is refused.
+- Link rules: http and https need a host. A sibling link drops its query and fragment before the extension test and is percent-decoded.
+- GFM slugs follow github-slugger: lowercased, letters, numbers, marks, `_`, and `-` kept, each space a `-`; a taken slug gets the first free `-1`, `-2`.
+- The line diff uses the standard library's `difference(from:)` (Myers) on lines and groups adjacent removals and insertions into hunks.
+- Nesting deeper than 64 elements is flattened into the deepest open element. At 256 a recursive walk overflowed the stack of a test thread (signal 10).
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| Each row of the paste table has one test. | `PasteConverterTests`: headings (6), p/div, br, br in a cell, strong/b, em/i, del/s/strike, pre, block code, inline code, https/mailto link, other link (5), ul nesting, ol nesting and start, blockquote, table header, thead, colspan, pipe, allowed image, other image (4), checkbox input, other element |
+| A `script` body does not appear. | `a script body does not appear`, `a style element and its text are dropped` |
+| Escaping happens only where a character would start syntax. | `escaping happens only where a character would start syntax` (19), `escaped text renders as the original text` (20, parsed back by cmark) |
+| A colspan cell puts its content in the first cell and empty cells after it. | `a colspan cell puts its content in the first cell and empty cells after it`, golden `15-colspan-report` |
+| A golden corpus of 20 clipboard samples converts to fixed output. | `each clipboard sample converts to its golden Markdown` (20; expected files written by hand) |
+| The converter runs under a 10-minute fuzz test in CI with no crash. | CI step `just fuzz`; local run: `fuzz: 1073107 samples in 600.0 s`, passed. The first local run trapped at sample 664,507 (NUL bytes before a code span drove the aligner's search range backwards); the input is now `a text with NUL bytes and control characters builds` |
+| A relative path inside the directory is local. | `a relative path inside the document folder is local` (6) |
+| `../` outside the directory is refused. | `a path that leaves the document folder or is not a plain relative path is refused` (6) |
+| An untitled document refuses a local path. | `an untitled document refuses a local path` |
+| https is remote. http is refused. | `https is remote`, `any other scheme is refused` (6) |
+| Each blocklist form is refused, including the five named forms. | `each blocklist form is refused` (49), `a public host is allowed` (11) |
+| A data URL is refused. | `any other scheme is refused` (`data:`) |
+| A sibling `.MD` link is an in-app open. | `a sibling file with an accepted extension opens in the app` (6) |
+| `#intro` resolves to the GFM slug. | `a fragment link names its decoded fragment`, `a heading slug follows the GFM rule` (9), `duplicate headings get numbered slugs`, `a fragment finds its heading block` |
+| `javascript:` is none. | `any other link does nothing` (9) |
+| The line diff gives the expected hunks; all "theirs" gives the second text. | `the line diff gives the expected hunks`, `applying every theirs choice gives the second text`, `applying every mine choice gives the first text`, `both keeps mine then theirs` |
+
+**Mutations.** 82 one-clause mutants. The first survivors each got a test (an absolute path inside the folder, a bracketed public IPv6 host, `8.8.8.256`, a `thead` after the body), and six malformed mutants (an unused variable after the edit) were run again in valid form; all red. Equivalent survivors whose code was removed: the `//` scheme-relative branch (the folder rule refuses a leading `/`), octal parsing (a non-canonical form is refused on its form), the per-base slug count (the taken set gives the same slugs), the implied `</p>` (the block walk renders a nested block the same), and the non-empty test on an IPv4 part (an empty part now blocks the host, which is safer). One equivalent survivor stays: the `UInt8` parse of an octet next to the printed-back comparison (either one rejects 256). Two mutants are red only by a crash, which is the evidence: removing the depth cap overflows the stack, and an ungrouped hunk loop never ends.
+
+**Coverage.** `HTMLNode` became a struct with an empty name for text, which removed enum accessors that no caller reached on text. `?? fallbacks` that cannot run became `reduce` (widths, backtick runs) or a justified force unwrap (heading level from `h1`…`h6`; byte slices cut at ASCII bytes are valid UTF-8).
+
+**Simplify pass.** (1) The five equivalent clauses above were removed (about 25 lines). (2) The raw-text end check compares bytes case-folded instead of decoding a slice. (3) The IPv4 check is two branches (hex or digits) and one canonical test. (4) Not shrunk: the tokenizer keeps separate readers for tags, names, attributes, and values; each maps to one HTML rule the fuzz test exercises.
 

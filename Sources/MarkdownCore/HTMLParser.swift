@@ -282,9 +282,6 @@ enum HTMLParser {
         if ["thead", "tbody", "tfoot"].contains(name) {
             return nearest(["thead", "tbody", "tfoot"], within: ["table"])
         }
-        if blockElements.contains(name) {
-            return nearest(["p"], within: blockElements.subtracting(["p"]))
-        }
         return nil
     }
 }

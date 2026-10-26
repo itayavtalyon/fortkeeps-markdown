@@ -53,19 +53,17 @@ public enum GFMSlug {
     }
 
     /// The slugs of headings in order. As github-slugger does, a slug that
-    /// is taken gets `-1`, `-2`, and so on, counted per base slug.
+    /// is taken gets the first free `-1`, `-2`, and so on.
     public static func slugs(_ texts: [String]) -> [String] {
-        var counts: [String: Int] = [:]
         var taken: Set<String> = []
         return texts.map { text in
             let base = slug(text)
-            var count = counts[base] ?? 0
             var candidate = base
+            var count = 0
             while taken.contains(candidate) {
                 count += 1
                 candidate = "\(base)-\(count)"
             }
-            counts[base] = count
             taken.insert(candidate)
             return candidate
         }

@@ -74,7 +74,10 @@ struct LinkRulesTests {
 
     @Test(arguments: [
         ("Intro", "intro"), ("Hello, World!", "hello-world"), ("Spaced  Out", "spaced--out"), ("a_b-c", "a_b-c"),
-        ("Café Ünïcode", "café-ünïcode"), ("שלום עולם", "שלום-עולם"), ("C++ & Rust", "c--rust"), ("v1.2", "v12")
+        ("Café Ünïcode", "café-ünïcode"), ("שלום עולם", "שלום-עולם"), ("C++ & Rust", "c--rust"), ("v1.2", "v12"), (
+            "Cafe\u{301}",
+            "cafe\u{301}"
+        )
     ])
     func `a heading slug follows the GFM rule`(text: String, slug: String) {
         #expect(GFMSlug.slug(text) == slug)

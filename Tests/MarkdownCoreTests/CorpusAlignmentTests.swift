@@ -31,6 +31,16 @@ struct CorpusAlignmentTests {
         return found
     }
 
+    /// Found by the paste fuzz test: NUL bytes (cmark draws each as three
+    /// bytes, so its later positions drift) before a code span.
+    @Test
+    func `a text with NUL bytes and control characters builds`() {
+        let text = "\u{19}c#\u{0}![a](https://e.com/a.png)\\*a`\u{4}1K\u{0}\u{18}"
+            + "[7d\u{11}=R<3&unknown;;\u{1D}<-Mc.}G `\"\\`\u{A}\u{A}\u{17}\u{301}\u{A}\u{A}"
+
+        #expect(!givenDocument(text).rendered.string.isEmpty)
+    }
+
     @Test
     func `the corpus holds the spec examples and the log 010 cases`() {
         #expect(Self.corpus.count == 700)

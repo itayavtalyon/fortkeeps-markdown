@@ -6,33 +6,30 @@ enum IPAddress {
         (0xAC10_0000, 12), (0xC0A8_0000, 16), (0xC612_0000, 15), (0xE000_0000, 4), (0xF000_0000, 4)
     ]
 
-    /// A host that reads as an IPv4 address in any form inet_aton accepts is
-    /// blocked unless it is canonical dotted decimal outside every blocked
-    /// range. Any other host is a name and is not blocked here.
+    /// A host whose dot-separated parts are all numbers (decimal, octal, or
+    /// `0x` hex, as inet_aton reads them) is an IPv4 literal. It is blocked
+    /// unless it is canonical dotted decimal outside every blocked range. Any
+    /// other host is a name and is not blocked here.
     static func isBlockedIPv4(_ host: String) -> Bool {
         let parts = host.split(separator: ".", omittingEmptySubsequences: false)
-        let values = parts.compactMap(number)
-        guard (1 ... 4).contains(parts.count), values.count == parts.count else { return false }
-        // Canonical: four parts, each printed back as its own decimal value.
-        let canonical = parts.count == 4 && zip(parts, values).allSatisfy { $0 == String($1) && $1 <= 255 }
-        guard canonical else { return true }
-        return isBlocked(values.reduce(UInt32(0)) { $0 << 8 | UInt32($1) })
+        guard (1 ... 4).contains(parts.count), parts.allSatisfy(isNumber) else { return false }
+        // Canonical: four decimal parts, each printed back as its own value.
+        let octets = parts.compactMap { UInt8($0) }
+        guard octets.count == 4, zip(parts, octets).allSatisfy({ $0 == String($1) }) else { return true }
+        return isBlocked(octets.reduce(UInt32(0)) { $0 << 8 | UInt32($1) })
     }
 
     private static func isBlocked(_ address: UInt32) -> Bool {
         blockedIPv4.contains { network, length in address >> (32 - length) == network >> (32 - length) }
     }
 
-    /// One inet_aton part: decimal, octal with a leading zero, or hex with `0x`.
-    private static func number(_ part: Substring) -> UInt64? {
-        guard !part.isEmpty else { return nil }
+    /// A `0x` hex part (inet_aton reads a bare `0x` as zero) or a part of
+    /// digits. An empty part counts, so a malformed literal is blocked.
+    private static func isNumber(_ part: Substring) -> Bool {
         if part.lowercased().hasPrefix("0x") {
-            return UInt64(part.dropFirst(2), radix: 16)
+            return part.dropFirst(2).allSatisfy(\.isHexDigit)
         }
-        if part.count > 1, part.hasPrefix("0") {
-            return UInt64(part.dropFirst(), radix: 8)
-        }
-        return UInt64(part, radix: 10)
+        return part.allSatisfy(\.isNumber)
     }
 
     /// An IPv6 literal is blocked when it is `::`, `::1`, in fc00::/7 or

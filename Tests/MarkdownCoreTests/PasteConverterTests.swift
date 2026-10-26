@@ -114,6 +114,12 @@ struct PasteConverterTests {
     }
 
     @Test
+    func `a thead after the body rows is still the header`() {
+        #expect(Self.markdown("<table><tbody><tr><td>x</td></tr></tbody><thead><tr><th>h</th></tr></thead></table>")
+            == "| h |\n| --- |\n| x |")
+    }
+
+    @Test
     func `a colspan cell puts its content in the first cell and empty cells after it`() {
         #expect(Self
             .markdown(

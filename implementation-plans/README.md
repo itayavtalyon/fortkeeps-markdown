@@ -14,7 +14,7 @@ When a step depends on a WAIT item that is not yet written into Design, stop. As
 | WAIT-3 | Final copy (Story Weaver) | Exact-string tests in 02 |
 | WAIT-4 | `FK Scroll` icon (Interface) | Resolved: assets in `design/icon/` |
 | WAIT-5 | Roadmap V1-42 | Fortkeeps adoption only |
-| WAIT-6 | Roadmap V1-43 bundle ID prefix | Signing in 02 stages 2c and 2d |
+| WAIT-6 | Roadmap V1-44 bundle ID prefix | Resolved 2026-10-26: `app.fortkeeps.*`; Scroll is `app.fortkeeps.scroll` |
 
 Stages 1a, 1b, 1c, and 1f can start now. Stage 1d can start except steps 5–6. Stage 1e can start except the HTML policy step.
 

@@ -35,8 +35,8 @@ Test that policy in the plan 01 test target.
 |---|---|---|---|
 | 2a | Document policy | Not started | — |
 | 2b | Image loader and cache | Not started | — |
-| 2c | Mac app | Not started | WAIT-3 (string tests), WAIT-6 (signing) |
-| 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset), WAIT-6 (signing) |
+| 2c | Mac app | Not started | WAIT-3 (string tests) |
+| 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset) |
 | 2e | Outside changes and Resolve | Not started | — |
 | 2f | Sidebar, export, settings, relaunch | Not started | — |
 
@@ -87,7 +87,7 @@ Must-pass tests:
 
 ### 2c — Mac app
 
-1. Create the Mac app target `Fortkeeps Scroll` on macOS 15, with the bundle ID `<V1-43 prefix>.scroll`. Until WAIT-6 is answered, build unsigned for tests only.
+1. Create the Mac app target `Fortkeeps Scroll` on macOS 15, with the bundle ID `app.fortkeeps.scroll` (WAIT-6 resolved 2026-10-26).
 2. Store each file in an `NSDocument`.
 3. Use the system document tabs and the Design menus and shortcuts.
 4. Open each document in `.editor`. Lock selects `.editorLocked`.
@@ -118,7 +118,7 @@ Then run this manual check:
 
 ### 2d — iOS and iPadOS app
 
-1. Create the iOS app target on iOS 18. Set `CFBundleDisplayName` to `FK Scroll`. Use the bundle ID `<V1-43 prefix>.scroll`. Use the Interface icon (WAIT-4). Until the icon exists, use a blank placeholder asset and record that in Implementation Notes.
+1. Create the iOS app target on iOS 18. Set `CFBundleDisplayName` to `FK Scroll`. Use the bundle ID `app.fortkeeps.scroll` (WAIT-6 resolved 2026-10-26). Use the Interface icon (WAIT-4). Until the icon exists, use a blank placeholder asset and record that in Implementation Notes.
 2. Store each file in a `UIDocument`.
 3. Use the system document browser as the launch screen.
 4. Show the iPad tab strip with the file name and a close control labelled "Close {name}".

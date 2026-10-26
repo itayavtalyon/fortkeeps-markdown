@@ -244,6 +244,14 @@ Rounds 1–4 above stay as written. The answers in this round replace earlier an
 - **Q: Fortkeeps card heading sizes, and name clearance?**
   A: Card heading sizes go to the Fortkeeps adoption log. Name clearance happens when the name is final.
 
+### Round 8 (2026-10-26: Itay, contradictions and roadmap items)
+
+- **Q: Do the three self-conflicts in the screens file resolve as this log says?**
+  A: Yes. Show Sidebar is ⌃⌘S per the §3.18 menu table, and ⌥⌘O focuses the Outline. The iPad format bar has all 8 buttons of §3.6a. A link click follows Q2: click places the caret, ⌘-click follows, in Lock a click follows, and an iPhone tap places the caret with a long press showing Open Link.
+- **Q: What is the bundle ID prefix (WAIT-6, roadmap V1-44)?**
+  A: `app.fortkeeps.*` everywhere. Fortkeeps Scroll is `app.fortkeeps.scroll` on Mac and iOS.
+- WAIT-5 reopened 2026-10-26: Android and web app are in phase one; see roadmap V1-42.
+
 ## Design
 
 ### Product
@@ -274,7 +282,7 @@ That screen lists every shipped dependency with its license name and its full li
 A CI test fails when a resolved dependency is missing from that list.
 A CI test fails when `Package.resolved` or a target links a package on the analytics denylist.
 The denylist is: Firebase, Sentry, Amplitude, Mixpanel, Segment, AppCenter, Bugsnag, Crashlytics.
-The bundle ID prefix follows roadmap V1-43 (WAIT-6). The suffix is `scroll` for Mac and iOS.
+The bundle ID prefix is `app.fortkeeps.` everywhere (roadmap V1-44, WAIT-6, resolved by Itay 2026-10-26). The bundle ID of Fortkeeps Scroll is `app.fortkeeps.scroll` for Mac and iOS.
 The README states that "Fortkeeps" and the app icon are trademarks of the project owner.
 
 The library follows SemVer.
@@ -760,10 +768,10 @@ Export: File › Export as PDF…, Export as HTML…, and Print…. PDF and Prin
 Settings has: Line width (Narrow, Medium, Wide; Medium is 680 pt), Show word count, the folders with access, and Clear Image Cache. Settings is in-app on iOS.
 
 The full screen list, wireframes, and the accessibility checklist are in `001-markdown-library-screens.md` (Interface, 2026-10-25) and `001-wireframes/`. Those sections are part of this Design, except where this log says otherwise. This log wins over that file.
-Where that file conflicts with itself, these rules hold:
+Where that file conflicts with itself, these rules hold (confirmed by Itay 2026-10-26; the screens file is corrected to match):
 - The §3.18 menu table wins over other shortcut mentions. Show Sidebar is Control-Command-S. Option-Command-O focuses the Outline.
 - The iPad format bar has the eight buttons of §3.6a, not the three of §3.19.
-- A link click follows the Links section of this log, not the question text in §3.3.
+- A link click follows the Links section of this log (Q2): a click places the caret, Command-click follows, in Lock a click follows, and an iPhone tap places the caret with a long press showing Open Link.
 
 ### Accessibility
 
@@ -887,10 +895,10 @@ A folder bookmark gives read access to the whole folder.
 | WAIT-2 | The exact format-command cases. | Interface | Plan 01 stage 1d steps 5–6. |
 | WAIT-3 | The final on-screen copy. | Story Weaver | The exact-string tests in plan 02. |
 | WAIT-4 | The `FK Scroll` app icon in the Fortkeeps theme. | Interface | Resolved: assets in `design/icon/`. |
-| WAIT-5 | Roadmap V1-42: where Fortkeeps' phone code lives. | Itay | Fortkeeps adoption (plan 18) only. No stage here. |
-| WAIT-6 | Roadmap V1-43: the bundle ID prefix. | Itay | The signing step of plan 02 stages 2c and 2d. |
+| WAIT-5 | Roadmap V1-42: where Fortkeeps' phone code lives. | Itay | Fortkeeps adoption (plan 18) only. No stage here. Reopened 2026-10-26: Android and web app are in phase one. |
+| WAIT-6 | Roadmap V1-44: the bundle ID prefix. | Itay | Resolved 2026-10-26: `app.fortkeeps.*`; Scroll is `app.fortkeeps.scroll`. |
 
-WAIT-4 is a design task, not an open question. The other rules of this log are complete.
+WAIT-4 and WAIT-6 are resolved. WAIT-4 was a design task, not an open question. WAIT-5 is open. The other rules of this log are complete.
 
 ## Future Work
 

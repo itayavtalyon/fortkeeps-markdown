@@ -87,14 +87,14 @@ A11y: strip is announced once on appearance (polite), is a landmark group, × re
 ├────────────┴──────────────────────────────────────────────────┤
 │ Saved · 412 words                         Markdown · UTF-8 · LF│
 ```
-**Interactions:** type anywhere (style-as-you-type, syntax `text3`); ⌘-click or click on a link follows it (§3.7) — plain click places caret? → decision: **click on link text places caret; ⌘-click follows; in Lock, click follows** (Q). Checkbox click toggles + saves immediately. ⌘B/⌘I/⌘K, list continuation (log). Zoom ⌘+/⌘−/⌘0, 80–200 %, per doc.
+**Interactions:** type anywhere (style-as-you-type, syntax `text3`); link click (§3.7, decided Q2, confirmed by Itay 2026-10-26): **click on link text places caret; ⌘-click follows; in Lock, click follows; on iPhone a tap places the caret and a long press shows Open Link**. Checkbox click toggles + saves immediately. ⌘B/⌘I/⌘K, list continuation (log). Zoom ⌘+/⌘−/⌘0, 80–200 %, per doc.
 **Save state:** no Save button. Status shows "Saved" / "Saving…"; title has no dirty dot except while unsaved > 2 s. File ▸ Save is absent; ⌘S does nothing harmful (system "Save" remains only to name an Untitled doc via Save As… → File ▸ "Save…" appears for untitled documents only; decided Q17).
 **States:** untitled ("Untitled", lives in autosave area until named); locked (§3.13); paused during conflict (editing disabled, checkboxes dimmed + `.notEnabled`, Mac beep on typing).
 **A11y:** text view with rotor Headings/Links/Form controls over the whole doc (MD-21); checkboxes toggle trait with task label; Increase Contrast maps text3→text2, line2→text3; RTL blocks get trailing bullets/checkboxes; tab order: toolbar → sidebar → text → status.
 Copy (DRAFT): `status.saved` "Saved" · `status.saving` "Saving…" · `status.words` "{n} words" · `toolbar.outline` "Outline" · `toolbar.find` "Find" · `toolbar.share` "Share" · `toolbar.lock` Mac "Lock" / unlocked state "Unlock" · `untitled` "Untitled".
 
 ### 3.4 Outline / TOC
-Sidebar section listing H1–H3 (H4–H6 under disclosure), indent per level, current section highlighted as you scroll. Click scrolls and puts caret at heading start; VoiceOver focus moves there. Empty: "No headings yet." Keyboard: ⌃⌘1 toggles sidebar, ⌥⌘O focuses Outline (Q on key). iPhone: Outline is a sheet from the ☰ button. RTL headings right-aligned within the row.
+Sidebar section listing H1–H3 (H4–H6 under disclosure), indent per level, current section highlighted as you scroll. Click scrolls and puts caret at heading start; VoiceOver focus moves there. Empty: "No headings yet." Keyboard: ⌃⌘S toggles sidebar, ⌥⌘O focuses Outline (per the §3.18 menu table; confirmed by Itay 2026-10-26). iPhone: Outline is a sheet from the ☰ button. RTL headings right-aligned within the row.
 Copy (DRAFT): `outline.title` "Outline" · `outline.empty` "No headings yet."
 
 ### 3.5 Folder sidebar (assumption D4)

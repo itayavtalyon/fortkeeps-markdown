@@ -32,7 +32,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 |---|---|---|---|
 | 1a | Package, license, fonts, colors, CI guards | In review | — |
 | 1b | Parser, features, presentation | In review | — |
-| 1c | Document model, anchor, copy text | Not started | — |
+| 1c | Document model, anchor, copy text | In review | — |
 | 1d | Styler, edits, format commands, undo, byte limit | Not started | WAIT-2 (steps 5–6 only) |
 | 1e | Paste, image and link classifiers, line diff, HTML policy | Not started | WAIT-1 (step 8 only) |
 | 1f | Views, modes, host protocol, cards, accessibility | Not started | — |
@@ -414,3 +414,63 @@ Equivalent: `marker + 3 >= len` against `> len` (the line buffer ends with NUL, 
 **For 1c.** Nodes of a re-parsed HTML block carry positions relative to the block (step 9). The sentinel keeps byte lengths, so the mapping is the block's start line plus the per-line container prefix.
 
 **Not verified here.** CI has not run; nothing is pushed in this repo. The upstream pull requests are drafted, not opened.
+
+### 1c — Document model, anchor, copy text
+
+Branch `stage/1c-model`, stacked on `stage/1b-parser`. Itay asked to continue the plan and to run the deep review at the end of plan 01. The upstream tasklist PRs are open as drafts: swiftlang/swift-cmark#103 and github/cmark-gfm#396 (Remember `decision:fortkeeps-markdown-cmark-fork-prs`). github/cmark-gfm shares a fork network with swift-cmark, so both PR heads live in `itayavtalyon/swift-cmark`.
+
+**Files.**
+
+| Step | Files |
+|---|---|
+| 1, 2, 4, 8, 9 | `Sources/MarkdownCore/MarkdownDocument.swift` (public model, title, toggle, anchor, snap), `DocumentBuilder.swift`, `DocumentBuilder+Text.swift`, `DocumentBuilder+Cmark.swift` (one tree walk), `TextDirection.swift`, `ParsedMarkdown.swift` (`move`: positions of a re-parsed HTML block) |
+| 3, 6, 7 | `Sources/MarkdownCore/RenderedText.swift` (rendered string, runs, both maps, copy) |
+| 5 | `Sources/MarkdownCore/MarkdownAnchor.swift` |
+| 10 | `Sources/MarkdownCore/FortkeepsCard.swift`, `SavedLink.swift` |
+| tests | `MarkdownDocumentTests`, `RenderedTextTests`, `CorpusAlignmentTests`, `FortkeepsCardTests`, `SavedLinkTests`, `Log010ConformanceTests` (expect.json and toggle), `GivenDocument.swift` |
+
+**Model.** `MarkdownDocument(text:features:presentation:)` drops a leading BOM, parses once, and walks the cmark tree once. It holds the top-level `blocks` (kind, 0-based line, source range, direction), the `tasks` (line, byte offset, checked, text, direction), the line-1 `title`, and `rendered`. `RenderedText` holds the drawn string (UTF-16 positions, the unit TextKit uses), one line-level `Block` per paragraph, heading, code block, HTML block, rule, or table row (separated by one `\n`), the links, the images (one U+FFFC each), and the runs that map rendered UTF-16 to source bytes.
+
+**Implementer choices for the deep review** (Design leaves them open):
+
+- A table row draws its cells separated by a tab, and copies that way.
+- A list bullet and a checkbox are not characters in `string`; the view draws them from the block (`listDepth`, `taskIndex`).
+- An item with no content (`- [ ] `) gets an empty paragraph block, so the checkbox has a line.
+- A source offset on hidden syntax snaps to the nearest rendered caret position; a tie snaps forward. A selection start snaps forward and its end snaps back (`snappedSelection`).
+- `copyText(_:imagesDrawnAsText:)`: the view says which images drew as text; those copy `Image: {alt}`.
+- `MarkdownAnchor` holds `block` (the first visible top-level block's start), `offsetInBlock`, and `selection`, all in source bytes.
+- `TextDirection.markerEdge` names the chrome edge (`.trailing` for RTL), because Design says "trailing edge" of the LTR chrome.
+
+**Conflict to report (log 010).** The conformance README asks a second toggle to give the original bytes. MD-29 and Design › Tasks turn `X` into a space and a space into `x`, so `[X]` comes back as `[x]`. The toggle test follows MD-29 and pins `X → space → x`.
+
+**swift-cmark 0.9.0 inline positions.** Probes showed three wrong positions: a code span that spans lines ends on its first line (`1:2-1:4` for `` `a\nb` ``); an inline on a lazy or indented continuation line is shifted by the first line's indentation (spec 52, 63, 192); the autolink extension leaves empty text nodes and links with an end before their start (`3:27-3:23`, log 010 case 30). Block positions are right. So the aligner treats an inline's start as a hint: the hint is used when the whole literal aligns from it and it is not behind the last run; otherwise the first offset after the last run where the literal aligns is used. The search is bounded by the top-level block's end. The aligner matches an entity before the same byte, an escape before the same byte (and falls through when the escaped byte is not the literal's), skips whitespace, and makes a scalar with no match stand for one source scalar. Code and HTML blocks align line by line, bounded by each source line.
+
+`CorpusAlignmentTests` pins the result: over all 670 spec examples and the 30 log 010 cases, with the defaults and with the Fortkeeps value, every drawn character maps to its source, except breaks, tabs, images, entities, NUL, and the second scalar of an entity that decodes to two scalars (`&ngE;`). Progress of that count while fixing: 646, 203, 39, 16, 2 (the expected entity tail), then the test.
+
+Bugs found by tests and coverage while building, all fixed with a test: an entity followed by text left the rest of the node unmapped; a task with two images repeated the first alt; a code span across CRLF lost its second line; `&x;` text was treated as an entity; an escaped backslash shifted later characters.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| A task offset points at the byte between the brackets, with and without a BOM. | `a task offset points at the byte between the brackets`, `a task offset excludes a leading BOM`, `a task offset inside a nested quote and list is exact` |
+| A toggle of that byte, then a second toggle, restores the text. | `toggleTask twice restores the text`, `toggleTask flips the marker byte` (3 cases) |
+| Hebrew RTL, Latin LTR, Hebrew task checkbox on the trailing edge. | `a Hebrew block is RTL and a Latin block is LTR`, `a Hebrew task list puts the checkbox on the trailing edge`, `an Arabic block is RTL`, `a CJK block is LTR`, `a block with no strong letter follows its parent`, `a code block inside a Hebrew quote stays LTR` |
+| Copy of a heading, a link, a code span, and a fence; no direction marks. | `copy of a heading, a link, a code span, and a fence drops the syntax`, `copy has no direction marks` |
+| A drawn image adds no copy characters. | `a drawn image adds no copy characters`, `an image drawn as text copies that text` |
+| A round trip keeps each offset that is not on hidden syntax. | `a source to rendered to source round trip keeps each offset that is not on hidden syntax`, `every drawn character of the corpus maps to its source ...` (2) |
+| An anchor encodes and decodes to the same value. | `an anchor encodes and decodes to the same value` |
+| With `.hidden`, a tick on line 5 flips the correct byte. | `with the title hidden a tick on line 5 flips the correct byte` |
+| Every `.expect.json` field of cases 01–30 and the toggle test. | `each log 010 case matches every expect.json field with the Fortkeeps value` (30), `each log 010 task toggles exactly one byte and toggles back by MD-29` (30) |
+| An offset inside a re-parsed HTML block maps to the document byte. | `an offset inside a re-parsed HTML block maps to the document byte`, `a task inside a quoted former HTML block has the right offset` |
+
+**Mutations.** 70 one-clause mutants over the builder, the aligner, the maps, the title, toggle, anchor, direction, card, saved link, and the HTML position move. Each is red, with the red tests recorded in the session; the ones that first survived each got a test (hard break, CRLF code span, `&;`, code block in a Hebrew quote, CJK and Arabic direction, lone CR, image-only block copy, snap tie, title not on line 1, H2 on line 1, fact-size boundaries, link before title, one field, one-letter field, doc fields, four lines before a URL, root path, earlier URL line, quoted HTML-block task). Several mutants are red only by an invariant trap (`precondition` on the task marker, the run-lookup unwrap), which is the fail-fast check firing. Three survivors were equivalent and their code was removed: the punctuation test on escapes, the non-empty entity name, and the code-line suffix fast path. Two equivalent survivors stay on purpose: the early stop of the zero-length run walk (performance) and refusing a hint behind the cursor (runs must not overlap for the binary search). The mutation runner first reported a crashed test process as a survivor; it now reports crashes and build failures, and every mutant that had been reported before that change was run again.
+
+**Coverage.** The unbounded range `x[...]` compiles to a closure that counts as an uncovered function; `Substring(x)` replaces it. `??` fallbacks that cannot run were restructured (each task records its leaf; the scalar of a run that holds an offset is a justified force unwrap).
+
+**Performance (release, Apple M1 Max).** A 2 MB document builds its model in 0.32 s; Copy of all of it takes 0.02 s. Lookups use binary search over runs.
+
+**Simplify pass.** (1) The builder became a top-level type in three files, and leaf content follows from the leaf kind (one switch instead of a 13-branch one). (2) `appendLines` lost its suffix fast path (equivalent to the per-character aligner). (3) Two equivalent clauses in the aligner were removed. (4) Not shrunk: `FortkeepsCard` and `SavedLink` mirror `generate.py` line by line on purpose, so a reviewer can compare them.
+
+**For 1d.** The styler should reuse `DocumentBuilder.span` and the aligner rules where it needs source positions.
+

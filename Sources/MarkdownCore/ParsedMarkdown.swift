@@ -18,7 +18,7 @@ final class ParsedMarkdown {
         parser = Self.makeParser(options: CMARK_OPT_DEFAULT, features: features)
         root = Self.parse(text, with: parser)
         if !features.html {
-            Self.showHTMLAsText(in: root, features: features)
+            Self.showHTMLAsText(in: root, text: text, features: features)
         }
     }
 
@@ -82,7 +82,7 @@ final class ParsedMarkdown {
     /// HTML block, and cmark always does. A sentinel of the same byte length
     /// keeps every source offset; a backslash is the fallback when the block
     /// already holds every sentinel.
-    private static func showHTMLAsText(in root: Node, features: MarkdownFeatures) {
+    private static func showHTMLAsText(in root: Node, text: String, features: MarkdownFeatures) {
         nodes(in: root, ofType: [CMARK_NODE_HTML_INLINE]).forEach(makeText)
         for block in nodes(in: root, ofType: [CMARK_NODE_HTML_BLOCK]) {
             let lines = literal(of: block)
@@ -95,10 +95,38 @@ final class ParsedMarkdown {
             if let sentinel {
                 restore(sentinel, in: snippet.root)
             }
+            move(snippet.root, to: block, literalLines: lines, in: text)
             while let child = cmark_node_first_child(snippet.root) {
                 cmark_node_insert_before(block, child)
             }
             cmark_node_free(block)
+        }
+    }
+
+    /// Moves the positions of a re-parsed block's nodes from the block's own
+    /// lines to the text. The sentinel keeps each byte length, so a column
+    /// moves by the container prefix of its line (`> `, list indentation).
+    private static func move(_ snippet: Node, to block: Node, literalLines literal: String, in text: String) {
+        let textLines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let literalLines = literal.split(separator: "\n", omittingEmptySubsequences: false)
+        let firstLine = Int(block.pointee.start_line)
+        func shift(_ line: inout Int32, _ column: inout Int32) {
+            guard line > 0 else { return }
+            let index = Int(line) - 1
+            let textIndex = firstLine - 1 + index
+            if column > 0, index < literalLines.count, textIndex < textLines.count {
+                column += Int32(max(0, textLines[textIndex].utf8.count - literalLines[index].utf8.count))
+            }
+            line = Int32(textIndex + 1)
+        }
+        let iterator = cmark_iter_new(snippet)
+        defer { cmark_iter_free(iterator) }
+        while cmark_iter_next(iterator) != CMARK_EVENT_DONE {
+            guard cmark_iter_get_event_type(iterator) == CMARK_EVENT_ENTER, let node = cmark_iter_get_node(iterator),
+                  node != snippet
+            else { continue }
+            shift(&node.pointee.start_line, &node.pointee.start_column)
+            shift(&node.pointee.end_line, &node.pointee.end_column)
         }
     }
 

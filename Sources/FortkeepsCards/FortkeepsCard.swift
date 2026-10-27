@@ -85,7 +85,11 @@ public struct FortkeepsCard: Codable, Equatable, Sendable {
     /// `Image: {alt}`, every whitespace run as one space, and trimmed.
     static func visibleText(_ document: MarkdownDocument) -> String {
         let rendered = document.rendered
-        let text = rendered.copyText(0 ..< rendered.utf16Count, imagesDrawnAsText: Set(rendered.images.indices))
+        let text = rendered.copyText(
+            0 ..< rendered.utf16Count,
+            imagesDrawnAsText: Set(rendered.images.indices),
+            listMarkers: false
+        )
         return text.split(whereSeparator: { $0.unicodeScalars.allSatisfy(\.properties.isWhitespace) })
             .joined(separator: " ")
     }

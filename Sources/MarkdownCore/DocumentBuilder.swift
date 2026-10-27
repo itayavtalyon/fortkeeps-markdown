@@ -14,6 +14,7 @@ struct DocumentBuilder {
         let quoteDepth: Int
         let listDepth: Int
         let listMarker: RenderedText.ListMarker?
+        let copyPrefix: String
         let taskIndex: Int?
         let ownDirection: TextDirection?
     }
@@ -47,6 +48,8 @@ struct DocumentBuilder {
     var openTask: Int?
     /// The marker of the list item whose first leaf is next.
     var openMarker: RenderedText.ListMarker?
+    /// The marker width of each open list item, outermost first: the copy indentation.
+    var itemWidths: [Int] = []
     /// The leaf that opens each task, by task index.
     var taskLeaves: [Int] = []
     var quoteDepth = 0
@@ -95,6 +98,7 @@ struct DocumentBuilder {
                 quoteDepth: leaf.quoteDepth,
                 listDepth: leaf.listDepth,
                 listMarker: leaf.listMarker,
+                copyPrefix: leaf.copyPrefix,
                 taskIndex: leaf.taskIndex,
                 direction: direction
             )
@@ -141,8 +145,11 @@ struct DocumentBuilder {
             let start = Int(cmark_node_get_list_start(node))
             let ordered = cmark_node_get_list_type(node) == CMARK_ORDERED_LIST
             for (index, item) in Self.children(of: node).enumerated() {
-                openMarker = ordered ? .ordered(start + index) : .bullet
+                let marker: RenderedText.ListMarker = ordered ? .ordered(start + index) : .bullet
+                openMarker = marker
+                itemWidths.append(Self.markerText(marker).count)
                 walkBlock(item)
+                itemWidths.removeLast()
             }
             listDepth -= 1
         case "tasklist":
@@ -160,6 +167,23 @@ struct DocumentBuilder {
         default:
             Self.children(of: node).forEach { walkBlock($0) }
         }
+    }
+
+    /// `- ` or `{n}. `: the marker a list item copies.
+    static func markerText(_ marker: RenderedText.ListMarker) -> String {
+        switch marker {
+        case .bullet: "- "
+        case let .ordered(number): "\(number). "
+        }
+    }
+
+    /// The parents' marker widths as spaces, then the item's marker and a
+    /// task's box when this leaf opens the item.
+    func copyPrefix() -> String {
+        let indent = String(repeating: " ", count: itemWidths.dropLast(openMarker == nil ? 0 : 1).reduce(0, +))
+        let marker = openMarker.map(Self.markerText) ?? ""
+        let box = openTask.map { pendingTasks[$0].checked ? "[x] " : "[ ] " } ?? ""
+        return indent + marker + box
     }
 
     /// Appends one line-level block. Blocks are separated by one `\n`.
@@ -200,6 +224,7 @@ struct DocumentBuilder {
             quoteDepth: quoteDepth,
             listDepth: listDepth,
             listMarker: openMarker,
+            copyPrefix: copyPrefix(),
             taskIndex: openTask,
             ownDirection: kind == .codeBlock ? .ltr : TextDirection.firstStrong(in: directionText)
         ))

@@ -74,7 +74,7 @@ struct MarkdownTextControllerModeTests {
             mode: .rendered
         )
 
-        #expect(controller.copyText(0 ..< controller.displayString.utf16.count) == "Head\npara\na\nb")
+        #expect(controller.copyText(0 ..< controller.displayString.utf16.count) == "Head\npara\n- a\n- b")
     }
 
     @Test(arguments: [MarkdownMode.editor, .editorLocked])

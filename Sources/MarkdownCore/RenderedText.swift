@@ -26,6 +26,9 @@ public struct RenderedText: Sendable {
         public let listDepth: Int
         /// The marker when this block opens a list item.
         public let listMarker: ListMarker?
+        /// What copy writes before the block: the list indentation, the
+        /// marker, and a task's box.
+        let copyPrefix: String
         /// The index in `MarkdownDocument.tasks` when this block opens a task item.
         public let taskIndex: Int?
         public let direction: TextDirection
@@ -150,14 +153,20 @@ public struct RenderedText: Sendable {
     /// The characters the view drew for a rendered range: no syntax, no
     /// direction marks, and one `\n` between blocks. A drawn image adds
     /// nothing; an image in `imagesDrawnAsText` (indices into `images`)
-    /// copies `Image: {alt}`.
-    public func copyText(_ range: Range<Int>, imagesDrawnAsText: Set<Int> = []) -> String {
+    /// copies `Image: {alt}`. With `listMarkers`, a block whose start is in
+    /// the range copies its list indentation, its marker, and a task's box.
+    public func copyText(_ range: Range<Int>, imagesDrawnAsText: Set<Int> = [], listMarkers: Bool = true) -> String {
         let utf16 = Array(string.utf16)
         let pieces = blocks.compactMap { block -> String? in
             let start = max(block.range.lowerBound, range.lowerBound)
             let end = min(block.range.upperBound, range.upperBound)
-            guard start < end else { return nil }
-            var piece = ""
+            let startsInRange = range.contains(block.range.lowerBound)
+            let prefix = listMarkers && startsInRange ? block.copyPrefix : ""
+            guard start < end else {
+                // An empty task item still copies its marker and box.
+                return startsInRange && !prefix.isEmpty ? String(prefix.reversed().drop { $0 == " " }.reversed()) : nil
+            }
+            var piece = prefix
             var unit = start
             while unit < end {
                 if utf16[unit] == 0xFFFC, let index = images.firstIndex(where: { $0.offset == unit }) {

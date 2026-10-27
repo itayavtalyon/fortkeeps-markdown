@@ -20,6 +20,28 @@ struct RenderedTextTests {
     }
 
     @Test
+    func `copy writes list markers, task boxes, and the parent marker widths`() {
+        let rendered = givenDocument("- a\n  - [x] b\n\n    more\n\n1. c\n\n   10. d\n").rendered
+
+        #expect(rendered.copyText(0 ..< rendered.utf16Count) == "- a\n  - [x] b\n    more\n1. c\n   10. d")
+    }
+
+    @Test
+    func `copy from inside a list item has no marker for that item`() {
+        let rendered = givenDocument("- ab\n- [ ] cd\n").rendered
+
+        #expect(rendered.copyText(1 ..< rendered.utf16Count) == "b\n- [ ] cd")
+        #expect(rendered.copyText(0 ..< rendered.utf16Count, listMarkers: false) == "ab\ncd")
+    }
+
+    @Test
+    func `an empty task item copies its marker and box`() {
+        let rendered = givenDocument("- [ ]\n").rendered
+
+        #expect(rendered.copyText(0 ..< rendered.utf16Count) == "- [ ]")
+    }
+
+    @Test
     func `the hidden title is not in the rendered text`() {
         #expect(givenDocument("# Title\n\nBody\n", titleLine: .hidden).rendered.string == "Body")
         #expect(givenDocument("# Title\n\nBody\n").rendered.string == "Title\nBody")
@@ -55,7 +77,7 @@ struct RenderedTextTests {
     func `copy separates blocks with one newline, also across an empty block`() {
         let rendered = givenDocument("a\n\n---\n\nb\n\n- c\n- d\n").rendered
 
-        #expect(rendered.copyText(0 ..< rendered.utf16Count) == "a\nb\nc\nd")
+        #expect(rendered.copyText(0 ..< rendered.utf16Count) == "a\nb\n- c\n- d")
     }
 
     @Test

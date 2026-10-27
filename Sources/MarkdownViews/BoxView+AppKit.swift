@@ -31,6 +31,8 @@
             textView.isHorizontallyResizable = true
             textView.isVerticallyResizable = false
             textView.textContainer?.widthTracksTextView = false
+            // The main text view's lines have no padding either, so the lines stay in place.
+            textView.textContainer?.lineFragmentPadding = 0
             textView.textContainerInset = .zero
             documentView = textView
             wantsLayer = true
@@ -54,26 +56,16 @@
             nil
         }
 
-        /// Shows the box's characters at its laid-out frame. `padding` is the
-        /// main text view's line fragment padding, so the lines stay in place.
-        func update(
-            content: NSAttributedString,
-            geometry: NSTextLayoutManager.BoxGeometry,
-            origin: CGPoint,
-            padding: CGFloat
-        ) {
+        /// Shows the box's characters at its laid-out frame.
+        func update(content: NSAttributedString, geometry: NSTextLayoutManager.BoxGeometry, origin: CGPoint) {
             range = geometry.range
             frame = geometry.frame.offsetBy(dx: origin.x, dy: origin.y)
             backgroundColor = MarkdownTheme.color(mark.kind == .code ? .pill : .pane)
-            textView.textContainer?.lineFragmentPadding = padding
-            textView.textContainer?.size = CGSize(
-                width: geometry.contentWidth + 2 * padding,
-                height: .greatestFiniteMagnitude
-            )
+            textView.textContainer?.size = CGSize(width: geometry.contentWidth, height: .greatestFiniteMagnitude)
             if textView.textStorage?.isEqual(to: content) != true {
                 textView.textStorage?.setAttributedString(content)
             }
-            textView.frame = CGRect(x: 0, y: 0, width: geometry.contentWidth + 2 * padding, height: frame.height)
+            textView.frame = CGRect(x: 0, y: 0, width: geometry.contentWidth, height: frame.height)
             scrolled()
         }
 
@@ -124,32 +116,14 @@
     }
 
     extension MarkdownView {
-        /// Places a box view over each laid-out box wider than the column, in rendered mode.
-        func updateBoxes() {
-            guard controller.mode == .rendered, let layout = textView.textLayoutManager,
-                  let start = layout.location(at: firstVisibleOffset),
-                  let end = layout.location(at: min(display.storage.length, lastVisibleOffset + 1)),
-                  let range = NSTextRange(location: start, end: end)
-            else {
-                boxViews.values.forEach { $0.removeFromSuperview() }
-                boxViews = [:]
-                return
-            }
-            let wide = layout.boxes(in: range).filter { $0.contentWidth > $0.frame.width + 0.5 }
-            for (id, view) in boxViews where !wide.contains(where: { $0.mark.id == id }) {
-                view.removeFromSuperview()
-                boxViews[id] = nil
-            }
-            for geometry in wide {
-                let view = boxViews[geometry.mark.id] ?? BoxView(mark: geometry.mark)
-                boxViews[geometry.mark.id] = view
-                if view.superview == nil {
-                    textView.addSubview(view)
-                }
-                let content = display.storage.attributedSubstring(from: NSRange(geometry.range))
-                view.update(content: content, geometry: geometry, origin: textView.textContainerOrigin, padding: 0)
-            }
-            mirrorSelection()
+        /// The first character of the line fragment at the bottom of the view.
+        var lastVisibleOffset: Int {
+            guard let layout = textView.textLayoutManager else { return 0 }
+            return layout.firstOffset(atY: textView.visibleRect.maxY - textView.textContainerOrigin.y)
+        }
+
+        var containerOrigin: CGPoint {
+            textView.textContainerOrigin
         }
 
         /// The main selection shows inside each box view too.
@@ -162,12 +136,6 @@
                     : NSRange(location: 0, length: 0)
                 view.textView.setSelectedRange(local)
             }
-        }
-
-        /// The first character of the line fragment at the bottom of the view.
-        var lastVisibleOffset: Int {
-            guard let layout = textView.textLayoutManager else { return 0 }
-            return layout.firstOffset(atY: textView.visibleRect.maxY - textView.textContainerOrigin.y)
         }
     }
 #endif

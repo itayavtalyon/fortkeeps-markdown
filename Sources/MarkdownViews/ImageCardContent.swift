@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import MarkdownCore
 
@@ -20,6 +21,11 @@ struct ImageCardContent: Equatable {
     let accessibilityHint: String?
     /// An image with an empty alt is hidden from VoiceOver.
     let isAccessibilityElement: Bool
+    /// 56 pt for one line under the title, 18 pt for each more line.
+    func cardSize(columnWidth: CGFloat) -> CGSize {
+        CGSize(width: min(columnWidth, 420), height: 38 + 18 * CGFloat(max(1, lines.count)))
+    }
+
     /// A card with a button sends `imageActivated(_:)` on a click.
     var activates: Bool {
         button != nil

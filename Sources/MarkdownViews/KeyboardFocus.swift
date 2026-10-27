@@ -7,7 +7,7 @@ import MarkdownCore
 #endif
 
 /// A key the view routes to keyboard focus (design log 001 › Accessibility).
-enum FocusInput {
+enum FocusInput: Equatable {
     case tab(forward: Bool)
     case returnKey
     case space
@@ -32,9 +32,7 @@ extension NSTextLayoutManager {
 
     /// The union of the text segments of a range, in container coordinates.
     func segmentsRect(_ range: Range<Int>) -> CGRect? {
-        guard let start = location(at: range.lowerBound), let end = location(at: range.upperBound),
-              let textRange = NSTextRange(location: start, end: end)
-        else { return nil }
+        guard let textRange = textRange(range) else { return nil }
         ensureLayout(for: textRange)
         var union: CGRect?
         enumerateTextSegments(in: textRange, type: .standard, options: []) { _, rect, _, _ in
@@ -73,10 +71,7 @@ extension NSTextLayoutManager {
 
     /// True when the box at a range is wider than the column.
     func isWideBox(_ range: Range<Int>) -> Bool {
-        guard let start = location(at: range.lowerBound), let end = location(at: range.upperBound),
-              let textRange = NSTextRange(location: start, end: end)
-        else { return false }
-        return boxes(in: textRange).contains { $0.contentWidth > $0.frame.width + 0.5 }
+        textRange(range).map { boxes(in: $0).contains(where: \.isWide) } ?? false
     }
 }
 
@@ -89,7 +84,7 @@ extension MarkdownView {
             return moveFocus(forward: forward) ? .handled : .leave(forward: forward)
         case .returnKey, .space:
             guard let target = focusedTarget else { return .ignored }
-            return controller.activate(target, key: input == .space ? .space : .returnKey) ? .handled : .ignored
+            return controller.activate(target, key: input) ? .handled : .ignored
         case .left, .right:
             guard case let .box(range)? = focusedTarget,
                   let box = boxViews.values.first(where: { $0.range.contains(range.lowerBound) })
@@ -101,6 +96,34 @@ extension MarkdownView {
             focusedTarget = nil
             return .handled
         }
+    }
+
+    /// Places a box view over each laid-out box wider than the column, in rendered mode.
+    func updateBoxes() {
+        guard controller.mode == .rendered, let layout = textView.textLayoutManager,
+              let range = layout.textRange(firstVisibleOffset ..< min(display.storage.length, lastVisibleOffset + 1))
+        else {
+            boxViews.values.forEach { $0.removeFromSuperview() }
+            boxViews = [:]
+            return
+        }
+        let wide = layout.boxes(in: range).filter(\.isWide)
+        for (id, view) in boxViews where !wide.contains(where: { $0.mark.id == id }) {
+            view.removeFromSuperview()
+            boxViews[id] = nil
+        }
+        for geometry in wide {
+            let view = boxViews[geometry.mark.id] ?? BoxView(mark: geometry.mark)
+            boxViews[geometry.mark.id] = view
+            if view.superview == nil {
+                textView.addSubview(view)
+            }
+            let content = display.storage.attributedSubstring(from: NSRange(geometry.range))
+            view.update(content: content, geometry: geometry, origin: containerOrigin)
+        }
+        #if os(macOS)
+            mirrorSelection()
+        #endif
     }
 
     /// Moves focus to the next or previous element; false past either end.
@@ -121,5 +144,3 @@ extension MarkdownView {
         return false
     }
 }
-
-extension FocusInput: Equatable {}

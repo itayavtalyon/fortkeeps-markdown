@@ -78,6 +78,14 @@
         }
 
         @Test
+        func `a click away from an editor card is left to the text`() {
+            let view = MarkdownViewMacTests.givenView("intro\n![Map](https://e.com/a.png)\n")
+            view.controller.setImageResult(.remoteNotLoaded(host: "e.com"), for: "https://e.com/a.png")
+
+            #expect(!view.textView.clickEditorImage(at: CGPoint(x: 4, y: 4)))
+        }
+
+        @Test
         func `the caret inside an image source lets it wrap`() {
             let view = MarkdownViewMacTests.givenView("![Map](a.png)\nafter")
             view.select(3 ..< 3)

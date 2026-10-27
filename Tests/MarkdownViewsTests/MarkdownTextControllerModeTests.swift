@@ -207,6 +207,23 @@ struct MarkdownTextControllerModeTests {
     }
 
     @Test
+    func `refreshImage tells the view to redraw before the host answers`() async {
+        let (controller, host) = MarkdownTextControllerTests.givenController(
+            "![a](https://e.com/a.png)\n",
+            mode: .rendered
+        )
+        host.results["https://e.com/a.png"] = .remoteNotLoaded(host: "e.com")
+        controller.viewportChanged(0 ..< 1)
+        await settle { controller.imageResult(for: 0) != nil }
+        var changed: [String] = []
+        controller.onImageChange = { changed.append($0) }
+
+        controller.refreshImage(destination: "https://e.com/a.png")
+
+        #expect(changed == ["https://e.com/a.png"])
+    }
+
+    @Test
     func `the image request carries the destination and the document`() async {
         let (controller, host) = MarkdownTextControllerTests.givenController("![a](pics/a.png)\n", mode: .rendered)
         host.results["pics/a.png"] = .refused

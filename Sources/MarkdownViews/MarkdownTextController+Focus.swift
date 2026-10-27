@@ -19,12 +19,6 @@ enum FocusTarget: Equatable {
     }
 }
 
-/// The keys a focused element answers.
-enum FocusKey {
-    case returnKey
-    case space
-}
-
 extension MarkdownTextController {
     /// The focusable elements in reading order. The editor has none: Tab types a tab there.
     func focusTargets() -> [FocusTarget] {
@@ -68,7 +62,7 @@ extension MarkdownTextController {
 
     /// Return opens a link; Space toggles a checkbox; either activates a
     /// card that has a button. Returns false when the key does nothing.
-    func activate(_ target: FocusTarget, key: FocusKey, modifiers: LinkModifiers = []) -> Bool {
+    func activate(_ target: FocusTarget, key: FocusInput, modifiers: LinkModifiers = []) -> Bool {
         switch (target, key) {
         case let (.link(range), .returnKey):
             return click(atDisplayOffset: range.lowerBound, modifiers: modifiers)
@@ -76,7 +70,7 @@ extension MarkdownTextController {
             guard checkboxAccessibility(task).isEnabled else { return false }
             toggleTask(task)
             return true
-        case let (.card(destination, _), _):
+        case let (.card(destination, _), .returnKey), let (.card(destination, _), .space):
             return activateCard(destination: destination)
         default:
             return false

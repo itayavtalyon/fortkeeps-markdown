@@ -257,6 +257,11 @@ extension NSTextLayoutManager {
         var frame: CGRect
         var contentWidth: CGFloat
         var range: Range<Int>
+
+        /// Its unwrapped lines need more than the column.
+        var isWide: Bool {
+            contentWidth > frame.width + 0.5
+        }
     }
 
     /// The boxes whose fragments are laid out in `range`.

@@ -35,7 +35,6 @@ public extension MarkdownView {
     /// The host has a new result for a destination.
     func refreshImage(destination: String) {
         controller.refreshImage(destination: destination)
-        display.refreshImages(destination: destination)
     }
 
     /// Performs a format command, as the format bar and the shortcuts do.

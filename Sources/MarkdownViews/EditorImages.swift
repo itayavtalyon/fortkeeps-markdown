@@ -40,7 +40,7 @@ final class EditorImageMark: NSObject {
             size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         } else {
             thumbnail = nil
-            size = CGSize(width: min(width, 420), height: 38 + 18 * CGFloat(max(1, content.lines.count)))
+            size = content.cardSize(columnWidth: width)
         }
     }
 
@@ -194,9 +194,8 @@ extension MarkdownDisplay {
                 .trimmingCharacters(in: .whitespaces).utf16.count == inLine[0].range.count
             let caretInside = inLine
                 .contains { $0.range.lowerBound ... $0.range.upperBound ~= controller.selection.lowerBound }
-            if onlyImage, !caretInside {
-                style.lineBreakMode = .byTruncatingTail
-            }
+            // Set both ways, so decorating a line again is the same as once.
+            style.lineBreakMode = onlyImage && !caretInside ? .byTruncatingTail : .byWordWrapping
             storage.addAttributes([.paragraphStyle: style, .markdownEditorImages: marks as NSArray], range: lineRange)
         }
     }

@@ -95,6 +95,16 @@ extension MarkdownTextController {
         }
     }
 
+    /// A click on an editor image: true when there is one. A card with a
+    /// button activates it.
+    func click(_ mark: EditorImageMark?) -> Bool {
+        guard let mark else { return false }
+        if mark.content.activates {
+            activateImage(destination: mark.destination)
+        }
+        return true
+    }
+
     /// The person activated a card: the view draws the loading card and
     /// tells the host, which refreshes the result when it has one.
     func activateImage(destination: String) {
@@ -112,6 +122,7 @@ extension MarkdownTextController {
     func refreshImage(destination: String) {
         imageResults[destination] = nil
         imageTasks[destination]?.cancel()
+        onImageChange?(destination)
         request(destination)
     }
 

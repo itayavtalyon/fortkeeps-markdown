@@ -29,6 +29,7 @@
             textView.backgroundColor = .clear
             textView.textContainerInset = .zero
             textView.textContainer.widthTracksTextView = false
+            textView.textContainer.lineFragmentPadding = 0
             addSubview(textView)
             for fade in [leadingFade, trailingFade] {
                 fade.startPoint = CGPoint(x: 0, y: 0.5)
@@ -46,17 +47,11 @@
         }
 
         /// Shows the box's characters at its laid-out frame.
-        func update(
-            content: NSAttributedString,
-            geometry: NSTextLayoutManager.BoxGeometry,
-            origin: CGPoint,
-            padding: CGFloat
-        ) {
+        func update(content: NSAttributedString, geometry: NSTextLayoutManager.BoxGeometry, origin: CGPoint) {
             range = geometry.range
             frame = geometry.frame.offsetBy(dx: origin.x, dy: origin.y)
             backgroundColor = MarkdownTheme.color(mark.kind == .code ? .pill : .pane)
-            let width = geometry.contentWidth + 2 * padding
-            textView.textContainer.lineFragmentPadding = padding
+            let width = geometry.contentWidth
             textView.textContainer.size = CGSize(width: width, height: .greatestFiniteMagnitude)
             if !textView.textStorage.isEqual(to: content) {
                 textView.textStorage.setAttributedString(content)

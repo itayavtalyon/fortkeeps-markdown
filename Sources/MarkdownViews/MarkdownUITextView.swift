@@ -20,12 +20,8 @@
         /// Activates the editor image card at a point in container coordinates;
         /// false when there is none, or when the card has no button.
         func clickEditorImage(at point: CGPoint) -> Bool {
-            guard let controller, controller.mode != .rendered, let mark = textLayoutManager?.editorImage(at: point)
-            else { return false }
-            if mark.content.activates {
-                controller.activateImage(destination: mark.destination)
-            }
-            return true
+            guard let controller, controller.mode != .rendered else { return false }
+            return controller.click(textLayoutManager?.editorImage(at: point))
         }
 
         /// Toggles the checkbox at a point in container coordinates; false when there is none.

@@ -33,6 +33,12 @@ struct ImageCardContentTests {
     }
 
     @Test
+    func `a card is 56 points tall for one line and 18 more for each further line`() {
+        #expect(Self.card(.loading).cardSize(columnWidth: 600) == CGSize(width: 420, height: 56))
+        #expect(Self.card(.failed(reason: .tooLarge)).cardSize(columnWidth: 300) == CGSize(width: 300, height: 74))
+    }
+
+    @Test
     func `an image with an empty alt is hidden from VoiceOver`() {
         #expect(!Self.card(.image(Data([1])), alt: "").isAccessibilityElement)
         #expect(Self.card(.loading, alt: "").isAccessibilityElement)

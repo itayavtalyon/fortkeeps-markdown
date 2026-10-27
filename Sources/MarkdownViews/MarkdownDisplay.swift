@@ -74,16 +74,22 @@ final class MarkdownDisplay {
         }
     }
 
-    /// The images of the whole text, from the controller's model.
-    private func decorateAllEditorImages(lines: [Range<Int>]) {
+    /// Decorates `lines` with the images of the whole text, from the controller's model.
+    /// `destination` keeps only the lines that hold that destination.
+    private func decorateAllEditorImages(lines: [Range<Int>], destination: String? = nil) {
         let images = controller.document.rendered.images.map { image in
             (
-                controller.utf16Offset(ofSourceByte: image.sourceRange.lowerBound)
+                range: controller.utf16Offset(ofSourceByte: image.sourceRange.lowerBound)
                     ..< controller.utf16Offset(ofSourceByte: image.sourceRange.upperBound),
-                image
+                image: image
             )
         }
-        guard !images.isEmpty else { return }
+        let lines = destination.map { destination in
+            lines.filter { line in
+                images.contains { $0.image.destination == destination && line.contains($0.range.lowerBound) }
+            }
+        } ?? lines
+        guard !images.isEmpty, !lines.isEmpty else { return }
         storage.beginEditing()
         decorateEditorImages(images, lines: lines)
         storage.endEditing()
@@ -185,7 +191,8 @@ final class MarkdownDisplay {
     /// Redraws the images of one destination after its result changed.
     func refreshImages(destination: String) {
         guard controller.mode == .rendered else {
-            fullRestyle()
+            guard storage.string == controller.text else { return }
+            decorateAllEditorImages(lines: lineRanges(of: controller.text), destination: destination)
             return
         }
         let images = controller.document.rendered.images

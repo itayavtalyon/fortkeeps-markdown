@@ -55,6 +55,15 @@ struct MarkdownTextControllerFocusTests {
     }
 
     @Test
+    func `space on a card with a button activates it`() {
+        let (controller, host) = Self.givenController("![m](https://e.com/m.png)\n")
+        controller.setImageResult(.remoteNotLoaded(host: "e.com"), for: "https://e.com/m.png")
+
+        #expect(controller.activate(controller.focusTargets()[0], key: .space))
+        #expect(host.activated == ["https://e.com/m.png"])
+    }
+
+    @Test
     func `a card without a button does nothing`() {
         let (controller, host) = Self.givenController("![m](x.png)\n")
         controller.setImageResult(.loading, for: "x.png")

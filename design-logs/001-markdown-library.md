@@ -1,6 +1,6 @@
 # 001 - Fortkeeps Scroll and the FortkeepsMarkdown library
 
-Revision 4, 2026-10-25. The plan 01 implementer wrote this revision from Itay's stage 1b decisions (Round 8). Revision 3 was written by the Chief Architect. Status: Design.
+Revision 5, 2026-10-27. The plan 01 implementer wrote this revision from Itay's plan 01 review answers (Round 9). Revision 4 (2026-10-25) came from the stage 1b decisions (Round 8). Revision 3 was written by the Chief Architect. Status: Design.
 Rule source: the design-log-grill snapshot (2026-10-13). The Mac was offline, so the live rules were not read.
 Items that wait on someone other than the implementer carry the tag **WAIT-n**. They are listed in Known Limitations › Waiting items, with the stage each blocks. No other implementer choice is open.
 
@@ -259,6 +259,53 @@ Rounds 1–4 above stay as written. The answers in this round replace earlier an
 - **Q: The inline-only re-parse of an HTML block puts every line on line 1, so soft breaks never form. Use a full re-parse?**
   A: Yes. A heading or list line inside such a block becomes a heading or a list, as in markdown-it.
 
+### Round 9 (2026-10-27: Itay, the plan 01 review)
+
+- **Q: What does a `.refused` image draw?**
+  A: A `.text` fallback shows the "Image can't be shown" card with the alt text under it. A `.link` fallback shows `Image: {alt}`, or just `Image` when there's no alt text.
+- **Q: A click on an image card asks the host again through `image(for:)`. How does the host know the person clicked?**
+  A: Add a separate "the person clicked" event to the protocol. A click is consent, so the host must never have to guess.
+- **Q: What does the event look like?**
+  A: A new required method `func imageActivated(_ request: ImageRequest)`, on the main actor. The view shows the loading card and does not call `image(for:)` itself. The host loads, then calls `refreshImage(destination:)`. It covers Load Image, Try Again, and the folder-access placeholder.
+- **Q: How does the editor show an image?**
+  A: Keep the source on one line, with a thumbnail under it once the image loads. Before that, the editor draws the same card as rendered mode under the source line.
+- **Q: How big is an editor thumbnail?**
+  A: At most 120 pt tall and the column wide, aspect ratio kept, never upscaled. Rendered mode keeps its rule.
+- **Q: Wide code blocks and tables?**
+  A: They scroll sideways inside their own box, with a fade at the edge. Prose keeps wrapping. This holds in rendered mode and in the editor.
+- **Q: Does a scrolling box take keyboard focus?**
+  A: Yes. A box wider than the column joins the Tab order. Left and right arrows scroll it. VoiceOver reads it as a code block or a table.
+- **Q: How wide is the fade?**
+  A: 16 pt, on an edge with hidden content. Under Increase Contrast, a 1 pt `line2` edge replaces the fade.
+- **Q: Keyboard access?**
+  A: A launch blocker. Tab moves through links, checkboxes, and image cards in reading order. Return opens a focused link. Space toggles a focused checkbox. ⌃F6 moves into the Mac format bar. Esc goes back to the text.
+- **Q: In which modes does Tab move focus?**
+  A: In `.rendered` and `.editorLocked`. After the last element, focus leaves the view. In `.editor`, Tab inserts a tab, and Ctrl-Tab leaves the view.
+- **Q: VoiceOver?**
+  A: A launch blocker. Expose heading levels on Mac. Follow the iOS Auto-Play Animated Images setting.
+- **Q: iOS links?**
+  A: Always underlined, in rendered mode and in the editor. The `(url)` part stays `text3`, not underlined.
+- **Q: Copying a rendered list?**
+  A: Include real `-` and `1.` markers. A task item copies as `- [ ] milk` or `- [x] milk`. A nested item keeps its indentation: the width of the parent's marker (2 under `- `, 3 under `1. `, 4 under `10. `).
+- **Q: The ten GFM examples pinned to the extension output?**
+  A: They stay pinned to what our defaults produce.
+- **Q: MD-29 says `[X]` toggles to a space and back to `x`. The log 010 README says otherwise.**
+  A: Keep the toggle as written. The log 010 README gets fixed to match, as one of the adoption edits to log 010. remember-mac is not edited now.
+- **Q: The Fortkeeps card fields are in `MarkdownCore`.**
+  A: Keep them in stage 1c, but move them into their own module, `FortkeepsCards`, in the same package. It has the same gates as `MarkdownCore`.
+- **Q: Which image strings?**
+  A: Story Weaver's wording, with curly apostrophes. The reasons go under the title "Image can’t be shown": too large "It’s too large to show.", timed out "It took too long to load.", unsupported format "This image format isn’t supported.", network error "Couldn’t reach it. Check your connection." The accessibility label is the title and the reason together. The click action is "Load Image" on Mac and "Load image" on iOS. Its VoiceOver hint is "Loads the image from {host}."
+- **Q: Does a failed card keep Try Again?**
+  A: Only for timed out and network error.
+- **Q: Where does the alt text go on a failed card?**
+  A: Title, then alt, then reason. With an empty alt, the alt line is left out, on the refused card too.
+- **Q: The refused card's VoiceOver label?**
+  A: The title plus the alt, or the title alone with an empty alt.
+- **Q: The plan 01 implementer choices (the Heading button menu, dimmed checked tasks in the editor, the undo caret, the 22 pt indent)?**
+  A: Keep all four. Dimmed checked tasks must still meet a 4.5:1 contrast ratio.
+- **Q: iOS typing undo?**
+  A: Check it in plan 02's UI tests.
+
 ## Design
 
 ### Product
@@ -266,7 +313,7 @@ Rounds 1–4 above stay as written. The answers in this round replace earlier an
 The product is Fortkeeps Scroll.
 The repo is `fortkeeps-markdown`.
 The Swift package is `FortkeepsMarkdown`.
-The package has the targets `MarkdownCore` and `MarkdownViews`.
+The package has the targets `MarkdownCore`, `FortkeepsCards`, and `MarkdownViews`. Each is a library product.
 The Mac app and the iOS app are targets in the repo.
 The Mac app target and the app display name are `Fortkeeps Scroll`.
 The iOS home-screen name (`CFBundleDisplayName`) is `FK Scroll`.
@@ -280,6 +327,10 @@ Android is post-v1. A future design log covers the Android library and app.
 `MarkdownCore` holds the pure rules.
 `MarkdownCore` does not import AppKit, UIKit, or SwiftUI.
 `MarkdownCore` does not use `URLSession`, `FileManager`, or `FileHandle`.
+`FortkeepsCards` computes the Fortkeeps card fields (see Fortkeeps later).
+`FortkeepsCards` depends on `MarkdownCore`.
+`FortkeepsCards` follows the same import rules as `MarkdownCore`.
+`MarkdownCore` does not hold a Fortkeeps rule.
 `MarkdownViews` holds the Mac view and the iOS view.
 `MarkdownViews` does not open a file and does not open a network connection.
 
@@ -310,6 +361,7 @@ The methods are:
 | `func image(for request: ImageRequest) async -> ImageResult` | The view needs an image near the viewport. | Any. The view cancels the task when it discards the block. |
 | `func open(_ link: LinkActivation)` | The person follows a link. | Main actor. |
 | `func textDidChange(_ change: TextChange)` | After the view applies a change. | Main actor. |
+| `func imageActivated(_ request: ImageRequest)` | The person activates an image card that has a button (see Images). | Main actor. |
 
 `ImageRequest` has `destination: String`, `documentURL: URL?`, and `maxPixelSize: CGSize`.
 `ImageResult` is one of:
@@ -320,11 +372,16 @@ The methods are:
 | `.needsAccess` | The folder-access placeholder. |
 | `.remoteNotLoaded(host: String)` | The remote-image card. |
 | `.loading` | The loading card. The host calls `MarkdownView.refreshImage(destination:)` when the result changes. |
-| `.failed(reason: ImageFailure)` | The failed card with Try Again. `ImageFailure` is `tooLarge`, `timedOut`, `unsupported`, or `network`. |
-| `.refused` | The "can't be shown" card, with no button. |
+| `.failed(reason: ImageFailure)` | The failed card. `ImageFailure` is `tooLarge`, `timedOut`, `unsupported`, or `network`. |
+| `.refused` | The refused card with the `.text` fallback. The `Image: {alt}` link with the `.link` fallback. |
 
 The view caches each result per destination for the lifetime of the document.
 The view does not retry by itself.
+`imageActivated(_:)` is the consent of the person for that image.
+After `imageActivated(_:)`, the view draws the loading card for that destination.
+The view does not call `image(for:)` because of an activation.
+The host calls `refreshImage(destination:)` when the result changes.
+`refreshImage(destination:)` clears the cached result and calls `image(for:)`.
 
 `LinkActivation` has `destination: String`, `resolvedURL: URL?`, `documentURL: URL?`, `modifiers`, and `source` (`markdown` or `html`).
 
@@ -436,13 +493,13 @@ Body text uses the system font.
 On Mac, body text is 14.5 pt with a line height of 1.6.
 On iOS, an H1 is relative to `.title2`, an H2 to `.title3`, body to `.body`, and code to `.callout`. Dynamic Type has no cap.
 Code uses IBM Plex Mono at 13 pt on the `pill` color.
-A code block does not wrap.
-A code block scrolls horizontally.
 A code block has no syntax coloring.
-A link uses `accent` and underlines on hover or focus.
+A code block and a table are boxes (see Boxes).
+A link uses `accent`.
+On Mac, a link underlines on hover or keyboard focus.
+On iOS, a link is always underlined.
 A table header is weight 600.
 Table cell padding is 6 pt by 10 pt.
-A wide table scrolls horizontally.
 A quote has a 2 pt `line2` bar on the leading edge and `text2` text.
 `**strong**` is weight 600.
 `*emphasis*` is italic.
@@ -452,6 +509,11 @@ The rendered view does not spellcheck.
 Copy in `.rendered` mode writes the characters the view drew for the selection.
 The copy has no heading marks and no emphasis marks.
 A link copies its label.
+A list item copies its marker: `- ` for a bullet item, and its number with `. ` for an ordered item.
+A task item copies `- [ ] ` or `- [x] ` before its text. An ordered task item copies its number, then `[ ] ` or `[x] `.
+A nested block copies with the indentation of its list levels. Each level is the width of that level's marker: 2 spaces under `- `, 3 under `1. `, 4 under `10. `.
+A block after the first in a list item copies with the item's indentation and no marker.
+A quote copies with no `>`.
 Code content is copied.
 Fence markers are not copied.
 A drawn image adds no characters.
@@ -502,13 +564,19 @@ Strong is weight 600.
 Emphasis is italic.
 Inline code is Plex Mono 13 pt.
 Link text uses `accent`.
-The `(url)` is `text3`.
+On iOS, link text is underlined.
+The `(url)` is `text3`. It is not underlined.
 Quote text uses `text2`.
 A body with no syntax is the system font at 15 pt on Mac, with a line height of 1.6.
 On iOS, those sizes scale with Dynamic Type.
 The editor spellchecks.
 Smart quotes and smart dashes are off. Edit › Substitutions turns them on for the app.
-When an image draws, its `![alt](url)` source collapses to one dimmed line while the caret is outside it.
+While the caret is outside an image's `![alt](url)` source, that source draws on one dimmed line. The line truncates at its end. With the caret inside it, the source wraps like other text.
+Under that source line, the editor draws the image's card (see Images).
+When the result is `.image`, a thumbnail replaces the card.
+A thumbnail is at most 120 pt tall and at most the column width. It keeps its aspect ratio. The editor does not upscale it.
+The lines of a fenced code block, from the opening fence to the closing fence, are one box (see Boxes).
+Consecutive table rows are one box.
 
 The caret inside a task marker shows the raw marker in `text3`.
 Return in a list item continues the list with the same marker.
@@ -639,7 +707,7 @@ A decoded image wider or taller than 8192 pixels gives `.failed(tooLarge)`. The 
 A gif plays, except when Reduce Motion is on, or iOS Auto-Play Animated Images is off. Then the gif shows frame 1 with a play glyph and the accessibility action "Play animation" (DRAFT).
 
 A remote image never loads automatically.
-The app returns `.remoteNotLoaded(host)` until the person clicks the card, or presses Return or Space on it.
+The app returns `.remoteNotLoaded(host)` until the app receives `imageActivated(_:)` for that destination.
 The context menu item Load All Images in This Document loads every remote image of this document. The app does not remember that choice.
 The app writes a loaded image to the image cache.
 The image cache is in the app's sandboxed Caches folder.
@@ -658,6 +726,47 @@ When the file header gives the dimensions, the view reserves the height. Otherwi
 A linked image follows its link.
 A drawn image has the image trait and its alt text as the label. An image with an empty alt is hidden from VoiceOver.
 The editor does not draw an image whose result is not `.image`. It draws the matching card.
+
+### Image cards
+
+Every card shows the image glyph.
+"{alt}" below is the alt text. When the alt text is empty, the title "{alt}" reads "Image".
+The cards are:
+
+| Result | Title | Second line | Third line | Button |
+|---|---|---|---|---|
+| No result yet, or `.loading` | {alt} | "Loading…" | — | — |
+| `.remoteNotLoaded(host)` | {alt} | "Remote image · {host}" | — | "Load Image" on Mac, "Load image" on iOS |
+| `.needsAccess` | {alt} | "Needs folder access" | — | "Allow Access…" on Mac, "Allow access" on iOS |
+| `.failed(.timedOut)` | "Image can’t be shown" | the alt text | "It took too long to load." | "Try Again" on Mac, "Try again" on iOS |
+| `.failed(.network)` | "Image can’t be shown" | the alt text | "Couldn’t reach it. Check your connection." | "Try Again" on Mac, "Try again" on iOS |
+| `.failed(.tooLarge)` | "Image can’t be shown" | the alt text | "It’s too large to show." | — |
+| `.failed(.unsupported)` | "Image can’t be shown" | the alt text | "This image format isn’t supported." | — |
+| `.refused` with the `.text` fallback | "Image can’t be shown" | the alt text | — | — |
+
+On the failed cards and the refused card, an empty alt text leaves out the alt line.
+The loading card shows a progress indicator. Under Reduce Motion, the indicator does not move.
+A card with a button sends `imageActivated(_:)` when the person clicks anywhere on the card, or presses Return or Space while the card has focus.
+A card with no button does nothing on a click.
+The accessibility labels are:
+- The remote card: "{alt}, remote image from {host}, not loaded". Its hint is "Loads the image from {host}."
+- A failed card: the title and the reason, for example "Image can’t be shown, It took too long to load."
+- The refused card: the title and the alt text, for example "Image can’t be shown, Map". With an empty alt text, the title alone. In an untitled document, the hint is "Save the file to show local images." (DRAFT)
+- Any other card: the title and the second line.
+A card with a button has the button trait.
+
+With the `.link` fallback, a refused image draws the link "Image: {alt}". With an empty alt text, the link reads "Image". The link calls `open(_:)` with the image destination.
+
+### Boxes
+
+A box holds a code block or a run of table rows.
+A box line does not wrap.
+A box that is wider than the column scrolls sideways inside its own frame. Prose outside boxes keeps wrapping.
+A box scrolls with a trackpad, a horizontal scroll wheel, or Shift with a vertical scroll wheel.
+In the editor, the box scrolls to keep the caret visible.
+An edge of a box that has hidden content draws a 16 pt fade from the box background to clear.
+Under Increase Contrast, that edge draws a 1 pt `line2` line and no fade.
+A selection and a copy across a box behave as across any other text.
 
 ### HTML
 
@@ -790,8 +899,21 @@ Where that file conflicts with itself, these rules hold:
 - Increase Contrast maps `text3` to `text2` and `line2` to `text3`.
 - A heading exposes its level.
 - Lists, tables, and quotes are announced.
-- Reading-view links and checkboxes are in the keyboard Tab order with Full Keyboard Access.
-- Return activates a focused link.
+- Keyboard access is a launch requirement.
+- In `.rendered` and `.editorLocked`, Tab moves focus forward through the focusable elements in reading order. Shift-Tab moves focus back.
+- The focusable elements are links, checkboxes, image cards, and boxes wider than the column. A drawn image is focusable only when it is a link.
+- After the last focusable element, Tab moves focus out of the view. Before the first, Shift-Tab moves focus out of the view.
+- In `.editor`, Tab inserts a tab character. Ctrl-Tab moves focus out of the view.
+- Return opens a focused link.
+- Space toggles a focused checkbox.
+- Return or Space activates a focused card that has a button.
+- Left Arrow and Right Arrow scroll a focused box.
+- A focused element shows the system focus ring.
+- On Mac, ⌃F6 moves focus into the format bar. Left Arrow and Right Arrow move between its buttons. Esc moves focus back to the text.
+- VoiceOver is a launch requirement.
+- On Mac and on iOS, VoiceOver reads each heading with its level.
+- VoiceOver reads a box as a code block or a table.
+- On iOS, a gif does not play when Auto-Play Animated Images is off.
 - Every screen passes `performAccessibilityAudit()` in UI tests.
 - No meaning rests on color alone.
 
@@ -809,6 +931,8 @@ The app copies these sRGB values:
 | `pill` | `rgba(255,255,255,.05)` | `#F4F1EB` |
 | `line2` | `rgba(255,255,255,.12)` | `#DAD3C7` |
 
+Text in `text3` on `pane` has a contrast ratio of at least 4.5:1 in both appearances.
+
 ### Fonts
 
 The package ships the static Plex files of log 010 X-10a, copied from remember-mac `design/fonts/static/`, plus the IBM Plex Mono Regular, Medium, and SemiBold files and `OFL.txt`.
@@ -822,15 +946,17 @@ Log 010 stays as written until that work starts.
 Fortkeeps consumes the package by SemVer tag after roadmap V1-42 (WAIT-5).
 The library passes log 010 conformance cases 01–30 with the Fortkeeps value before 18e starts.
 That check covers the parse tree against each `.html` and every `.expect.json` field.
-MarkdownCore computes the Fortkeeps card fields of log 010: variant, factSize, summary, statusFields, link, and visibleLength. Their rules are log 010 and its reference generator `design/markdown-conformance/tools/generate.py`. Where the two disagree, the implementer reports it and does not choose.
+`FortkeepsCards` computes the Fortkeeps card fields of log 010: variant, factSize, summary, statusFields, link, and visibleLength. Their rules are log 010 and its reference generator `design/markdown-conformance/tools/generate.py`. Where the two disagree, the implementer reports it and does not choose.
 Until the Android design log exists, log 010 stays the Fortkeeps Android reference.
 The adoption edit to log 010 records these overrides:
 - MD-43: a tick saves immediately.
 - Smart quotes off.
 - Checkbox value words.
+- The log 010 conformance README follows MD-29: a click on `[X]` writes `[ ]`, and the next click writes `[x]`.
 
 ### Copy
 
+The image card strings in Images are final (Story Weaver, Round 9). They replace the screens doc strings `img.failed`, `img.refused`, and `img.ax.placeholder` hint "Loads this image".
 Every string marked (DRAFT) comes from `001-markdown-library-screens.md` or from revision 1 of this log.
 Story Weaver finalizes them (WAIT-3).
 The plan's exact-string tests use the final strings.
@@ -894,6 +1020,13 @@ The same text in Fortkeeps in `.rendered` mode with `titleLine .hidden` hides `T
 17. `MarkdownCore` has no UI, file, or network import. The analytics denylist check passes.
 18. A 64 KiB neighborhood restyle meets the 8 ms budget at the 95th percentile.
 19. `performAccessibilityAudit()` passes on every screen. The checkbox value reads `done` or `not done`.
+20. A click on Load Image, Try Again, or the folder-access card records one `imageActivated(_:)` and no `image(for:)` call. `refreshImage(destination:)` records one `image(for:)` call.
+21. Each `ImageResult` draws the card of the Image cards table, with its strings and accessibility label.
+22. Rendered copy of a nested list with a task gives the markers, `[ ]`, `[x]`, and the marker-width indentation.
+23. In `.rendered` and `.editorLocked`, Tab visits the links, checkboxes, cards, and wide boxes in reading order, and then leaves the view. Return, Space, and the arrows act as Accessibility states.
+24. A code line wider than the column does not wrap, in rendered mode and in the editor. Prose next to it wraps.
+25. An editor image draws its card under the one-line source, and a thumbnail at most 120 pt tall once the result is `.image`.
+26. The Mac view exposes each heading level to VoiceOver.
 
 ## Known Limitations
 

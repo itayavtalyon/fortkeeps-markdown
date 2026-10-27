@@ -36,6 +36,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 | 1d | Styler, edits, format commands, undo, byte limit | In review (steps 5–6 base commands built in 1f; WAIT-2 cases wait) | WAIT-2 (exact cases only) |
 | 1e | Paste, image and link classifiers, line diff, HTML policy | In review (step 8 waits) | WAIT-1 (step 8 only) |
 | 1f | Views, modes, host protocol, cards, accessibility | In review (gaps listed in the 1f notes) | — |
+| 1g | Review changes (log 001 revision 5) | In progress | — |
 
 ### 1a — Package, license, fonts, colors, CI guards
 
@@ -206,6 +207,35 @@ Must-pass tests:
 - Copy separates blocks with one newline.
 - Select All and Copy on a 2 MB document equal the model copy string.
 - With Reduce Motion on, a gif reports not animating.
+
+### 1g — Review changes (log 001 revision 5)
+
+Build the revision 5 changes on `stage/1f-views`.
+
+1. Create the target and library product `FortkeepsCards`. Move the Fortkeeps card fields and their log 010 checks into it. Remove every Fortkeeps rule from `MarkdownCore`.
+2. Apply the `MarkdownCore` coverage gate and the module trace to `FortkeepsCards`.
+3. Make the rendered copy write the list markers, the task markers, and the marker-width indentation from Rendering.
+4. Add `imageActivated(_:)` to `MarkdownHost`. Send it from every card that has a button. Do not call `image(for:)` for an activation.
+5. Draw each card of the Image cards table with its strings and accessibility label. Draw the `.link` fallback link with "Image" for an empty alt text.
+6. Underline iOS links in rendered mode and in the editor. Underline Mac links on keyboard focus.
+7. In the editor, draw the one-line image source, the card under it, and the thumbnail once the result is `.image`.
+8. Draw code blocks and table rows as boxes in rendered mode and in the editor, with the fade and the Increase Contrast edge.
+9. Reserve an image's height from its file header when the header gives the dimensions.
+10. Build the keyboard access from Accessibility for Mac and iOS.
+11. Expose heading levels on Mac. Announce lists, tables, and quotes. Follow the iOS Auto-Play Animated Images setting.
+12. Add a test that `text3` on `pane` has a contrast ratio of at least 4.5:1 in both appearances.
+
+Must-pass tests:
+
+- A click on Load Image, Try Again, or the folder-access card records one `imageActivated(_:)` and no `image(for:)` call. `refreshImage(destination:)` records one `image(for:)` call.
+- Each `ImageResult` draws the card of the Image cards table, with its strings and accessibility label.
+- Rendered copy of a nested list with a task gives the markers, `[ ]`, `[x]`, and the marker-width indentation.
+- In `.rendered` and `.editorLocked`, Tab visits the links, checkboxes, cards, and wide boxes in reading order, and then leaves the view. In `.editor`, Tab inserts a tab.
+- A code line wider than the column does not wrap, in rendered mode and in the editor. Prose next to it wraps.
+- An editor image draws its card under the one-line source, and a thumbnail at most 120 pt tall once the result is `.image`.
+- The Mac view exposes each heading level to VoiceOver.
+- `FortkeepsCards` passes the log 010 card checks at 100% coverage. `MarkdownCore` holds no Fortkeeps rule.
+- `text3` on `pane` meets 4.5:1 in light and dark.
 
 ## Handover
 

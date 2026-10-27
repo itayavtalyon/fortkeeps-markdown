@@ -13,6 +13,14 @@
         let formatBar = FormatBarView()
         /// The box views of rendered mode, by box id.
         var boxViews: [Int: BoxView] = [:]
+        /// The element keyboard focus is on, in `.rendered` and `.editorLocked`.
+        var focusedTarget: FocusTarget? {
+            didSet { showFocus() }
+        }
+
+        let focusRing = FocusRingView()
+        /// The focused link's range, underlined while focused.
+        var focusedLink: NSTextRange?
         let display: MarkdownDisplay
         private let layoutDelegate = MarkdownLayoutDelegate()
         /// The edit the text view is applying, from `shouldChangeTextIn` to `textDidChange`.
@@ -86,6 +94,10 @@
             addSubview(scrollView)
             formatBar.isHidden = true
             formatBar.onAction = { [weak self] action in self?.perform(action) }
+            formatBar.onEscape = { [weak self] in
+                guard let self else { return }
+                window?.makeFirstResponder(textView)
+            }
             addSubview(formatBar)
             display.owner = self
             controller.onDisplayChange = { [weak self] in self?.controllerChanged() }
@@ -97,6 +109,12 @@
                 scroll(toOffset: visible)
                 updateBoxes()
             }
+            observe()
+            applyEditability()
+            rebuild()
+        }
+
+        private func observe() {
             scrollView.contentView.postsBoundsChangedNotifications = true
             NotificationCenter.default.addObserver(
                 self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification,
@@ -111,8 +129,6 @@
                 self, selector: #selector(displayOptionsChanged),
                 name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil
             )
-            applyEditability()
-            rebuild()
         }
 
         // MARK: host interface

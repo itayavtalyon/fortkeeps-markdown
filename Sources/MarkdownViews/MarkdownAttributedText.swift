@@ -134,6 +134,9 @@ struct MarkdownAttributedText {
             transformFonts(in: range, of: string) { Self.isMono($0) ? $0 : .systemFont(ofSize: $0.pointSize) }
         case let .heading(level):
             string.addAttribute(.font, value: theme.headingFont(level: level), range: range)
+            #if os(iOS)
+                string.addAttribute(.accessibilityTextHeadingLevel, value: level, range: range)
+            #endif
         case .strong:
             let strong = theme.strongFont()
             transformFonts(in: range, of: string) { font in
@@ -242,33 +245,7 @@ struct MarkdownAttributedText {
         return string
     }
 
-    /// A code block is one box; a run of table rows is one box. Box lines
-    /// do not wrap (design log 001 › Boxes).
-    private func markBoxes(_ blocks: [RenderedText.Block], in string: NSMutableAttributedString) {
-        var id = 0
-        for (index, block) in blocks.enumerated() {
-            let kind: BoxMark.Kind
-            switch block.kind {
-            case .codeBlock: kind = .code
-            case .tableRow: kind = .table
-            default: continue
-            }
-            if kind == .code || index == 0 || !Self.isTableRow(blocks[index - 1]) {
-                id += 1
-            }
-            let end = min(string.length, block.range.upperBound + 1)
-            let paragraph = NSRange(location: block.range.lowerBound, length: end - block.range.lowerBound)
-            string.enumerateAttribute(.paragraphStyle, in: paragraph) { value, run, _ in
-                let style = ((value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle) ??
-                    NSMutableParagraphStyle()
-                style.lineBreakMode = .byClipping
-                string.addAttribute(.paragraphStyle, value: style, range: run)
-            }
-            string.addAttribute(.markdownBox, value: BoxMark(id: id, kind: kind), range: paragraph)
-        }
-    }
-
-    private static func isTableRow(_ block: RenderedText.Block) -> Bool {
+    static func isTableRow(_ block: RenderedText.Block) -> Bool {
         if case .tableRow = block.kind {
             true
         } else {
@@ -282,6 +259,17 @@ struct MarkdownAttributedText {
         paragraph: NSRange,
         in string: NSMutableAttributedString
     ) {
+        #if os(iOS)
+            // VoiceOver reads these as the block's kind.
+            let kinds = [
+                block.listDepth > 0 ? "list" : nil,
+                Self.isTableRow(block) ? "table" : nil,
+                block.quoteDepth > 0 ? "quote" : nil
+            ].compactMap(\.self)
+            if !kinds.isEmpty {
+                string.addAttribute(.accessibilityTextCustom, value: kinds, range: range)
+            }
+        #endif
         if block.quoteDepth > 0 {
             string.addAttributes([
                 .foregroundColor: MarkdownTheme.color(.text2),
@@ -304,44 +292,6 @@ struct MarkdownAttributedText {
             string.addAttribute(.font, value: theme.strongFont(), range: range)
         case .paragraph, .tableRow:
             break
-        }
-    }
-
-    /// One tab stop per column: the widest cell plus 6 pt by 10 pt padding.
-    private func tabulate(_ rows: ArraySlice<RenderedText.Block>, in string: NSMutableAttributedString) {
-        var widths: [CGFloat] = []
-        for row in rows {
-            let text = string.attributedSubstring(from: NSRange(
-                location: row.range.lowerBound,
-                length: row.range.count
-            ))
-            var start = 0
-            for (column, cell) in text.string.split(separator: "\t", omittingEmptySubsequences: false).enumerated() {
-                let length = cell.utf16.count
-                let width = text.attributedSubstring(from: NSRange(location: start, length: length)).size().width + 20
-                start += length + 1
-                if column < widths.count {
-                    widths[column] = max(widths[column], width)
-                } else {
-                    widths.append(width)
-                }
-            }
-        }
-        for row in rows {
-            let range = NSRange(location: row.range.lowerBound, length: row.range.count)
-            let base = (string.attribute(
-                .paragraphStyle,
-                at: row.range.lowerBound,
-                effectiveRange: nil
-            ) as? NSParagraphStyle)
-            let style = (base?.mutableCopy() as? NSMutableParagraphStyle) ?? theme.paragraphStyle()
-            var position = style.headIndent
-            style.tabStops = widths.dropLast().map { width in
-                position += width
-                return NSTextTab(textAlignment: .natural, location: position)
-            }
-            style.paragraphSpacingBefore = 6
-            string.addAttribute(.paragraphStyle, value: style, range: range)
         }
     }
 }

@@ -62,7 +62,7 @@
         // MARK: shortcuts
 
         override var keyCommands: [UIKeyCommand]? {
-            FormatAction.allCases.enumerated().map { index, action in
+            (owner?.focusKeyCommands ?? []) + FormatAction.allCases.enumerated().map { index, action in
                 var flags: UIKeyModifierFlags = []
                 if action.shortcut.modifiers.contains(.command) {
                     flags.insert(.command)
@@ -83,6 +83,18 @@
                 command.wantsPriorityOverSystemBehavior = true
                 return command
             }
+        }
+
+        @objc func focusKey(_ sender: UIKeyCommand) {
+            guard let owner, let input = MarkdownView.focusInput(for: sender) else { return }
+            if case let .leave(forward) = owner.handle(input) {
+                owner.leaveFocus(forward: forward)
+            }
+        }
+
+        /// Ctrl-Tab in the editor moves focus out of the view.
+        @objc func leaveEditor() {
+            resignFirstResponder()
         }
 
         @objc func performShortcut(_ sender: UIKeyCommand) {

@@ -294,8 +294,11 @@ extension NSTextLayoutManager {
     }
 
     /// The first character of the fragment at a y in container coordinates.
+    /// Below the last line, the document end.
     func firstOffset(atY y: CGFloat) -> Int {
-        guard let fragment = textLayoutFragment(for: CGPoint(x: 0, y: max(0, y))) else { return 0 }
+        guard let fragment = textLayoutFragment(for: CGPoint(x: 0, y: max(0, y))) else {
+            return y > 0 ? offset(of: documentRange.endLocation) : 0
+        }
         return offset(of: fragment.rangeInElement.location)
     }
 }

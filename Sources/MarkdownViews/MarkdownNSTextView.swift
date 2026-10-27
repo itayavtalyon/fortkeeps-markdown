@@ -38,6 +38,26 @@
             return true
         }
 
+        /// Keyboard focus in `.rendered` and `.editorLocked`, and ⌃F6 into the format bar.
+        override func keyDown(with event: NSEvent) {
+            guard let owner else { return super.keyDown(with: event) }
+            if event.keyCode == 97, event.modifierFlags.contains(.control), owner.focusFormatBar() {
+                return
+            }
+            if let input = MarkdownView.focusInput(for: event) {
+                switch owner.handle(input) {
+                case .handled:
+                    return
+                case let .leave(forward):
+                    owner.leaveFocus(forward: forward)
+                    return
+                case .ignored:
+                    break
+                }
+            }
+            super.keyDown(with: event)
+        }
+
         override func mouseDown(with event: NSEvent) {
             guard let controller else { return super.mouseDown(with: event) }
             if clickCheckbox(at: containerPoint(event)) || clickEditorImage(at: containerPoint(event)) {
@@ -111,7 +131,24 @@
 
         /// The checkboxes of the laid-out text, after the text's own children.
         override func accessibilityChildren() -> [Any]? {
-            (super.accessibilityChildren() ?? []) + checkboxElements()
+            (super.accessibilityChildren() ?? []) + checkboxElements() + blockElements()
+        }
+
+        /// Headings with their level, lists, tables, and quotes near the viewport.
+        func blockElements() -> [BlockElement] {
+            guard let owner, let controller, let layout = textLayoutManager else { return [] }
+            let visible = max(0, owner.firstVisibleOffset - 2000) ..< owner.lastVisibleOffset + 2000
+            return controller.document.blocks.compactMap { block in
+                guard let kind = BlockElement.Kind(block.kind) else { return nil }
+                let range = controller.displayOffset(ofSourceByte: block.sourceRange.lowerBound)
+                    ..< controller.displayOffset(ofSourceByte: block.sourceRange.upperBound)
+                guard range.overlaps(visible), let rect = layout.segmentsRect(range) else { return nil }
+                let label = controller.copyText(range).trimmingCharacters(in: .whitespacesAndNewlines)
+                return BlockElement(kind: kind, label: label, rect: rect.offsetBy(
+                    dx: textContainerOrigin.x,
+                    dy: textContainerOrigin.y
+                ), textView: self)
+            }
         }
 
         private func checkboxElements() -> [CheckboxElement] {
@@ -189,6 +226,73 @@
             nonisolated(unsafe) let element = self
             MainActor.assumeIsolated { element.textView?.toggleTask(element.task) }
             return true
+        }
+    }
+
+    /// A heading, list, table, or quote as VoiceOver reads it. A heading
+    /// reads its level.
+    final class BlockElement: NSAccessibilityElement {
+        enum Kind: Equatable {
+            case heading(Int)
+            case list
+            case table
+            case quote
+
+            init?(_ kind: MarkdownDocument.BlockKind) {
+                switch kind {
+                case let .heading(level): self = .heading(level)
+                case .bulletList, .orderedList: self = .list
+                case .table: self = .table
+                case .quote: self = .quote
+                default: return nil
+                }
+            }
+        }
+
+        let kind: Kind
+        private let rect: CGRect
+        private weak var textView: NSView?
+
+        init(kind: Kind, label: String, rect: CGRect, textView: NSView) {
+            self.kind = kind
+            self.rect = rect
+            self.textView = textView
+            super.init()
+            setAccessibilityParent(textView)
+            setAccessibilityLabel(label)
+            switch kind {
+            case let .heading(level):
+                if #available(macOS 26, *) {
+                    setAccessibilityRole(NSAccessibility.Role(rawValue: "AXHeading"))
+                } else {
+                    setAccessibilityRole(.staticText)
+                }
+                setAccessibilityValue(level)
+                setAccessibilityRoleDescription(String(
+                    localized: "ax.heading",
+                    defaultValue: "heading level \(level)",
+                    bundle: resourceBundle
+                ))
+            case .list:
+                setAccessibilityRole(.list)
+            case .table:
+                setAccessibilityRole(.table)
+            case .quote:
+                setAccessibilityRole(.group)
+                setAccessibilityRoleDescription(String(
+                    localized: "ax.quote",
+                    defaultValue: "quote",
+                    bundle: resourceBundle
+                ))
+            }
+        }
+
+        override func accessibilityFrame() -> CGRect {
+            nonisolated(unsafe) let element = self
+            return MainActor.assumeIsolated {
+                guard let view = element.textView else { return .zero }
+                return NSAccessibility.screenRect(fromView: view, rect: element.rect)
+            }
         }
     }
 #endif

@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import Accessibility
     import MarkdownCore
     import UIKit
 
@@ -12,6 +13,12 @@
         let formatBar = FormatBarView()
         /// The box views of rendered mode, by box id.
         var boxViews: [Int: BoxView] = [:]
+        /// The element keyboard focus is on, in `.rendered` and `.editorLocked`.
+        var focusedTarget: FocusTarget? {
+            didSet { showFocus() }
+        }
+
+        let focusRing = FocusRingView()
         let display: MarkdownDisplay
         private let layoutDelegate = MarkdownLayoutDelegate()
         /// The edit the text view is applying, from `shouldChangeTextIn` to `textViewDidChange`.
@@ -48,7 +55,7 @@
             )
             controller.host = host
             controller.isEditable = isEditable
-            controller.reduceMotion = UIAccessibility.isReduceMotionEnabled
+            controller.reduceMotion = Self.stillImages
             textView = MarkdownUITextView(usingTextLayoutManager: true)
             display = MarkdownDisplay(controller: controller, storage: textView.textStorage)
             super.init(frame: CGRect(x: 0, y: 0, width: 390, height: 700))
@@ -92,6 +99,10 @@
             NotificationCenter.default.addObserver(
                 self, selector: #selector(reduceMotionChanged),
                 name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(reduceMotionChanged),
+                name: AccessibilitySettings.animatedImagesEnabledDidChangeNotification, object: nil
             )
             applyEditability()
             rebuild()
@@ -180,8 +191,13 @@
             textView.setContentOffset(CGPoint(x: 0, y: frame.minY + textView.textContainerInset.top), animated: false)
         }
 
+        /// A gif shows frame 1 under Reduce Motion or with Auto-Play Animated Images off.
+        static var stillImages: Bool {
+            UIAccessibility.isReduceMotionEnabled || !AccessibilitySettings.animatedImagesEnabled
+        }
+
         @objc private func reduceMotionChanged() {
-            controller.reduceMotion = UIAccessibility.isReduceMotionEnabled
+            controller.reduceMotion = Self.stillImages
             rebuild()
         }
 

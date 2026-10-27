@@ -6,6 +6,8 @@
     /// 001 › Format commands). Each button performs a `FormatAction`.
     final class FormatBarView: NSVisualEffectView {
         var onAction: ((FormatAction) -> Void)?
+        /// Esc in the bar: focus goes back to the text.
+        var onEscape: (() -> Void)?
         private var buttons: [FormatBarButton: NSButton] = [:]
         private let headingMenu = NSMenu()
 
@@ -19,7 +21,7 @@
             stack.spacing = 2
             stack.edgeInsets = NSEdgeInsets(top: 4, left: 6, bottom: 4, right: 6)
             for item in FormatBarButton.allCases {
-                let button = NSButton(
+                let button = BarButton(
                     image: NSImage(systemSymbolName: item.actions[0].symbol, accessibilityDescription: item.title)
                         ?? NSImage(),
                     target: self,
@@ -56,6 +58,26 @@
         @available(*, unavailable)
         required init?(coder _: NSCoder) {
             nil
+        }
+
+        var firstButton: NSButton? {
+            FormatBarButton.allCases.first.flatMap { buttons[$0] }
+        }
+
+        /// Left Arrow and Right Arrow move between the buttons; Esc goes back to the text.
+        override func keyDown(with event: NSEvent) {
+            let order = FormatBarButton.allCases.compactMap { buttons[$0] }
+            let current = order.firstIndex { window?.firstResponder === $0 }
+            switch event.keyCode {
+            case 123, 124:
+                let step = event.keyCode == 123 ? -1 : 1
+                let next = ((current ?? 0) + step + order.count) % order.count
+                window?.makeFirstResponder(order[next])
+            case 53:
+                onEscape?()
+            default:
+                super.keyDown(with: event)
+            }
         }
 
         /// `⌘B`, `⇧⌘C`, `⌥⌘1`: the shortcut as the tooltip shows it.
@@ -101,6 +123,17 @@
 
         @objc private func choose(_ sender: NSMenuItem) {
             onAction?(FormatAction.allCases[sender.tag])
+        }
+    }
+
+    /// A bar button that takes keyboard focus without Full Keyboard Access.
+    final class BarButton: NSButton {
+        override var acceptsFirstResponder: Bool {
+            true
+        }
+
+        override var canBecomeKeyView: Bool {
+            true
         }
     }
 #endif

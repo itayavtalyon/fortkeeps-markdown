@@ -36,7 +36,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 | 1d | Styler, edits, format commands, undo, byte limit | In review (steps 5–6 base commands built in 1f; WAIT-2 cases wait) | WAIT-2 (exact cases only) |
 | 1e | Paste, image and link classifiers, line diff, HTML policy | In review (step 8 waits) | WAIT-1 (step 8 only) |
 | 1f | Views, modes, host protocol, cards, accessibility | In review (gaps listed in the 1f notes) | — |
-| 1g | Review changes (log 001 revision 5) | In progress | — |
+| 1g | Review changes (log 001 revision 5) | In review | — |
 
 ### 1a — Package, license, fonts, colors, CI guards
 
@@ -651,3 +651,50 @@ Also: smart quotes and dashes off (Mac, iOS), a typed edit and its Undo, the byt
 **Simplify pass.** (1) The host API both views share (`text`, `anchor`, `reload(text:)`, `refreshImage(destination:)`, `perform(_:)`) is one extension in `MarkdownView+Shared.swift`; only one `MarkdownView` compiles per platform, so no protocol is needed. (2) A mode switch redraws once: `setMode` no longer calls `onDisplayChange`, since the view rebuilds for the new mode. (3) The equivalent undo-group clause above was removed. (4) The byte-limit cut goes through the controller on both platforms instead of a re-entrant insert. (5) Not shrunk: the two platform views keep their own event wiring (delegate callbacks, gestures, key commands); they share no types to factor.
 
 **Coverage.** MarkdownCore stays at 100% lines and functions. Two short-circuit autoclosures in `FormatCommands.prefixLines` were reached only by empty lines and now have tests (`a line command keeps an empty line inside a selection empty`, `a line command on one empty line adds its prefix`). The inline styles moved into one lookup in `walkInlines`'s default branch, which removed an unreachable `default`. MarkdownViews has no coverage gate; its tests are the must-pass list above.
+
+### 1g — Review changes (log 001 revision 5)
+
+Built on `stage/1f-views` after Itay's plan 01 review. Decisions: `decision:fortkeeps-markdown-plan01-review-2026-10-27`, `-plan01-review-2-`, `-plan01-review-3-`, `-rev5-grill-`, `-rev5-cards-`, `-rev5-boxes-2026-10-27`. Revision 5 of log 001 records them (Round 9).
+
+**Files.** `Sources/FortkeepsCards` (`FortkeepsCard`, `SavedLink`, moved from `MarkdownCore`) and `Tests/FortkeepsCardsTests` (card tests, saved-link tests, `Log010CardTests`); `scripts/check-coverage.py` and `scripts/check-core-modules.sh` gate both modules. `MarkdownCore`: `RenderedText.Block.copyPrefix`, `copyText(_:imagesDrawnAsText:listMarkers:)`. `MarkdownViews`: `MarkdownHost.imageActivated(_:)`, `MarkdownTextController.activateImage(destination:)`, `ImageCardContent` (the Image cards table), `EditorImages.swift` (editor cards and thumbnails), `BoxView+AppKit.swift`/`+UIKit.swift` and `MarkdownAttributedText+Blocks.swift` (boxes), `MarkdownTextController+Focus.swift`, `KeyboardFocus.swift`, `KeyboardFocus+AppKit.swift`/`+UIKit.swift` (keyboard access), `BlockElement` in `MarkdownNSTextView.swift` (VoiceOver blocks). Tests: `KeyboardFocusMacTests`, `KeyboardFocusIOSTests`, `MarkdownViewMacLayoutTests`, and additions to the existing suites.
+
+**Design of the hard parts.**
+
+- Editor images: the line that holds an image source gets paragraph spacing equal to its cards and thumbnails, so the space is part of layout and every caret and selection rectangle stays exact. The layout fragment draws the marks in that space. A click hit-tests the fragment above the point too, since the spacing lies below the fragment's frame. While typing, the neighborhood restyle parses only its three lines to find their images.
+- Boxes: a probe showed TextKit 2 clamps caret and selection rectangles to the text container and ignores a shifted fragment frame or a negative indent, so a line cannot scroll sideways inside the document's text view. Rendered mode lays a box's lines out unwrapped (`byClipping`) and places a box view over each laid-out box wider than the column; the box view scrolls its own copy of the characters, draws the fade, and mirrors the main selection. The document text underneath keeps every offset, so copy and the source map are unchanged. Itay chose to keep the editor wrapping (`-rev5-boxes-`).
+- Keyboard: the controller lists the focusable elements in reading order; each view keeps a focused element, draws the ring, and routes Tab, Shift-Tab, Return, Space, the arrows, and Esc. A box that fits the column is skipped when Tab reaches it.
+
+**Implementer choices for the deep review.**
+
+- A selection that starts inside a list item copies no marker for that item; a block whose start is in the selection copies its prefix. Design states the prefix, not partial selections.
+- A line that holds an image source and other text keeps wrapping; only a line that is only the image source truncates to one line. Truncating a mixed line would hide its text.
+- The rendered `Image: {alt}` copy also reads "Image" for an empty alt, to match the drawn link. `FortkeepsCards` keeps its marker-free visible text for `visibleLength`.
+- A card in the editor uses the `.text` fallback: the editor draws the refused card, not the link.
+- The focus ring starts at the first element; Tab does not start from the caret.
+- Mac heading elements use the `AXHeading` role with the level as the value on macOS 26, and a role description "heading level N" before it. Lists, tables, and quotes are accessibility elements near the viewport. On iOS, heading levels and block kinds are text attributes (`accessibilityTextHeadingLevel`, `accessibilityTextCustom`).
+- The image size comes from the header (ImageIO, 72 dpi as 1x); a reflow keeps the first visible line in place.
+
+**Not built or not verifiable here.**
+
+- ⌃F6 into the Mac format bar and its arrow keys are wired but not tested: they need a key window. Check them in plan 02's UI tests.
+- Whether VoiceOver uses the Mac block elements and the iOS custom attributes as intended needs a person with VoiceOver; the tests check the elements and attributes exist with the right roles and values.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| A click on Load Image, Try Again, or the folder-access card records one `imageActivated(_:)` and no `image(for:)` call. `refreshImage(destination:)` records one `image(for:)` call. | `an activation tells the host once, draws loading, and does not ask for the image`, `a click on an editor card activates the image` (Mac), `a tap on an editor card activates the image` (iOS) |
+| Each `ImageResult` draws the card of the Image cards table, with its strings and accessibility label. | `ImageCardContentTests` (12) |
+| Rendered copy of a nested list with a task gives the markers, `[ ]`, `[x]`, and the marker-width indentation. | `copy writes list markers, task boxes, and the parent marker widths`, `copy from inside a list item has no marker for that item`, `an empty task item copies its marker and box` |
+| In `.rendered` and `.editorLocked`, Tab visits the links, checkboxes, cards, and wide boxes in reading order, and then leaves the view. In `.editor`, Tab inserts a tab. | `tab visits links, checkboxes, cards, and wide boxes in reading order, then leaves`, `the locked editor focuses links and checkboxes, and the editor leaves tab to the text`, `return opens a focused link, space toggles ...`, `the arrows scroll a focused box and escape clears focus` (Mac); the iOS suite |
+| In rendered mode, a code line wider than the column does not wrap, and its box scrolls sideways. Prose next to it wraps. The editor wraps the same line. | `a wide code block scrolls sideways in its own box in rendered mode`, `a code block that fits gets no box view`, `the editor wraps a wide code line` (Mac and iOS) |
+| An editor image draws its card under the one-line source, and a thumbnail at most 120 pt tall once the result is `.image`. | `an editor image draws its card under its one-line source`, `an editor image becomes a thumbnail at most 120 points tall`, `the caret inside an image source lets it wrap` |
+| The Mac view exposes each heading level to VoiceOver. | `voiceOver reads each heading with its level, and lists, tables, and quotes` (Mac); `voiceOver reads heading levels and the kind of a list, table, or quote` (iOS) |
+| `FortkeepsCards` passes the log 010 card checks at 100% coverage. `MarkdownCore` computes no card field. | `Log010CardTests` (30 cases); `coverage gate: OK (MarkdownCore and FortkeepsCards 100%)`; a probe function added to `SavedLink.swift` failed the gate |
+| `text3` on `pane` meets 4.5:1 in light and dark. | `text3 on pane meets 4.5 to 1 in light and dark` (5.91 and 6.41) |
+
+Also: `an image size comes from its header`, `link text is underlined and its destination is not` (iOS, both modes).
+
+**Gate.** `just check` passes: 275 MarkdownCore, 17 FortkeepsCards, and 93 MarkdownViews tests on macOS; the MarkdownViews tests on the iPhone 18 Pro simulator; coverage 100% for both pure modules; the module trace on macOS and iOS for both; lint and format.
+
+**Mutations.** 28 one-clause mutants over the copy prefix, the card table, the activation, the focus targets and keys, the editor images, the boxes, and the layout offset. Five first survived and each got a test: Space on a link and Return on a checkbox do nothing, Return on a `.link`-fallback image opens its destination, a card without a button does nothing, and an image drawn as text with an empty alt copies "Image". One mutant did not build (code the compiler proved dead) and was run again in a valid form; it is red, with `a table's rows are one box`. A coverage gap found one more: the empty-task copy branch only runs for an empty task item between other blocks (`- [ ]` with nothing after it is not a task in GFM), and the test now uses that case.

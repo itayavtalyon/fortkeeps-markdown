@@ -36,7 +36,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 | 1d | Styler, edits, format commands, undo, byte limit | In review (steps 5–6 base commands built in 1f; WAIT-2 cases wait) | WAIT-2 (exact cases only) |
 | 1e | Paste, image and link classifiers, line diff, HTML policy | In review (step 8 waits) | WAIT-1 (step 8 only) |
 | 1f | Views, modes, host protocol, cards, accessibility | In review (gaps listed in the 1f notes) | — |
-| 1g | Review changes (log 001 revision 5) | In review | — |
+| 1g | Review changes (log 001 revision 5) | Done (Review Notes in the 1g notes) | — |
 
 ### 1a — Package, license, fonts, colors, CI guards
 
@@ -698,3 +698,15 @@ Also: `an image size comes from its header`, `link text is underlined and its de
 **Gate.** `just check` passes: 275 MarkdownCore, 17 FortkeepsCards, and 93 MarkdownViews tests on macOS; the MarkdownViews tests on the iPhone 18 Pro simulator; coverage 100% for both pure modules; the module trace on macOS and iOS for both; lint and format.
 
 **Mutations.** 28 one-clause mutants over the copy prefix, the card table, the activation, the focus targets and keys, the editor images, the boxes, and the layout offset. Five first survived and each got a test: Space on a link and Return on a checkbox do nothing, Return on a `.link`-fallback image opens its destination, a card without a button does nothing, and an image drawn as text with an empty alt copies "Image". One mutant did not build (code the compiler proved dead) and was run again in a valid form; it is red, with `a table's rows are one box`. A coverage gap found one more: the empty-task copy branch only runs for an empty task item between other blocks (`- [ ]` with nothing after it is not a task in GFM), and the test now uses that case.
+
+**Review Notes (second opinion, 2026-10-27).** Reviewed 73a5c48 in a clean worktree against the six decisions in the marker. Gate green before and after the fixes: `just check` with 101 macOS MarkdownViews tests, 275 MarkdownCore, 17 FortkeepsCards, coverage 100%, the module trace, and the iOS simulator tests.
+
+- Bug (from 1f): every table body row lost its column tab stops. The block loop set each row's paragraph style after the header row had tabulated the whole table, so only the header aligned. Tables are tabulated in `markBoxes` after the loop. Test: `a table's body rows take its header row's column stops`.
+- Bug: two adjacent tables were one box, one Tab stop, and one column set. `BoxMark.runs` starts a table at a header row and is the one grouping for boxes, columns, and focus. Tests: `two adjacent tables are two boxes`, `two adjacent tables are two focus boxes`.
+- Bug: `headerSize` ignored EXIF orientation, so a phone photo (orientation 6) reserved 400x300 and drew 300x400. Orientations 5 to 8 swap the sides. Test: `an image size from its header follows a quarter-turn orientation`.
+- Simplify: one `updateBoxes` for both views (`BoxGeometry.isWide` replaces three copies of the width check; `BoxView.update` loses the `padding` that was always 0); `ImageCardContent.cardSize` replaces two copies of the card height; `FocusKey` removed (activate takes `FocusInput`); the editor-image click rule moved to the controller (`click(_:)`); `refreshImage` notifies through `onImageChange`, so the public refresh keeps the first visible line. Sources net -25 lines.
+- Performance: an image result in the editor ran a full synchronous restyle of the whole document, with no 20 MB limit. It now redecorates only the lines that hold that destination.
+- Mutations: 18 one-clause mutants over the fixes and the moved code. Four survived and got tests: a click away from an editor card returns false, the card height per line, Space on a card with a button, and the refresh notification. One is equivalent and stays: `lineBreakMode` is set both ways in `decorateEditorImages`, because every caret move already restyles the old and new lines.
+- Grill: Itay accepted the four implementer choices (no marker for a partial list item, mixed image lines keep wrapping, Tab starts at the first element, the Mac heading role description before macOS 26). Recorded as `decision:fortkeeps-markdown-1g-review-2026-10-27`.
+- Not fixed, for later: `MarkdownDisplay.restyle(around:)` copies the whole text into `Array(text.utf16)` and counts newlines before the neighborhood on every keystroke (from 1d/1f), which is O(document) per key on a 20 MB text. `EditorImageMark` decodes the image on every decoration of its line. iOS box views do not mirror the main selection (the Mac ones do).
+

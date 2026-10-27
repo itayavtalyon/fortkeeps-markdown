@@ -44,6 +44,13 @@ struct RenderedTextTests {
     }
 
     @Test
+    func `an image drawn as text with an empty alt copies Image`() {
+        let rendered = givenDocument("a ![](x.png) b\n").rendered
+
+        #expect(rendered.copyText(0 ..< rendered.utf16Count, imagesDrawnAsText: [0]) == "a Image b")
+    }
+
+    @Test
     func `the hidden title is not in the rendered text`() {
         #expect(givenDocument("# Title\n\nBody\n", titleLine: .hidden).rendered.string == "Body")
         #expect(givenDocument("# Title\n\nBody\n").rendered.string == "Title\nBody")

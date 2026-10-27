@@ -330,7 +330,7 @@ Android is post-v1. A future design log covers the Android library and app.
 `FortkeepsCards` computes the Fortkeeps card fields (see Fortkeeps later).
 `FortkeepsCards` depends on `MarkdownCore`.
 `FortkeepsCards` follows the same import rules as `MarkdownCore`.
-`MarkdownCore` does not hold a Fortkeeps rule.
+`MarkdownCore` does not compute a Fortkeeps card field.
 `MarkdownViews` holds the Mac view and the iOS view.
 `MarkdownViews` does not open a file and does not open a network connection.
 

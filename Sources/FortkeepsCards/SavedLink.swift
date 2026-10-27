@@ -1,4 +1,5 @@
 import Foundation
+import MarkdownCore
 
 /// The saved-link card rule of log 010 (D21-01 to D21-04), as its reference
 /// generator `saved_link` states it.

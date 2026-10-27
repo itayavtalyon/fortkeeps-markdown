@@ -1,4 +1,5 @@
 import Foundation
+import MarkdownCore
 
 /// The Fortkeeps card fields of a memory body (remember-mac log 010 and its
 /// reference generator `design/markdown-conformance/tools/generate.py`), with

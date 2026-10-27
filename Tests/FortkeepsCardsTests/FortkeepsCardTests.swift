@@ -1,4 +1,5 @@
-@testable import MarkdownCore
+@testable import FortkeepsCards
+import MarkdownCore
 import Testing
 
 /// Card rules of log 010 at their boundaries; the conformance cases cover the

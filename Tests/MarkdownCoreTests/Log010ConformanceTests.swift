@@ -4,7 +4,7 @@ import Testing
 
 /// remember-mac log 010 conformance cases 01-30 (copied from remember-mac
 /// c673327, `design/markdown-conformance/cases`): the parse tree against each
-/// `.html`, every `.expect.json` field, and the toggle test.
+/// `.html` and the toggle test. FortkeepsCardsTests checks the `.expect.json` fields.
 struct Log010ConformanceTests {
     static let folder = RepoPath.url("Tests/MarkdownCoreTests/Fixtures/log010")
 
@@ -32,23 +32,13 @@ struct Log010ConformanceTests {
         try String(contentsOf: folder.appendingPathComponent(name + ".md"), encoding: .utf8)
     }
 
-    @Test(arguments: cases)
-    func `each log 010 case matches every expect.json field with the Fortkeeps value`(name: String) throws {
-        let expected = try JSONDecoder().decode(
-            FortkeepsCard.self,
-            from: Data(contentsOf: Self.folder.appendingPathComponent(name + ".expect.json"))
-        )
-
-        #expect(try FortkeepsCard(text: Self.markdown(name)) == expected)
-    }
-
     /// The conformance README asks for the original bytes after a second
     /// toggle. MD-29 (and design log 001 › Tasks) turns `X` into a space and a
     /// space into `x`, so `[X]` comes back as `[x]`. The test follows MD-29.
     @Test(arguments: cases)
     func `each log 010 task toggles exactly one byte and toggles back by MD-29`(name: String) throws {
         let text = try Self.markdown(name)
-        for task in FortkeepsCard(text: text).tasks {
+        for task in MarkdownDocument(text: text, features: .fortkeeps, presentation: MarkdownPresentation()).tasks {
             let original = Array(text.utf8)[task.byteOffset]
             let toggled = MarkdownDocument.toggleTask(at: task.byteOffset, in: text)
             let changed = zip(Array(text.utf8), Array(toggled.utf8)).enumerated()

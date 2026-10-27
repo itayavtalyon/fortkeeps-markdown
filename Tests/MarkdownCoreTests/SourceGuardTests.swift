@@ -1,18 +1,18 @@
 import Foundation
 import Testing
 
-/// Design › Product: MarkdownCore imports no UI framework, and neither library
-/// target uses file or network I/O. scripts/check-core-modules.sh adds the
+/// Design › Product: MarkdownCore and FortkeepsCards import no UI framework,
+/// and no library target uses file or network I/O. scripts/check-core-modules.sh adds the
 /// transitive import check (for example `import Cocoa` loads AppKit).
 struct SourceGuardTests {
-    @Test
-    func `no MarkdownCore source imports a UI framework`() throws {
-        let hits = try SourceGuard.hits(under: "Sources/MarkdownCore", scan: SourceGuard.uiImports)
+    @Test(arguments: ["Sources/MarkdownCore", "Sources/FortkeepsCards"])
+    func `no pure-rule source imports a UI framework`(folder: String) throws {
+        let hits = try SourceGuard.hits(under: folder, scan: SourceGuard.uiImports)
 
         #expect(hits.isEmpty, "\(hits)")
     }
 
-    @Test(arguments: ["Sources/MarkdownCore", "Sources/MarkdownViews"])
+    @Test(arguments: ["Sources/MarkdownCore", "Sources/FortkeepsCards", "Sources/MarkdownViews"])
     func `library sources use no file or network API`(folder: String) throws {
         let hits = try SourceGuard.hits(under: folder, scan: SourceGuard.ioUses)
 

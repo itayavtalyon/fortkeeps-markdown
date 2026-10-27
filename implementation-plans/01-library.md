@@ -212,7 +212,7 @@ Must-pass tests:
 
 Build the revision 5 changes on `stage/1f-views`.
 
-1. Create the target and library product `FortkeepsCards`. Move the Fortkeeps card fields and their log 010 checks into it. Remove every Fortkeeps rule from `MarkdownCore`.
+1. Create the target and library product `FortkeepsCards`. Move the Fortkeeps card fields and their log 010 checks into it. Remove every card field computation from `MarkdownCore`.
 2. Apply the `MarkdownCore` coverage gate and the module trace to `FortkeepsCards`.
 3. Make the rendered copy write the list markers, the task markers, and the marker-width indentation from Rendering.
 4. Add `imageActivated(_:)` to `MarkdownHost`. Send it from every card that has a button. Do not call `image(for:)` for an activation.
@@ -234,7 +234,7 @@ Must-pass tests:
 - A code line wider than the column does not wrap, in rendered mode and in the editor. Prose next to it wraps.
 - An editor image draws its card under the one-line source, and a thumbnail at most 120 pt tall once the result is `.image`.
 - The Mac view exposes each heading level to VoiceOver.
-- `FortkeepsCards` passes the log 010 card checks at 100% coverage. `MarkdownCore` holds no Fortkeeps rule.
+- `FortkeepsCards` passes the log 010 card checks at 100% coverage. `MarkdownCore` computes no card field.
 - `text3` on `pane` meets 4.5:1 in light and dark.
 
 ## Handover

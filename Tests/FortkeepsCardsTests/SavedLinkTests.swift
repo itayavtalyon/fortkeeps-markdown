@@ -1,4 +1,5 @@
-@testable import MarkdownCore
+@testable import FortkeepsCards
+import MarkdownCore
 import Testing
 
 /// log 010 D21-01 to D21-04, as `generate.py` `saved_link` states them.

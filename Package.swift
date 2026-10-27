@@ -11,6 +11,7 @@ let package = Package(
     platforms: [.macOS(.v15), .iOS(.v18)],
     products: [
         .library(name: "MarkdownCore", targets: ["MarkdownCore"]),
+        .library(name: "FortkeepsCards", targets: ["FortkeepsCards"]),
         .library(name: "MarkdownViews", targets: ["MarkdownViews"])
     ],
     dependencies: [
@@ -28,6 +29,7 @@ let package = Package(
             ],
             swiftSettings: strict
         ),
+        .target(name: "FortkeepsCards", dependencies: ["MarkdownCore"], swiftSettings: strict),
         .target(
             name: "MarkdownViews",
             dependencies: ["MarkdownCore"],
@@ -41,6 +43,7 @@ let package = Package(
             exclude: ["Fixtures"],
             swiftSettings: strict
         ),
+        .testTarget(name: "FortkeepsCardsTests", dependencies: ["FortkeepsCards"], swiftSettings: strict),
         .testTarget(name: "MarkdownViewsTests", dependencies: ["MarkdownViews"], swiftSettings: strict)
     ]
 )

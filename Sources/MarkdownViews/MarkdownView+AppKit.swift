@@ -89,9 +89,13 @@
             addSubview(formatBar)
             display.owner = self
             controller.onDisplayChange = { [weak self] in self?.controllerChanged() }
+            // The layout reflows once; the first visible line stays in place.
             controller.onImageChange = { [weak self] destination in
-                self?.display.refreshImages(destination: destination)
-                self?.updateBoxes()
+                guard let self else { return }
+                let visible = firstVisibleOffset
+                display.refreshImages(destination: destination)
+                scroll(toOffset: visible)
+                updateBoxes()
             }
             scrollView.contentView.postsBoundsChangedNotifications = true
             NotificationCenter.default.addObserver(

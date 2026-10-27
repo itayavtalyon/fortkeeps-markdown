@@ -135,5 +135,13 @@
             #expect(try Self.lineCount(view, at: 5) > 1)
             #expect(view.boxViews.isEmpty)
         }
+
+        @Test
+        func `an image size comes from its header`() throws {
+            let data = try MarkdownViewMacLayoutTests.png(width: 400, height: 300)
+
+            #expect(ImageAttachment.headerSize(data) == CGSize(width: 400, height: 300))
+            #expect(ImageAttachment.headerSize(Data([1, 2, 3])) == .zero)
+        }
     }
 #endif

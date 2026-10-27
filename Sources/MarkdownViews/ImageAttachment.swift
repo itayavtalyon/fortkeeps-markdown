@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import MarkdownCore
 #if os(macOS)
     import AppKit
@@ -51,7 +52,7 @@ final class ImageAttachment: NSTextAttachment {
         let width = max(lineWidth - 10, 1)
         switch content.kind {
         case let .image(data):
-            let natural = PlatformImage(data: data)?.size ?? .zero
+            let natural = Self.headerSize(data)
             guard natural.width > 0, natural.height > 0 else { return CGSize(width: 1, height: 1) }
             let scale = min(1, width / natural.width, maxHeight > 0 ? maxHeight / natural.height : 1)
             return CGSize(width: natural.width * scale, height: natural.height * scale)
@@ -62,6 +63,19 @@ final class ImageAttachment: NSTextAttachment {
             let size = NSAttributedString(string: content.title, attributes: [.font: linkFont]).size()
             return CGSize(width: ceil(size.width) + 4, height: ceil(size.height))
         }
+    }
+
+    /// The size in points from the image header, read without decoding the image.
+    static func headerSize(_ data: Data) -> CGSize {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+              let height = properties[kCGImagePropertyPixelHeight] as? CGFloat
+        else { return .zero }
+        // A header at 144 dpi describes a 2x image: half the pixels in points.
+        let dpi = properties[kCGImagePropertyDPIWidth] as? CGFloat ?? 72
+        let scale = dpi > 0 ? 72 / dpi : 1
+        return CGSize(width: width * scale, height: height * scale)
     }
 
     override func viewProvider(

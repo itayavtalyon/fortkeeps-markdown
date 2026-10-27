@@ -95,6 +95,19 @@ extension MarkdownTextController {
         }
     }
 
+    /// The person activated a card: the view draws the loading card and
+    /// tells the host, which refreshes the result when it has one.
+    func activateImage(destination: String) {
+        imageTasks[destination]?.cancel()
+        imageTasks[destination] = nil
+        setImageResult(.loading, for: destination)
+        host?.imageActivated(ImageRequest(
+            destination: destination,
+            documentURL: documentURL,
+            maxPixelSize: maxImagePixelSize
+        ))
+    }
+
     /// The host has a new result for a destination.
     func refreshImage(destination: String) {
         imageResults[destination] = nil

@@ -120,6 +120,10 @@ struct MarkdownAttributedText {
             string.addAttributes([.font: theme.codeFont(), .backgroundColor: MarkdownTheme.color(.pill)], range: range)
         case .link:
             string.addAttribute(.foregroundColor, value: MarkdownTheme.color(.accent), range: range)
+            // iOS has no hover, so a link is always underlined there.
+            #if os(iOS)
+                string.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+            #endif
         case .quote:
             string.addAttribute(.foregroundColor, value: MarkdownTheme.color(.text2), range: range)
         case .strikethrough:

@@ -139,7 +139,8 @@ final class MarkdownDisplay {
             content: ImageCardContent(
                 result: controller.imageResult(for: index),
                 alt: image.alt,
-                fallback: controller.presentation.imageFallback
+                fallback: controller.presentation.imageFallback,
+                isUntitled: controller.documentURL == nil
             ),
             animating: controller.isAnimating(imageIndex: index),
             maxHeight: maxImageHeight,

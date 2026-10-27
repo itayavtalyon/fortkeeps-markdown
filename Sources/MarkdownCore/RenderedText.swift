@@ -170,7 +170,8 @@ public struct RenderedText: Sendable {
             var unit = start
             while unit < end {
                 if utf16[unit] == 0xFFFC, let index = images.firstIndex(where: { $0.offset == unit }) {
-                    piece += imagesDrawnAsText.contains(index) ? "Image: " + images[index].alt : ""
+                    let alt = images[index].alt
+                    piece += imagesDrawnAsText.contains(index) ? (alt.isEmpty ? "Image" : "Image: " + alt) : ""
                     unit += 1
                     continue
                 }

@@ -8,6 +8,7 @@ final class RecordingHost: MarkdownHost {
     var changes: [TextChange] = []
     var requested: [String] = []
     var cancelled: [String] = []
+    var activated: [String] = []
     /// Destinations without an entry wait until cancelled.
     var results: [String: ImageResult] = [:]
 
@@ -34,6 +35,10 @@ final class RecordingHost: MarkdownHost {
 
     func textDidChange(_ change: TextChange) {
         changes.append(change)
+    }
+
+    func imageActivated(_ request: ImageRequest) {
+        activated.append(request.destination)
     }
 }
 

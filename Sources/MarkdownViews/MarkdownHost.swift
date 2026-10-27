@@ -12,6 +12,10 @@ public protocol MarkdownHost: AnyObject, Sendable {
     func open(_ link: LinkActivation)
     /// After the view applies a change.
     func textDidChange(_ change: TextChange)
+    /// The person activated an image card that has a button: consent to
+    /// load that image. The host calls `refreshImage(destination:)` when the
+    /// result changes; the view does not ask `image(for:)` for an activation.
+    func imageActivated(_ request: ImageRequest)
 }
 
 public struct ImageRequest: Equatable, Sendable {

@@ -56,7 +56,8 @@ final class ImageAttachment: NSTextAttachment {
             let scale = min(1, width / natural.width, maxHeight > 0 ? maxHeight / natural.height : 1)
             return CGSize(width: natural.width * scale, height: natural.height * scale)
         case .card:
-            return CGSize(width: min(width, 420), height: 56)
+            // 56 pt for one line under the title, 18 pt for each more line.
+            return CGSize(width: min(width, 420), height: 38 + 18 * CGFloat(max(1, content.lines.count)))
         case .link:
             let size = NSAttributedString(string: content.title, attributes: [.font: linkFont]).size()
             return CGSize(width: ceil(size.width) + 4, height: ceil(size.height))

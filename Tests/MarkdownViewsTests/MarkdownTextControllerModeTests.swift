@@ -168,6 +168,27 @@ struct MarkdownTextControllerModeTests {
     }
 
     @Test
+    func `an activation tells the host once, draws loading, and does not ask for the image`() async {
+        let (controller, host) = MarkdownTextControllerTests.givenController(
+            "![a](https://e.com/a.png)\n",
+            mode: .rendered
+        )
+        host.results["https://e.com/a.png"] = .remoteNotLoaded(host: "e.com")
+        controller.viewportChanged(0 ..< 1)
+        await settle { controller.imageResult(for: 0) != nil }
+
+        controller.activateImage(destination: "https://e.com/a.png")
+        await settle { false }
+
+        #expect(host.activated == ["https://e.com/a.png"])
+        #expect(host.requested == ["https://e.com/a.png"])
+        #expect(controller.imageResult(for: 0) == .loading)
+        controller.refreshImage(destination: "https://e.com/a.png")
+        await settle { host.requested.count == 2 }
+        #expect(host.requested.count == 2)
+    }
+
+    @Test
     func `refreshImage asks the host again`() async {
         let (controller, host) = MarkdownTextControllerTests.givenController(
             "![a](https://e.com/a.png)\n",

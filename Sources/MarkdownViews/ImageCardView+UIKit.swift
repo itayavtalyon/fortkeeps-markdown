@@ -24,7 +24,7 @@
                 buildLink(content)
             }
             isAccessibilityElement = content.isAccessibilityElement && content.kind != .link
-            accessibilityHint = content.help
+            accessibilityHint = content.accessibilityHint
         }
 
         @available(*, unavailable)
@@ -93,9 +93,9 @@
             let texts = UIStackView(arrangedSubviews: [title])
             texts.axis = .vertical
             texts.spacing = 2
-            if let detail = content.detail {
+            for line in content.lines {
                 let label = UILabel()
-                label.text = detail
+                label.text = line
                 label.textColor = MarkdownTheme.color(.text3)
                 label.font = .preferredFont(forTextStyle: .footnote)
                 label.adjustsFontForContentSizeCategory = true
@@ -115,12 +115,12 @@
                 row.addArrangedSubview(progress)
             }
             if let button = content.button {
-                let action = UIAction(title: button) { [weak self] _ in self?.askAgain() }
+                let action = UIAction(title: button) { [weak self] _ in self?.activate() }
                 let control = UIButton(configuration: .plain(), primaryAction: action)
                 control.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
                 row.addArrangedSubview(control)
                 accessibilityTraits = .button
-                addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(askAgain)))
+                addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(activate)))
             }
             pin(row)
             accessibilityLabel = content.accessibilityLabel
@@ -137,14 +137,14 @@
         }
 
         override func accessibilityActivate() -> Bool {
-            guard attachment.content.asksAgain else { return false }
-            askAgain()
+            guard attachment.content.activates else { return false }
+            activate()
             return true
         }
 
-        /// The person asked for this image: the view asks the host again.
-        @objc func askAgain() {
-            attachment.owner?.refreshImage(destination: attachment.destination)
+        /// The person activated this card: consent the host receives.
+        @objc func activate() {
+            attachment.owner?.controller.activateImage(destination: attachment.destination)
         }
 
         private func openLink() {

@@ -3,8 +3,8 @@ import MarkdownCore
 @testable import MarkdownViews
 import Testing
 
-/// Design › Images, Accessibility, Color: the card for each `ImageResult`,
-/// and the Increase Contrast colors.
+/// Design › Image cards and Color: the card for each `ImageResult`, its
+/// strings and accessibility label, and the Increase Contrast colors.
 struct ImageCardContentTests {
     typealias Fallback = MarkdownPresentation.ImageFallback
 
@@ -12,9 +12,11 @@ struct ImageCardContentTests {
     #if os(macOS)
         static let load = "Load Image"
         static let retry = "Try Again"
+        static let allow = "Allow Access…"
     #else
         static let load = "Load image"
         static let retry = "Try again"
+        static let allow = "Allow access"
     #endif
 
     static func card(_ result: ImageResult?, alt: String = "Map", fallback: Fallback = .text) -> ImageCardContent {
@@ -36,41 +38,57 @@ struct ImageCardContentTests {
         #expect(Self.card(.loading, alt: "").isAccessibilityElement)
     }
 
+    @Test(arguments: [nil, ImageResult.loading])
+    func `no result yet and loading draw the loading card`(result: ImageResult?) {
+        let card = Self.card(result)
+
+        #expect(card.title == "Map")
+        #expect(card.lines == ["Loading…"])
+        #expect(card.showsProgress)
+        #expect(!card.activates)
+        #expect(card.accessibilityLabel == "Map, Loading…")
+    }
+
     @Test
     func `a remote image that is not loaded draws the remote card with its load button`() {
         let card = Self.card(.remoteNotLoaded(host: "e.com"))
 
         #expect(card.kind == .card)
-        #expect(card.detail == "Remote image · e.com")
+        #expect(card.lines == ["Remote image · e.com"])
         #expect(card.button == Self.load)
         #expect(card.accessibilityLabel == "Map, remote image from e.com, not loaded")
-        #expect(card.asksAgain)
-    }
-
-    @Test(arguments: [nil, ImageResult.loading])
-    func `no result yet and loading draw the loading card`(result: ImageResult?) {
-        let card = Self.card(result)
-
-        #expect(card.detail == "Loading…")
-        #expect(card.showsProgress)
-        #expect(!card.asksAgain)
+        #expect(card.accessibilityHint == "Loads the image from e.com.")
+        #expect(card.activates)
     }
 
     @Test
-    func `a failed image draws its retry button with the reason`() {
-        let card = Self.card(.failed(reason: .tooLarge))
-
-        #expect(card.detail == "Couldn’t load this image.")
-        #expect(card.button == Self.retry)
-        #expect(card.help == "Too large")
-    }
-
-    @Test
-    func `the folder-access placeholder asks again`() {
+    func `the folder-access card activates`() {
         let card = Self.card(.needsAccess)
 
-        #expect(card.detail == "Needs folder access")
-        #expect(card.asksAgain)
+        #expect(card.lines == ["Needs folder access"])
+        #expect(card.button == Self.allow)
+        #expect(card.accessibilityLabel == "Map, Needs folder access")
+    }
+
+    @Test(arguments: [
+        (ImageFailure.timedOut, "It took too long to load.", true),
+        (.network, "Couldn’t reach it. Check your connection.", true),
+        (.tooLarge, "It’s too large to show.", false),
+        (.unsupported, "This image format isn’t supported.", false)
+    ])
+    func `a failed card reads the title, the alt, and the reason`(reason: ImageFailure, text: String, retries: Bool) {
+        let card = Self.card(.failed(reason: reason))
+
+        #expect(card.title == "Image can’t be shown")
+        #expect(card.lines == ["Map", text])
+        #expect(card.button == (retries ? Self.retry : nil))
+        #expect(card.accessibilityLabel == "Image can’t be shown, " + text)
+    }
+
+    @Test
+    func `a failed or refused card leaves out an empty alt`() {
+        #expect(Self.card(.failed(reason: .tooLarge), alt: "").lines == ["It’s too large to show."])
+        #expect(Self.card(.refused, alt: "").lines.isEmpty)
     }
 
     @Test
@@ -78,9 +96,19 @@ struct ImageCardContentTests {
         let card = Self.card(.refused)
 
         #expect(card.kind == .card)
-        #expect(card.detail == "This image can’t be shown.")
+        #expect(card.title == "Image can’t be shown")
+        #expect(card.lines == ["Map"])
         #expect(card.button == nil)
-        #expect(card.title == "Map")
+        #expect(card.accessibilityLabel == "Image can’t be shown, Map")
+        #expect(Self.card(.refused, alt: "").accessibilityLabel == "Image can’t be shown")
+    }
+
+    @Test
+    func `a refused card in an untitled document asks to save`() {
+        let card = ImageCardContent(result: .refused, alt: "Map", fallback: .text, isUntitled: true)
+
+        #expect(card.accessibilityHint == "Save the file to show local images.")
+        #expect(Self.card(.refused).accessibilityHint == nil)
     }
 
     @Test
@@ -89,6 +117,7 @@ struct ImageCardContentTests {
 
         #expect(card.kind == .link)
         #expect(card.title == "Image: Map")
+        #expect(Self.card(.refused, alt: "", fallback: .link).title == "Image")
     }
 
     @Test
@@ -106,5 +135,28 @@ struct ImageCardContentTests {
         #expect(MarkdownTheme.token(.text3, increaseContrast: false) == DesignColors.text3)
         #expect(MarkdownTheme.token(.line2, increaseContrast: false) == DesignColors.line2)
         #expect(MarkdownTheme.token(.accent, increaseContrast: true) == DesignColors.accent)
+    }
+
+    /// WCAG relative luminance of an sRGB color.
+    static func luminance(_ color: SRGBColor) -> Double {
+        func linear(_ channel: UInt8) -> Double {
+            let value = Double(channel) / 255
+            return value <= 0.040_45 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        let red = 0.2126 * linear(color.red)
+        let green = 0.7152 * linear(color.green)
+        let blue = 0.0722 * linear(color.blue)
+        return red + green + blue
+    }
+
+    static func contrast(_ first: SRGBColor, _ second: SRGBColor) -> Double {
+        let (high, low) = (max(luminance(first), luminance(second)), min(luminance(first), luminance(second)))
+        return (high + 0.05) / (low + 0.05)
+    }
+
+    @Test
+    func `text3 on pane meets 4.5 to 1 in light and dark`() {
+        #expect(Self.contrast(DesignColors.text3.light, DesignColors.pane.light) >= 4.5)
+        #expect(Self.contrast(DesignColors.text3.dark, DesignColors.pane.dark) >= 4.5)
     }
 }

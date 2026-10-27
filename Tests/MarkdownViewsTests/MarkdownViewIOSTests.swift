@@ -85,6 +85,20 @@
             #expect(dimmed == strikethrough)
         }
 
+        @Test(arguments: [MarkdownMode.editor, .rendered])
+        func `link text is underlined and its destination is not`(mode: MarkdownMode) {
+            let view = Self.givenView("see [site](https://e.com)", mode: mode)
+            let storage = view.textView.textStorage
+            let underline = { (offset: Int) in
+                storage.attribute(.underlineStyle, at: offset, effectiveRange: nil) as? Int
+            }
+
+            #expect(underline(mode == .editor ? 6 : 5) == NSUnderlineStyle.single.rawValue)
+            if mode == .editor {
+                #expect(underline(15) == nil)
+            }
+        }
+
         @Test
         func `the editor spellchecks and rendered mode does not`() {
             let view = Self.givenView("text")

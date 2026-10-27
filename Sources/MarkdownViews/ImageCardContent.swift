@@ -1,8 +1,8 @@
 import Foundation
 import MarkdownCore
 
-/// What the view draws for one image: the image, a card for each other
-/// `ImageResult`, or the `Image: {alt}` link (design log 001 › Images).
+/// What the view draws for one image: the image, a card of the Image cards
+/// table, or the `.link` fallback link (design log 001 › Image cards).
 struct ImageCardContent: Equatable {
     enum Kind: Equatable {
         case image(Data)
@@ -12,27 +12,30 @@ struct ImageCardContent: Equatable {
 
     let kind: Kind
     let title: String
-    let detail: String?
+    /// The lines under the title.
+    let lines: [String]
     let button: String?
     let showsProgress: Bool
-    /// The failure reason, shown as a tooltip and read as the hint.
-    let help: String?
     let accessibilityLabel: String
+    let accessibilityHint: String?
     /// An image with an empty alt is hidden from VoiceOver.
     let isAccessibilityElement: Bool
-    /// Clicking the card asks the host again.
-    var asksAgain: Bool {
+    /// A card with a button sends `imageActivated(_:)` on a click.
+    var activates: Bool {
         button != nil
     }
 
     /// No result yet draws the loading card. `.refused` with the `.link`
-    /// fallback draws the `Image: {alt}` link.
-    init(result: ImageResult?, alt: String, fallback: MarkdownPresentation.ImageFallback) {
+    /// fallback draws the link. `isUntitled` gives a refused card its hint.
+    init(result: ImageResult?, alt: String, fallback: MarkdownPresentation.ImageFallback, isUntitled: Bool = false) {
         let name = alt.isEmpty ? Strings.noAlt : alt
-        var detail: String?
+        // The failed and refused cards leave out an empty alt.
+        let altLine = alt.isEmpty ? [String]() : [alt]
+        var title = name
+        var lines: [String] = []
         var button: String?
-        var help: String?
-        var label = name
+        var label: String?
+        var hint: String?
         kind = switch (result, fallback) {
         case let (.image(data)?, _): .image(data)
         case (.refused?, .link): .link
@@ -41,28 +44,33 @@ struct ImageCardContent: Equatable {
         switch result {
         case .image?:
             break
-        case .needsAccess?:
-            detail = Strings.needsAccess
-            button = Strings.allowAccess
+        case .loading?, nil:
+            lines = [Strings.loading]
         case let .remoteNotLoaded(host)?:
-            detail = Strings.remote(host)
+            lines = [Strings.remote(host)]
             button = Strings.load
             label = Strings.remoteLabel(name, host)
-        case .loading?, nil:
-            detail = Strings.loading
+            hint = Strings.loadHint(host)
+        case .needsAccess?:
+            lines = [Strings.needsAccess]
+            button = Strings.allowAccess
         case let .failed(reason)?:
-            detail = Strings.failed
-            button = Strings.retry
-            help = Strings.reason(reason)
+            title = Strings.cannotShow
+            lines = altLine + [Strings.reason(reason)]
+            button = [.timedOut, .network].contains(reason) ? Strings.retry : nil
+            label = title + ", " + Strings.reason(reason)
         case .refused?:
-            detail = fallback == .link ? nil : Strings.refused
+            title = kind == .link ? (alt.isEmpty ? Strings.noAlt : Strings.imageLink(alt)) : Strings.cannotShow
+            lines = kind == .link ? [] : altLine
+            label = ([title] + lines).joined(separator: ", ")
+            hint = kind == .card && isUntitled ? Strings.saveToShow : nil
         }
-        self.detail = detail
+        self.title = title
+        self.lines = lines
         self.button = button
-        self.help = help
         showsProgress = result == nil || result == .loading
-        title = kind == .link ? Strings.imageLink(name) : name
-        accessibilityLabel = kind == .link ? title : label
+        accessibilityLabel = label ?? ([title] + lines.prefix(1)).joined(separator: ", ")
+        accessibilityHint = hint
         isAccessibilityElement = if case .image = kind {
             !alt.isEmpty
         } else {
@@ -71,7 +79,8 @@ struct ImageCardContent: Equatable {
     }
 }
 
-/// The image strings (DRAFT until Story Weaver finalizes them, WAIT-3).
+/// The image strings (design log 001 › Image cards). The remote, loading,
+/// and folder-access strings are DRAFT until Story Weaver finalizes them (WAIT-3).
 enum Strings {
     static var noAlt: String {
         String(localized: "img.noalt", defaultValue: "Image", bundle: resourceBundle)
@@ -101,6 +110,10 @@ enum Strings {
         )
     }
 
+    static func loadHint(_ host: String) -> String {
+        String(localized: "img.load.hint", defaultValue: "Loads the image from \(host).", bundle: resourceBundle)
+    }
+
     static var load: String {
         #if os(macOS)
             String(localized: "img.load", defaultValue: "Load Image", bundle: resourceBundle)
@@ -113,8 +126,8 @@ enum Strings {
         String(localized: "img.loading", defaultValue: "Loading…", bundle: resourceBundle)
     }
 
-    static var failed: String {
-        String(localized: "img.failed", defaultValue: "Couldn’t load this image.", bundle: resourceBundle)
+    static var cannotShow: String {
+        String(localized: "img.cannotShow", defaultValue: "Image can’t be shown", bundle: resourceBundle)
     }
 
     static var retry: String {
@@ -125,8 +138,12 @@ enum Strings {
         #endif
     }
 
-    static var refused: String {
-        String(localized: "img.refused", defaultValue: "This image can’t be shown.", bundle: resourceBundle)
+    static var saveToShow: String {
+        String(
+            localized: "img.untitled.hint",
+            defaultValue: "Save the file to show local images.",
+            bundle: resourceBundle
+        )
     }
 
     static var play: String {
@@ -139,11 +156,22 @@ enum Strings {
 
     static func reason(_ reason: ImageFailure) -> String {
         switch reason {
-        case .tooLarge: String(localized: "img.reason.tooLarge", defaultValue: "Too large", bundle: resourceBundle)
-        case .timedOut: String(localized: "img.reason.timedOut", defaultValue: "Timed out", bundle: resourceBundle)
+        case .tooLarge:
+            String(localized: "img.reason.tooLarge", defaultValue: "It’s too large to show.", bundle: resourceBundle)
+        case .timedOut:
+            String(localized: "img.reason.timedOut", defaultValue: "It took too long to load.", bundle: resourceBundle)
         case .unsupported:
-            String(localized: "img.reason.unsupported", defaultValue: "Unsupported format", bundle: resourceBundle)
-        case .network: String(localized: "img.reason.network", defaultValue: "Network error", bundle: resourceBundle)
+            String(
+                localized: "img.reason.unsupported",
+                defaultValue: "This image format isn’t supported.",
+                bundle: resourceBundle
+            )
+        case .network:
+            String(
+                localized: "img.reason.network",
+                defaultValue: "Couldn’t reach it. Check your connection.",
+                bundle: resourceBundle
+            )
         }
     }
 }

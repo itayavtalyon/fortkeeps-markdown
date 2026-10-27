@@ -22,7 +22,7 @@
                 buildLink(content)
             }
             setAccessibilityElement(content.isAccessibilityElement)
-            toolTip = content.help
+            setAccessibilityHelp(content.accessibilityHint)
         }
 
         @available(*, unavailable)
@@ -85,8 +85,8 @@
             texts.orientation = .vertical
             texts.alignment = .leading
             texts.spacing = 2
-            if let detail = content.detail {
-                let label = NSTextField(labelWithString: detail)
+            for line in content.lines {
+                let label = NSTextField(labelWithString: line)
                 label.textColor = MarkdownTheme.color(.text3)
                 label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
                 texts.addArrangedSubview(label)
@@ -105,7 +105,7 @@
                 row.addArrangedSubview(progress)
             }
             if let button = content.button {
-                row.addArrangedSubview(NSButton(title: button, target: self, action: #selector(askAgain)))
+                row.addArrangedSubview(NSButton(title: button, target: self, action: #selector(activate)))
                 setAccessibilityRole(.button)
             } else {
                 setAccessibilityRole(.group)
@@ -128,22 +128,22 @@
         }
 
         override func mouseDown(with event: NSEvent) {
-            if attachment.content.asksAgain {
-                askAgain()
+            if attachment.content.activates {
+                activate()
             } else {
                 super.mouseDown(with: event)
             }
         }
 
         override func accessibilityPerformPress() -> Bool {
-            guard attachment.content.asksAgain else { return false }
-            askAgain()
+            guard attachment.content.activates else { return false }
+            activate()
             return true
         }
 
-        /// The person asked for this image: the view asks the host again.
-        @objc func askAgain() {
-            attachment.owner?.refreshImage(destination: attachment.destination)
+        /// The person activated this card: consent the host receives.
+        @objc func activate() {
+            attachment.owner?.controller.activateImage(destination: attachment.destination)
         }
 
         @objc func openLink() {

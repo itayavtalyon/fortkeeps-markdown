@@ -10,6 +10,8 @@
         let controller: MarkdownTextController
         let textView: MarkdownUITextView
         let formatBar = FormatBarView()
+        /// The box views of rendered mode, by box id.
+        var boxViews: [Int: BoxView] = [:]
         let display: MarkdownDisplay
         private let layoutDelegate = MarkdownLayoutDelegate()
         /// The edit the text view is applying, from `shouldChangeTextIn` to `textViewDidChange`.
@@ -76,8 +78,10 @@
             formatBar.onAction = { [weak self] action in self?.perform(action) }
             display.owner = self
             controller.onDisplayChange = { [weak self] in self?.controllerChanged() }
-            controller
-                .onImageChange = { [weak self] destination in self?.display.refreshImages(destination: destination) }
+            controller.onImageChange = { [weak self] destination in
+                self?.display.refreshImages(destination: destination)
+                self?.updateBoxes()
+            }
             registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: MarkdownView, _) in
                 view.rebuild()
             }
@@ -150,6 +154,7 @@
             textView.selectedRange = NSRange(controller.selection)
             if controller.mode == .rendered {
                 scroll(toOffset: visible)
+                updateBoxes()
             }
             isSyncing = false
             updateFormatBar()
@@ -183,6 +188,44 @@
             let first = layout.firstOffset(atY: top)
             let last = layout.firstOffset(atY: top + textView.bounds.height)
             controller.viewportChanged(first ..< max(first + 1, last))
+            updateBoxes()
+        }
+
+        /// Places a box view over each laid-out box wider than the column, in rendered mode.
+        func updateBoxes() {
+            let top = textView.contentOffset.y - textView.textContainerInset.top
+            guard controller.mode == .rendered, let layout = textView.textLayoutManager,
+                  let start = layout.location(at: layout.firstOffset(atY: top)),
+                  let end = layout.location(at: min(
+                      display.storage.length,
+                      layout.firstOffset(atY: top + textView.bounds.height) + 1
+                  )),
+                  let range = NSTextRange(location: start, end: end)
+            else {
+                boxViews.values.forEach { $0.removeFromSuperview() }
+                boxViews = [:]
+                return
+            }
+            let wide = layout.boxes(in: range).filter { $0.contentWidth > $0.frame.width + 0.5 }
+            for (id, view) in boxViews where !wide.contains(where: { $0.mark.id == id }) {
+                view.removeFromSuperview()
+                boxViews[id] = nil
+            }
+            let origin = CGPoint(x: textView.textContainerInset.left, y: textView.textContainerInset.top)
+            for geometry in wide {
+                let view = boxViews[geometry.mark.id] ?? BoxView(mark: geometry.mark)
+                boxViews[geometry.mark.id] = view
+                if view.superview == nil {
+                    textView.addSubview(view)
+                }
+                let content = display.storage.attributedSubstring(from: NSRange(geometry.range))
+                view.update(content: content, geometry: geometry, origin: origin, padding: 0)
+            }
+        }
+
+        override public func layoutSubviews() {
+            super.layoutSubviews()
+            updateBoxes()
         }
 
         private func updateFormatBar() {

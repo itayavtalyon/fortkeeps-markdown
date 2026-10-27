@@ -250,6 +250,42 @@ extension NSTextLayoutManager {
         return nil
     }
 
+    /// One laid-out box: its frame in container coordinates, the width its
+    /// unwrapped lines need, and its characters.
+    struct BoxGeometry {
+        let mark: BoxMark
+        var frame: CGRect
+        var contentWidth: CGFloat
+        var range: Range<Int>
+    }
+
+    /// The boxes whose fragments are laid out in `range`.
+    func boxes(in range: NSTextRange) -> [BoxGeometry] {
+        var boxes: [BoxGeometry] = []
+        enumerateTextLayoutFragments(from: range.location, options: [.ensuresLayout]) { fragment in
+            guard fragment.rangeInElement.location.compare(range.endLocation) == .orderedAscending else { return false }
+            guard let paragraph = (fragment.textElement as? NSTextParagraph)?.attributedString, paragraph.length > 0,
+                  let mark = paragraph.attribute(.markdownBox, at: 0, effectiveRange: nil) as? BoxMark
+            else { return true }
+            let frame = fragment.layoutFragmentFrame
+            // A clipped line still lays out its glyphs past the column.
+            let width = fragment.textLineFragments.map { line in
+                line.locationForCharacter(at: line.characterRange.upperBound).x
+            }.max() ?? 0
+            let start = offset(of: fragment.rangeInElement.location)
+            let end = offset(of: fragment.rangeInElement.endLocation)
+            if let last = boxes.last, last.mark == mark {
+                boxes[boxes.count - 1].frame = last.frame.union(frame)
+                boxes[boxes.count - 1].contentWidth = max(last.contentWidth, width)
+                boxes[boxes.count - 1].range = last.range.lowerBound ..< end
+            } else {
+                boxes.append(BoxGeometry(mark: mark, frame: frame, contentWidth: width, range: start ..< end))
+            }
+            return true
+        }
+        return boxes
+    }
+
     /// The frame of an offset's layout fragment, laid out first.
     func fragmentFrame(at offset: Int) -> CGRect? {
         guard let location = location(at: offset) else { return nil }

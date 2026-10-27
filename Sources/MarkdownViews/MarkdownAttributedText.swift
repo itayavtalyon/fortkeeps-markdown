@@ -15,6 +15,32 @@ extension NSAttributedString.Key {
     static let markdownCodeBlock = NSAttributedString.Key("FortkeepsMarkdownCodeBlock")
     /// A thematic break; the fragment draws a `line2` rule.
     static let markdownRule = NSAttributedString.Key("FortkeepsMarkdownRule")
+    /// A `BoxMark`: the rendered code block or table run a paragraph belongs to.
+    static let markdownBox = NSAttributedString.Key("FortkeepsMarkdownBox")
+}
+
+/// One box of rendered mode (design log 001 › Boxes).
+final class BoxMark: NSObject {
+    enum Kind {
+        case code
+        case table
+    }
+
+    let id: Int
+    let kind: Kind
+
+    init(id: Int, kind: Kind) {
+        self.id = id
+        self.kind = kind
+    }
+
+    override func isEqual(_ object: Any?) -> Bool {
+        (object as? BoxMark)?.id == id
+    }
+
+    override var hash: Int {
+        id
+    }
 }
 
 /// What the layout fragment draws for a list item or a task.
@@ -204,6 +230,7 @@ struct MarkdownAttributedText {
                 tabulate(rendered.blocks[index...].prefix { Self.isTableRow($0) }, in: string)
             }
         }
+        markBoxes(rendered.blocks, in: string)
         apply(rendered.spans, in: string)
         for (index, image) in rendered.images.enumerated() {
             string.addAttribute(
@@ -213,6 +240,32 @@ struct MarkdownAttributedText {
             )
         }
         return string
+    }
+
+    /// A code block is one box; a run of table rows is one box. Box lines
+    /// do not wrap (design log 001 › Boxes).
+    private func markBoxes(_ blocks: [RenderedText.Block], in string: NSMutableAttributedString) {
+        var id = 0
+        for (index, block) in blocks.enumerated() {
+            let kind: BoxMark.Kind
+            switch block.kind {
+            case .codeBlock: kind = .code
+            case .tableRow: kind = .table
+            default: continue
+            }
+            if kind == .code || index == 0 || !Self.isTableRow(blocks[index - 1]) {
+                id += 1
+            }
+            let end = min(string.length, block.range.upperBound + 1)
+            let paragraph = NSRange(location: block.range.lowerBound, length: end - block.range.lowerBound)
+            string.enumerateAttribute(.paragraphStyle, in: paragraph) { value, run, _ in
+                let style = ((value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle) ??
+                    NSMutableParagraphStyle()
+                style.lineBreakMode = .byClipping
+                string.addAttribute(.paragraphStyle, value: style, range: run)
+            }
+            string.addAttribute(.markdownBox, value: BoxMark(id: id, kind: kind), range: paragraph)
+        }
     }
 
     private static func isTableRow(_ block: RenderedText.Block) -> Bool {

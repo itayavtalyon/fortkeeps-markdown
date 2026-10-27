@@ -11,6 +11,8 @@
         let scrollView = NSScrollView()
         let textView: MarkdownNSTextView
         let formatBar = FormatBarView()
+        /// The box views of rendered mode, by box id.
+        var boxViews: [Int: BoxView] = [:]
         let display: MarkdownDisplay
         private let layoutDelegate = MarkdownLayoutDelegate()
         /// The edit the text view is applying, from `shouldChangeTextIn` to `textDidChange`.
@@ -87,12 +89,19 @@
             addSubview(formatBar)
             display.owner = self
             controller.onDisplayChange = { [weak self] in self?.controllerChanged() }
-            controller
-                .onImageChange = { [weak self] destination in self?.display.refreshImages(destination: destination) }
+            controller.onImageChange = { [weak self] destination in
+                self?.display.refreshImages(destination: destination)
+                self?.updateBoxes()
+            }
             scrollView.contentView.postsBoundsChangedNotifications = true
             NotificationCenter.default.addObserver(
                 self, selector: #selector(scrolled), name: NSView.boundsDidChangeNotification,
                 object: scrollView.contentView
+            )
+            // A reflow or a resize moves the boxes.
+            textView.postsFrameChangedNotifications = true
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(textFrameChanged), name: NSView.frameDidChangeNotification, object: textView
             )
             NSWorkspace.shared.notificationCenter.addObserver(
                 self, selector: #selector(displayOptionsChanged),
@@ -160,6 +169,7 @@
             textView.setSelectedRange(NSRange(controller.selection))
             if controller.mode == .rendered {
                 scroll(toOffset: visible)
+                updateBoxes()
             }
             isSyncing = false
             updateFormatBar()
@@ -192,6 +202,10 @@
             }
         }
 
+        @objc private func textFrameChanged() {
+            updateBoxes()
+        }
+
         @objc private func scrolled() {
             formatBar.isHidden = true
             updateViewport()
@@ -209,6 +223,7 @@
             let first = layout.firstOffset(atY: textView.visibleRect.minY - origin)
             let last = layout.firstOffset(atY: textView.visibleRect.maxY - origin)
             controller.viewportChanged(first ..< max(first + 1, last))
+            updateBoxes()
         }
 
         // MARK: format bar
@@ -328,6 +343,7 @@
             // The old caret line hides its task marker and its image source again.
             display.restyle(around: previous)
             display.restyle(around: range.lowerBound)
+            mirrorSelection()
             updateFormatBar()
         }
 

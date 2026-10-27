@@ -193,6 +193,54 @@
             #expect(view.text == "- [x] milk\n")
         }
 
+        // MARK: boxes and editor images
+
+        static let longCode = "```\n" + String(repeating: "let value = compute(input) + 1; ", count: 12) + "\n```\n"
+
+        static func fragment(_ view: MarkdownView, at offset: Int) throws -> MarkdownLayoutFragment {
+            let layout = try #require(view.textView.textLayoutManager)
+            layout.ensureLayout(for: layout.documentRange)
+            let location = try #require(layout.location(at: offset))
+            return try #require(layout.textLayoutFragment(for: location) as? MarkdownLayoutFragment)
+        }
+
+        @Test
+        func `a wide code block scrolls sideways in its own box in rendered mode`() throws {
+            let view = Self.givenView(Self.longCode, mode: .rendered)
+            view.updateBoxes()
+
+            let box = try #require(view.boxViews.values.first)
+            #expect(box.contentSize.width > box.frame.width)
+            #expect(try Self.fragment(view, at: 0).textLineFragments.count == 1)
+            box.scroll(by: 40)
+            #expect(box.scrollOffset == 40)
+        }
+
+        @Test
+        func `the editor wraps a wide code line`() throws {
+            let view = Self.givenView(Self.longCode)
+
+            #expect(try Self.fragment(view, at: 5).textLineFragments.count > 1)
+            #expect(view.boxViews.isEmpty)
+        }
+
+        @Test
+        func `a tap on an editor card activates the image`() throws {
+            let host = RecordingHost()
+            let view = MarkdownView(text: "![Map](https://e.com/a.png)\n", host: host)
+            view.layoutIfNeeded()
+            view.controller.setImageResult(.remoteNotLoaded(host: "e.com"), for: "https://e.com/a.png")
+            let fragment = try Self.fragment(view, at: 0)
+            let box = try #require(fragment.editorImageBoxes.first)
+            let center = CGPoint(
+                x: box.rect.midX + fragment.layoutFragmentFrame.minX,
+                y: box.rect.midY + fragment.layoutFragmentFrame.minY
+            )
+
+            #expect(view.textView.clickEditorImage(at: center))
+            #expect(host.activated == ["https://e.com/a.png"])
+        }
+
         // MARK: copy
 
         @Test

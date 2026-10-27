@@ -265,17 +265,19 @@ final class MarkdownTextController {
     @discardableResult
     func setMode(_ newMode: MarkdownMode, firstVisibleOffset: Int = 0) -> Int {
         let start = sourceByte(ofDisplayOffset: selection.lowerBound)
-        let end = sourceByte(ofDisplayOffset: selection.upperBound)
+        // The end keeps to the character before it, so it does not take closing syntax.
+        let end = sourceByte(ofDisplayOffset: selection.upperBound, affinity: .backward)
         let visible = sourceByte(ofDisplayOffset: firstVisibleOffset)
         mode = newMode
         let lowerBound = displayOffset(ofSourceByte: start)
         selection = lowerBound ..< max(lowerBound, displayOffset(ofSourceByte: end))
-        onDisplayChange?()
+        // The view rebuilds its display for the new mode.
         return displayOffset(ofSourceByte: visible)
     }
 
-    func sourceByte(ofDisplayOffset offset: Int) -> Int {
-        mode == .rendered ? document.rendered.sourceOffset(atRendered: offset) : sourceByte(ofUTF16: offset)
+    func sourceByte(ofDisplayOffset offset: Int, affinity: RenderedText.Affinity = .forward) -> Int {
+        mode == .rendered
+            ? document.rendered.sourceOffset(atRendered: offset, affinity: affinity) : sourceByte(ofUTF16: offset)
     }
 
     func displayOffset(ofSourceByte byte: Int) -> Int {

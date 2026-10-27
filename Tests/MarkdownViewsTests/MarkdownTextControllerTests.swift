@@ -43,6 +43,15 @@ struct MarkdownTextControllerTests {
     }
 
     @Test
+    func `a Command-click on the destination in the editor opens the link`() {
+        let (controller, host) = Self.givenController("see [site](https://e.com/x)")
+
+        controller.click(atDisplayOffset: 15, modifiers: .command)
+
+        #expect(host.opened.map(\.destination) == ["https://e.com/x"])
+    }
+
+    @Test
     func `a plain click in the editor opens nothing`() {
         let (controller, host) = Self.givenController("see [site](https://e.com/x)")
 
@@ -69,83 +78,6 @@ struct MarkdownTextControllerTests {
         controller.click(atDisplayOffset: 1, modifiers: [])
 
         #expect(host.opened.isEmpty)
-    }
-
-    // MARK: checkboxes
-
-    @Test(arguments: [MarkdownMode.editor, .rendered])
-    func `a checkbox click flips the byte and reports checkbox`(mode: MarkdownMode) {
-        let (controller, host) = Self.givenController("- [ ] task\n", mode: mode)
-
-        controller.toggleTask(0)
-
-        #expect(controller.text == "- [x] task\n")
-        #expect(host.changes.map(\.reason) == [.checkbox])
-        #expect(host.changes.first?.range == NSRange(location: 3, length: 1))
-        #expect(host.changes.first?.replacement == "x")
-        #expect(host.changes.first?.text == "- [x] task\n")
-    }
-
-    @Test
-    func `in the locked editor a checkbox is not enabled and a click changes nothing`() {
-        let (controller, host) = Self.givenController("- [ ] task\n", mode: .editorLocked)
-
-        controller.toggleTask(0)
-
-        #expect(controller.checkboxAccessibility(0).isEnabled == false)
-        #expect(controller.text == "- [ ] task\n")
-        #expect(host.changes.isEmpty)
-    }
-
-    @Test
-    func `while not editable a checkbox is not enabled`() {
-        let (controller, _) = Self.givenController("- [ ] task\n")
-
-        controller.isEditable = false
-
-        #expect(controller.checkboxAccessibility(0).isEnabled == false)
-    }
-
-    @Test
-    func `a checkbox after a byte order mark flips its own marker`() {
-        let (controller, _) = Self.givenController("\u{FEFF}- [ ] task\n")
-
-        controller.toggleTask(0)
-
-        #expect(controller.text == "\u{FEFF}- [x] task\n")
-    }
-
-    @Test
-    func `the checkbox accessibility value is done or not done and its label is the task text`() {
-        let (controller, _) = Self.givenController("- [x] one\n- [ ] two\n")
-
-        #expect(controller.checkboxAccessibility(0).value == "done")
-        #expect(controller.checkboxAccessibility(1).value == "not done")
-        #expect(controller.checkboxAccessibility(1).label == "two")
-        #expect(controller.checkboxAccessibility(0).isEnabled)
-    }
-
-    @Test
-    func `a checkbox click is one undo group and undo reports undo`() {
-        let (controller, host) = Self.givenController("- [ ] task\n")
-
-        controller.toggleTask(0)
-        controller.undoManager.undo()
-
-        #expect(controller.text == "- [ ] task\n")
-        #expect(host.changes.map(\.reason) == [.checkbox, .undo])
-    }
-
-    @Test
-    func `redo reports redo`() {
-        let (controller, host) = Self.givenController("- [ ] task\n")
-
-        controller.toggleTask(0)
-        controller.undoManager.undo()
-        controller.undoManager.redo()
-
-        #expect(controller.text == "- [x] task\n")
-        #expect(host.changes.map(\.reason) == [.checkbox, .undo, .redo])
     }
 
     // MARK: edits

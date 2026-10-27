@@ -22,7 +22,7 @@ Stages 1a, 1b, 1c, and 1f can start now. Stage 1d can start except steps 5–6. 
 
 | # | Plan | Status |
 |---|------|--------|
-| 01 | [Library](01-library.md) | In progress (1a, 1b, 1c in review) |
+| 01 | [Library](01-library.md) | In review (1a–1f; deep review of the whole plan) |
 | 02 | [Apps](02-apps.md) | After 01 |
 
 ## Definition of done (every stage)

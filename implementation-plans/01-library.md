@@ -33,9 +33,9 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 | 1a | Package, license, fonts, colors, CI guards | In review | — |
 | 1b | Parser, features, presentation | In review | — |
 | 1c | Document model, anchor, copy text | In review | — |
-| 1d | Styler, edits, format commands, undo, byte limit | In review (steps 5–6 wait) | WAIT-2 (steps 5–6 only) |
+| 1d | Styler, edits, format commands, undo, byte limit | In review (steps 5–6 base commands built in 1f; WAIT-2 cases wait) | WAIT-2 (exact cases only) |
 | 1e | Paste, image and link classifiers, line diff, HTML policy | In review (step 8 waits) | WAIT-1 (step 8 only) |
-| 1f | Views, modes, host protocol, cards, accessibility | Not started | — |
+| 1f | Views, modes, host protocol, cards, accessibility | In review (gaps listed in the 1f notes) | — |
 
 ### 1a — Package, license, fonts, colors, CI guards
 
@@ -563,3 +563,61 @@ Branch `stage/1e-paste`, stacked on `stage/1d-editor`.
 
 **Simplify pass.** (1) The five equivalent clauses above were removed (about 25 lines). (2) The raw-text end check compares bytes case-folded instead of decoding a slice. (3) The IPv4 check is two branches (hex or digits) and one canonical test. (4) Not shrunk: the tokenizer keeps separate readers for tags, names, attributes, and values; each maps to one HTML rule the fuzz test exercises.
 
+
+### 1f — Views, modes, host protocol, cards, accessibility
+
+Branch `stage/1f-views`, stacked on `stage/1e-paste`. Format commands (1d steps 5–6) were built here as base commands ahead of WAIT-2 (`decision:fortkeeps-markdown-1f-scope-2026-10-26`): each command adds its format and a second run removes it; the exact WAIT-2 cases are not built.
+
+**Files.** `Sources/MarkdownViews`: `MarkdownHost.swift` (protocol, `ImageRequest`, `ImageResult`, `ImageFailure`, `LinkActivation`, `LinkModifiers`, `TextChange`, `MarkdownMode`), `MarkdownTextController.swift` and `+Links.swift` (the one owner of view behavior: text, mode, edits, undo groups, checkboxes, links, copy, image requests), `MarkdownDisplay.swift` (keeps a text storage in step with the controller: styled source, rendered text, neighborhood restyle, 300 ms full restyle up to 20 MB, image attachments), `MarkdownAttributedText.swift` (tokens and blocks to attributes), `MarkdownTheme.swift` (Design fonts, sizes, colors, Increase Contrast, Dynamic Type), `MarkdownLayoutFragment.swift` (draws checkboxes, bullets, numbers, quote bars, code block backgrounds, rules), `FormatActions.swift` (the commands, shortcuts, and bar buttons in one table), `ImageCardContent.swift` and `ImageAttachment.swift` (what each `ImageResult` draws), and per platform `MarkdownView+AppKit.swift`/`+UIKit.swift`, `MarkdownNSTextView.swift`/`MarkdownUITextView.swift`, `FormatBar+AppKit.swift`/`+UIKit.swift`, `ImageCardView+AppKit.swift`/`+UIKit.swift`. `MarkdownCore`: `RenderedText.Block.listMarker` (bullet or number of an item's first block), `MarkdownStyler.styleText(_:entering:caret:)`, `RenderedText.spans` (inline styles in rendered offsets). Tests: `MarkdownTextControllerTests`, `MarkdownTextControllerModeTests` (both against `RecordingHost`), `MarkdownViewMacTests`, `MarkdownViewIOSTests`, `ImageCardContentTests`. `Justfile`: `ios-test` (in `check`), `scripts/ios-test.sh` (first available iPhone simulator, or `FORTKEEPS_IOS_SIMULATOR`).
+
+**Design.** The controller holds the working text and every rule; the platform views are thin. A typed edit is applied by the text view and reported to the controller (`textViewDidReplace`); every other change (format command, Return in a list, checkbox, undo, redo, reload, a byte-limit cut) is applied by the controller and the display syncs the changed stretch. Undo is the controller's `UndoManager` with `UndoGrouping` groups; NSTextView's own undo is off, and UITextView's `undoManager` returns the controller's. The rendered string keeps `RenderedText` offsets exactly: markers and checkboxes are drawn by the layout fragment, and each image is its U+FFFC with an attachment view, so the source map, copy, and anchors need no second map.
+
+**Implementer choices for the deep review.**
+
+- `.refused` draws the "can't be shown" card with the `.text` fallback and the `Image: {alt}` link with `.link`. Design's host table says the card; Round 1 and `imageFallback` say `Image: {alt}`. Only `.link` copies `Image: {alt}`.
+- Clicking a card, Load Image, Try Again, or the folder-access placeholder calls `image(for:)` again. The protocol has no "the person asked" signal, so the host tells a click from its own state (a second request for the same destination).
+- Failure reasons read "Too large", "Timed out", "Unsupported format", "Network error" (`img.reason.*`); the `Image: {alt}` link is `img.link`. These keys are not in the screens doc.
+- The format bar's Heading button opens a menu of Heading 1–3 and Body. A shortcut works when the view's text view is first responder; `perform(_:)` is public for the host's menus.
+- A list item's bullet or number is drawn, not a character, so rendered copy has no bullets (Design lists no rule). Each list or quote level indents 22 pt; each quote level draws its bar 4 pt into its indent.
+- A checked task's words are `text3` in the editor too.
+- Undo puts the caret at the end of the restored text.
+- `isEditable` false on Mac makes the text view non-editable, so a typed key beeps by AppKit's default.
+- Edit › Substitutions is the host's menu; the view only starts with smart quotes and dashes off.
+
+**Not built in 1f (needs a decision or belongs to plan 02).**
+
+- The editor does not draw images or cards, and `![alt](url)` does not collapse to one line. Images draw in rendered mode only. Drawing under a source line in TextKit 2 needs reserved height that no character carries; this needs a layout choice.
+- A code block wraps and a wide table wraps; neither scrolls horizontally. One text container cannot scroll one paragraph sideways; this needs a layout choice (an attachment view per block would break selection and copy across blocks).
+- The view reserves an image's height only after the bytes arrive (from the decoded size), not from the file header.
+- Full Keyboard Access Tab order for reading-view links and checkboxes, Return on a focused link, Space on a focused checkbox, and Mac ⌃F6 into the format bar. VoiceOver press works on checkboxes and cards.
+- Heading levels reach VoiceOver on iOS (`accessibilityTextHeadingLevel`); the Mac view does not expose them. Lists, tables, and quotes have no announcement attribute.
+- Link underline on hover is Mac only; focus underline and iOS pointer hover are not built.
+- iOS Auto-Play Animated Images is not read; only Reduce Motion stops a gif.
+- `performAccessibilityAudit()` runs in the apps' UI tests (plan 02). Whether UIKit also registers its own typing undo in the controller's manager can only be checked with a real keyboard, in the app's UI tests.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| A view test double records an image request for a near block and a cancellation for a discarded block. | `an image near the viewport is requested and a discarded one is cancelled` (`RecordingHost`) |
+| `open(_:)` on Command-click in `.editor` and click in `.editorLocked`; nothing on a plain click in `.editor`. | `a Command-click in the editor opens the link`, `a click opens the link in the locked editor and in rendered mode` (2), `a plain click in the editor opens nothing` |
+| A checkbox click reports `checkbox`. In `.editorLocked`, the checkbox reports not enabled. | `a checkbox click flips the byte and reports checkbox`, `in the locked editor a checkbox is not enabled and a click changes nothing`, and on the drawn box: `a click on a drawn checkbox toggles the task` (Mac, 2 modes), `a tap on a drawn checkbox toggles the task` (iOS, 2 modes) |
+| Editor → rendered → editor keeps the caret and the first visible line within one line; Undo restores the pre-switch edit. | `a switch to rendered and back keeps the caret, the first visible line, and Undo` (Mac and iOS, real layout), `a switch from editor to rendered to editor keeps the caret offset and undo restores the edit` |
+| `reload(text:)` clears Undo and reports `reload`. | `reload replaces the text, clears undo, and reports reload` |
+| The format bar buttons report the same text as the shortcuts. | `each format bar button gives the same text as its shortcut` (Mac: button vs key event, 11; iOS: button vs `UIKeyCommand`, 11) |
+| The checkbox accessibility value is `done` or `not done`. | `the checkbox accessibility value is done or not done and its label is the task text` |
+| The editor spellchecks. Rendered mode does not. | `the editor spellchecks and rendered mode does not` (controller, Mac, iOS) |
+| `~~` is dimmed only when `strikethrough` is true. | `tildes are dimmed only when strikethrough is on` (Mac and iOS, the drawn color in the light appearance) |
+| Copy separates blocks with one newline. | `copy in rendered mode separates blocks with one newline` |
+| Select All and Copy on a 2 MB document equal the model copy string. | `select all and copy on a 2 MB document equal the model copy` (Mac `writeSelection`, iOS `copy(_:)` into a named pasteboard) |
+| With Reduce Motion on, a gif reports not animating. | `with Reduce Motion on a gif reports not animating` |
+
+Also: smart quotes and dashes off (Mac, iOS), a typed edit and its Undo, the byte-limit cut through the text view, Return in a list (iOS), the format bar only in the editor (iOS), the card for each `ImageResult` and the empty-alt rule (`ImageCardContentTests`), Increase Contrast (`increase Contrast maps text3 to text2 and line2 to text3`).
+
+**iOS.** `just ios-test` runs the view tests on the simulator (iOS 27.0 runtime installed with `xcodebuild -downloadPlatform iOS`): 59 tests pass on iPhone 18 Pro. UIKit consults the text view delegate only for keyboard input, which a logic test without a host app cannot send, so `MarkdownViewIOSTests.type(_:in:)` calls the delegate in UIKit's order. A byte-limit cut is applied by the controller (`replaceCut`), not by a second insert inside the delegate callback; the first version crashed on iOS when UIKit then moved the caret by the full proposed length, and view selections are now clamped to the text.
+
+**Mutations.** 50 one-clause mutants over the controller, its links and images extension, the core additions (list markers, `styleText` entering state, the inline style lookup), the theme, the card content, and the shortcut match. Twelve first survived and each got a test: a format command and Return while not editable, a caret move ending the typing run, a checkbox after a BOM, the rendered checkbox of the second task, copy in the locked editor, the `Image: {alt}` copy only with `.link`, an image one viewport below the visible range, a refresh clearing the cached result, a cancelled request leaving no result, and a shortcut typed with Shift. Eight mutants did not build (an unused variable after the edit) and were run again in valid form; four of those then survived and got tests (a selection past the end, unchecking a checked task, a non-empty selection across a mode switch, a Command-click on a link's destination). The mode-switch test found a bug: the selection end mapped back with forward affinity and took the closing `**`; the end now uses backward affinity, as `snappedSelection` does. One survivor was equivalent and removed: resetting the open undo group after an own group (UndoGrouping opens a new group after one anyway). The iOS-only crash (a cut caret past the end) is covered on iOS by `an insertion past the byte limit keeps the prefix that fits`.
+
+**Simplify pass.** (1) The host API both views share (`text`, `anchor`, `reload(text:)`, `refreshImage(destination:)`, `perform(_:)`) is one extension in `MarkdownView+Shared.swift`; only one `MarkdownView` compiles per platform, so no protocol is needed. (2) A mode switch redraws once: `setMode` no longer calls `onDisplayChange`, since the view rebuilds for the new mode. (3) The equivalent undo-group clause above was removed. (4) The byte-limit cut goes through the controller on both platforms instead of a re-entrant insert. (5) Not shrunk: the two platform views keep their own event wiring (delegate callbacks, gestures, key commands); they share no types to factor.
+
+**Coverage.** MarkdownCore stays at 100% lines and functions. Two short-circuit autoclosures in `FormatCommands.prefixLines` were reached only by empty lines and now have tests (`a line command keeps an empty line inside a selection empty`, `a line command on one empty line adds its prefix`). The inline styles moved into one lookup in `walkInlines`'s default branch, which removed an unreachable `default`. MarkdownViews has no coverage gate; its tests are the must-pass list above.

@@ -104,10 +104,6 @@
 
         // MARK: host interface
 
-        public var text: String {
-            controller.text
-        }
-
         /// Applies in place: the model is not rebuilt and Undo is kept. The
         /// anchor stays, and VoiceOver focus moves to it.
         public var mode: MarkdownMode {
@@ -129,39 +125,6 @@
                 controller.isEditable = newValue
                 applyEditability()
             }
-        }
-
-        public var anchor: MarkdownAnchor {
-            get {
-                controller.document.anchor(
-                    firstVisibleSourceOffset: controller.sourceByte(ofDisplayOffset: firstVisibleOffset),
-                    selection: controller.sourceByte(ofDisplayOffset: controller.selection.lowerBound)
-                        ..< controller.sourceByte(ofDisplayOffset: controller.selection.upperBound)
-                )
-            }
-            set {
-                let start = controller.displayOffset(ofSourceByte: newValue.selection.lowerBound)
-                let end = max(start, controller.displayOffset(ofSourceByte: newValue.selection.upperBound))
-                select(start ..< end)
-                scroll(toOffset: controller.displayOffset(ofSourceByte: newValue.block + newValue.offsetInBlock))
-            }
-        }
-
-        /// Replaces the text, clears Undo, keeps the anchor at the nearest block, and reports `reload`.
-        public func reload(text newText: String) {
-            let kept = anchor
-            controller.reload(text: newText)
-            anchor = kept
-        }
-
-        public func refreshImage(destination: String) {
-            controller.refreshImage(destination: destination)
-            display.refreshImages(destination: destination)
-        }
-
-        /// Performs a format command, as the format bar and the shortcuts do.
-        public func perform(_ command: FormatCommand) {
-            controller.perform(command)
         }
 
         func perform(_ action: FormatAction) {

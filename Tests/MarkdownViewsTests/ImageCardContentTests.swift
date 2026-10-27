@@ -8,7 +8,7 @@ import Testing
 struct ImageCardContentTests {
     typealias Fallback = MarkdownPresentation.ImageFallback
 
-    /// Mac buttons use title case, iOS buttons sentence case.
+    // Mac buttons use title case, iOS buttons sentence case.
     #if os(macOS)
         static let load = "Load Image"
         static let retry = "Try Again"

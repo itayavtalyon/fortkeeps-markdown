@@ -26,6 +26,17 @@ struct MarkdownTextControllerModeTests {
     }
 
     @Test
+    func `a switch keeps a selection on the same characters`() {
+        let (controller, _) = MarkdownTextControllerTests.givenController("a **bold** b")
+        controller.selection = 4 ..< 8
+
+        controller.setMode(.rendered)
+        #expect(controller.selection == 2 ..< 6)
+        controller.setMode(.editor)
+        #expect(controller.selection == 4 ..< 8)
+    }
+
+    @Test
     func `a switch keeps the first visible block`() {
         let (controller, _) = MarkdownTextControllerTests.givenController("one\n\ntwo\n\nthree\n")
 
@@ -77,11 +88,23 @@ struct MarkdownTextControllerModeTests {
     func `a refused image copies Image alt only with the link fallback`() {
         var presentation = MarkdownPresentation()
         let text = "a ![m](x.png) b"
-        let plain = MarkdownTextController(text: text, features: MarkdownFeatures(), presentation: presentation,
-                                           mode: .rendered, maxUTF8Bytes: nil, documentURL: nil)
+        let plain = MarkdownTextController(
+            text: text,
+            features: MarkdownFeatures(),
+            presentation: presentation,
+            mode: .rendered,
+            maxUTF8Bytes: nil,
+            documentURL: nil
+        )
         presentation.imageFallback = .link
-        let linked = MarkdownTextController(text: text, features: MarkdownFeatures(), presentation: presentation,
-                                            mode: .rendered, maxUTF8Bytes: nil, documentURL: nil)
+        let linked = MarkdownTextController(
+            text: text,
+            features: MarkdownFeatures(),
+            presentation: presentation,
+            mode: .rendered,
+            maxUTF8Bytes: nil,
+            documentURL: nil
+        )
         plain.setImageResult(.refused, for: "x.png")
         linked.setImageResult(.refused, for: "x.png")
 

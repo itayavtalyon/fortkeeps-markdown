@@ -19,6 +19,8 @@ final class MarkdownDisplay {
     weak var owner: MarkdownView?
     /// 80% of the viewport height, for drawn images.
     var maxImageHeight: CGFloat = 0
+    /// The text column width, for editor thumbnails and cards.
+    var columnWidth: CGFloat = 400
     /// The fence state after each line, from the last full restyle.
     private var lineStates: [MarkdownStyler.LineState] = []
     private var restyleTask: Task<Void, Never>?
@@ -58,6 +60,33 @@ final class MarkdownDisplay {
             string = styled
         }
         storage.setAttributedString(string)
+        if controller.mode != .rendered {
+            decorateAllEditorImages(lines: lineRanges(of: controller.text))
+        }
+    }
+
+    /// Every line's UTF-16 range, without its line ending.
+    private func lineRanges(of text: String) -> [Range<Int>] {
+        var start = 0
+        return text.split(separator: "\n", omittingEmptySubsequences: false).map { line in
+            defer { start += line.utf16.count + 1 }
+            return start ..< start + line.utf16.count
+        }
+    }
+
+    /// The images of the whole text, from the controller's model.
+    private func decorateAllEditorImages(lines: [Range<Int>]) {
+        let images = controller.document.rendered.images.map { image in
+            (
+                controller.utf16Offset(ofSourceByte: image.sourceRange.lowerBound)
+                    ..< controller.utf16Offset(ofSourceByte: image.sourceRange.upperBound),
+                image
+            )
+        }
+        guard !images.isEmpty else { return }
+        storage.beginEditing()
+        decorateEditorImages(images, lines: lines)
+        storage.endEditing()
     }
 
     /// Brings the display to the controller's text after the controller
@@ -106,6 +135,10 @@ final class MarkdownDisplay {
         }
         storage.beginEditing()
         builder.style(shifted, in: storage)
+        decorateEditorImages(
+            editorImages(in: String(decoding: units[neighborhood], as: UTF16.self), at: neighborhood.lowerBound),
+            lines: shifted.map(\.range)
+        )
         storage.endEditing()
         scheduleFullRestyle()
     }
@@ -127,6 +160,7 @@ final class MarkdownDisplay {
         storage.beginEditing()
         builder.styleEditorLines(lines, in: storage)
         storage.endEditing()
+        decorateAllEditorImages(lines: lines.map(\.range))
     }
 
     // MARK: images
@@ -150,7 +184,10 @@ final class MarkdownDisplay {
 
     /// Redraws the images of one destination after its result changed.
     func refreshImages(destination: String) {
-        guard controller.mode == .rendered else { return }
+        guard controller.mode == .rendered else {
+            fullRestyle()
+            return
+        }
         let images = controller.document.rendered.images
         storage.beginEditing()
         for index in images.indices where images[index].destination == destination {

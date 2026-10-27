@@ -17,6 +17,17 @@
             controller?.undoManager ?? super.undoManager
         }
 
+        /// Activates the editor image card at a point in container coordinates;
+        /// false when there is none, or when the card has no button.
+        func clickEditorImage(at point: CGPoint) -> Bool {
+            guard let controller, controller.mode != .rendered, let mark = textLayoutManager?.editorImage(at: point)
+            else { return false }
+            if mark.content.activates {
+                controller.activateImage(destination: mark.destination)
+            }
+            return true
+        }
+
         /// Toggles the checkbox at a point in container coordinates; false when there is none.
         func clickCheckbox(at point: CGPoint) -> Bool {
             guard let controller, let hit = textLayoutManager?.marker(at: point), case .checkbox = hit.marker.kind

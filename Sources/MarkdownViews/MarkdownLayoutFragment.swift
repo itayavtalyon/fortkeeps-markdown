@@ -75,12 +75,30 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
         return boxes
     }
 
+    /// The editor images under this line, in fragment coordinates.
+    var editorImageBoxes: [(rect: CGRect, mark: EditorImageMark)] {
+        guard let paragraph, paragraph.length > 0,
+              let marks = paragraph.attribute(.markdownEditorImages, at: 0, effectiveRange: nil) as? [EditorImageMark],
+              let last = textLineFragments.last
+        else { return [] }
+        var y = last.typographicBounds.maxY
+        return marks.map { mark in
+            y += EditorImageMark.gap
+            defer { y += mark.size.height }
+            return (
+                CGRect(x: edge(0, width: mark.size.width), y: y, width: mark.size.width, height: mark.size.height),
+                mark
+            )
+        }
+    }
+
     override var renderingSurfaceBounds: CGRect {
-        super.renderingSurfaceBounds.union(CGRect(
+        let below = editorImageBoxes.last.map { $0.rect.maxY + EditorImageMark.gap } ?? 0
+        return super.renderingSurfaceBounds.union(CGRect(
             x: -layoutFragmentFrame.minX,
             y: 0,
             width: layoutFragmentFrame.width + layoutFragmentFrame.minX,
-            height: layoutFragmentFrame.height
+            height: max(layoutFragmentFrame.height, below)
         ))
     }
 
@@ -89,6 +107,9 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
         super.draw(at: point, in: context)
         for box in markerBoxes {
             draw(box, at: point, in: context)
+        }
+        for box in editorImageBoxes {
+            box.mark.draw(in: box.rect.offsetBy(dx: point.x, dy: point.y), context: context)
         }
     }
 
@@ -201,6 +222,32 @@ extension NSTextLayoutManager {
         guard let box = fragment.markerBoxes.first(where: { $0.rect.insetBy(dx: -slop, dy: -slop).contains(local) })
         else { return nil }
         return (box.marker, offset(of: fragment.rangeInElement.location) + box.offset)
+    }
+
+    /// The editor image under a point in container coordinates.
+    /// The images sit in the paragraph spacing, below their fragment's frame,
+    /// so the fragment above the point is checked too.
+    func editorImage(at point: CGPoint) -> EditorImageMark? {
+        // Below the last line there is no fragment; start from the document end.
+        let below = textLayoutFragment(for: point)
+        var candidates = below.map { [$0] } ?? []
+        enumerateTextLayoutFragments(
+            from: below?.rangeInElement.location ?? documentRange.endLocation,
+            options: [.reverse, .ensuresLayout]
+        ) { fragment in
+            if fragment !== below {
+                candidates.append(fragment)
+            }
+            return candidates.count < 2
+        }
+        for case let fragment as MarkdownLayoutFragment in candidates {
+            let frame = fragment.layoutFragmentFrame
+            let local = CGPoint(x: point.x - frame.minX, y: point.y - frame.minY)
+            if let box = fragment.editorImageBoxes.first(where: { $0.rect.contains(local) }) {
+                return box.mark
+            }
+        }
+        return nil
     }
 
     /// The frame of an offset's layout fragment, laid out first.

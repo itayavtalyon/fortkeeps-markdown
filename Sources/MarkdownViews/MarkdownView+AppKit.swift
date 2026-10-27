@@ -143,6 +143,9 @@
         private func rebuild() {
             isSyncing = true
             display.maxImageHeight = scrollView.contentSize.height * 0.8
+            display
+                .columnWidth = (textView.textContainer?.size.width ?? 400) - 2 *
+                (textView.textContainer?.lineFragmentPadding ?? 0)
             display.rebuild()
             textView.setSelectedRange(NSRange(controller.selection))
             isSyncing = false
@@ -199,9 +202,9 @@
             rebuild()
         }
 
-        /// Asks for the images near the viewport, in rendered mode.
+        /// Asks for the images near the viewport.
         private func updateViewport() {
-            guard controller.mode == .rendered, let layout = textView.textLayoutManager else { return }
+            guard let layout = textView.textLayoutManager else { return }
             let origin = textView.textContainerOrigin.y
             let first = layout.firstOffset(atY: textView.visibleRect.minY - origin)
             let last = layout.firstOffset(atY: textView.visibleRect.maxY - origin)
@@ -319,8 +322,11 @@
             guard !isSyncing, pendingEdit == nil else { return }
             let range = controller.clamped(Range(textView.selectedRange()) ?? 0 ..< 0)
             guard range != controller.selection else { return }
+            let previous = controller.selection.lowerBound
             controller.selection = range
             controller.caretMoved()
+            // The old caret line hides its task marker and its image source again.
+            display.restyle(around: previous)
             display.restyle(around: range.lowerBound)
             updateFormatBar()
         }

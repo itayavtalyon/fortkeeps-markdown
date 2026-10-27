@@ -134,6 +134,7 @@
         private func rebuild() {
             isSyncing = true
             display.maxImageHeight = bounds.height * 0.8
+            display.columnWidth = textView.textContainer.size.width - 2 * textView.textContainer.lineFragmentPadding
             display.rebuild()
             textView.selectedRange = NSRange(controller.selection)
             isSyncing = false
@@ -175,9 +176,9 @@
             rebuild()
         }
 
-        /// Asks for the images near the viewport, in rendered mode.
+        /// Asks for the images near the viewport.
         private func updateViewport() {
-            guard controller.mode == .rendered, let layout = textView.textLayoutManager else { return }
+            guard let layout = textView.textLayoutManager else { return }
             let top = textView.contentOffset.y - textView.textContainerInset.top
             let first = layout.firstOffset(atY: top)
             let last = layout.firstOffset(atY: top + textView.bounds.height)
@@ -203,7 +204,8 @@
         @objc private func tapped(_ gesture: UITapGestureRecognizer) {
             let point = gesture.location(in: textView)
             let inset = textView.textContainerInset
-            if textView.clickCheckbox(at: CGPoint(x: point.x - inset.left, y: point.y - inset.top)) {
+            let container = CGPoint(x: point.x - inset.left, y: point.y - inset.top)
+            if textView.clickCheckbox(at: container) || textView.clickEditorImage(at: container) {
                 return
             }
             guard let position = textView.closestPosition(to: point) else { return }
@@ -261,8 +263,11 @@
             guard !isSyncing, pendingEdit == nil else { return }
             let range = controller.clamped(Range(textView.selectedRange) ?? 0 ..< 0)
             guard range != controller.selection else { return }
+            let previous = controller.selection.lowerBound
             controller.selection = range
             controller.caretMoved()
+            // The old caret line hides its task marker and its image source again.
+            display.restyle(around: previous)
             display.restyle(around: range.lowerBound)
             updateFormatBar()
         }

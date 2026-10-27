@@ -1,5 +1,10 @@
 /// The rendered characters and their runs (see `RenderedText.Run`).
 extension DocumentBuilder {
+    /// The inlines that add one style span around their children.
+    static let inlineStyles: [String: MarkdownStyler.StyleToken] = [
+        "emph": .emphasis, "strong": .strong, "strikethrough": .strikethrough
+    ]
+
     mutating func walkInlines(_ node: Node) {
         for child in Self.children(of: node) {
             switch Self.typeName(child) {
@@ -7,7 +12,9 @@ extension DocumentBuilder {
                 appendAligned(Self.literal(child), from: span(of: child).lowerBound)
                 directionText += Self.literal(child)
             case "code":
+                let start = length
                 appendAligned(Self.literal(child), from: span(of: child).lowerBound)
+                styleSpans.append(MarkdownStyler.StyleSpan(range: start ..< length, token: .code))
             case "softbreak":
                 appendHidden(features.softBreakAsLine ? "\n" : " ", at: sourceEnd)
                 directionText += " "
@@ -16,7 +23,9 @@ extension DocumentBuilder {
                 directionText += " "
             case "link":
                 let start = length
+                let slot = reserveStyleSpan()
                 walkInlines(child)
+                styleSpans[slot] = MarkdownStyler.StyleSpan(range: start ..< length, token: .link)
                 links.append(RenderedText.Link(
                     range: start ..< length,
                     destination: Self.url(child),
@@ -31,9 +40,25 @@ extension DocumentBuilder {
                 ))
                 appendHidden("\u{FFFC}", source: span(of: child))
             default:
-                walkInlines(child)
+                styled(child, Self.inlineStyles[Self.typeName(child)])
             }
         }
+    }
+
+    /// Walks a node's children inside one span of `token`; no span when nil.
+    private mutating func styled(_ node: Node, _ token: MarkdownStyler.StyleToken?) {
+        let start = length
+        let slot = token.map { _ in reserveStyleSpan() }
+        walkInlines(node)
+        if let slot, let token {
+            styleSpans[slot] = MarkdownStyler.StyleSpan(range: start ..< length, token: token)
+        }
+    }
+
+    /// An outer span takes its place before the spans inside it.
+    private mutating func reserveStyleSpan() -> Int {
+        styleSpans.append(MarkdownStyler.StyleSpan(range: length ..< length, token: .syntax))
+        return styleSpans.count - 1
     }
 
     mutating func append(_ text: String) {

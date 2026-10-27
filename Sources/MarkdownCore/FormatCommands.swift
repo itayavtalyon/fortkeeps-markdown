@@ -23,7 +23,11 @@ public enum FormatCommands {
         case .bold: return wrap("**", in: units, selection: selection)
         case .italic: return wrap("*", in: units, selection: selection)
         case .code:
-            return Lines(units, selection).count > 1 ? fence(units, selection) : wrap("`", in: units, selection: selection)
+            return Lines(units, selection).count > 1 ? fence(units, selection) : wrap(
+                "`",
+                in: units,
+                selection: selection
+            )
         case let .link(clipboard): return link(units, selection, clipboard: clipboard)
         case .quote: return prefixLines(units, selection, prefix: "> ", has: { $0.hasPrefix("> ") })
         case .bulletedList: return prefixLines(units, selection, prefix: "- ", has: { $0.hasPrefix("- ") })
@@ -72,9 +76,11 @@ public enum FormatCommands {
         let lines = Lines(units, selection)
         let start = lines.ranges[0].lowerBound
         let local = selection.lowerBound - start ... selection.upperBound - start
-        let spans = MarkdownStyler(features: MarkdownFeatures()).styleLine(lines.text(0), entering: .init(), caret: nil).spans
+        let spans = MarkdownStyler(features: MarkdownFeatures()).styleLine(lines.text(0), entering: .init(), caret: nil)
+            .spans
         return spans.contains { span in
-            span.token == token && span.range.lowerBound <= local.lowerBound && local.upperBound <= span.range.upperBound
+            span.token == token && span.range.lowerBound <= local.lowerBound && local.upperBound <= span.range
+                .upperBound
         }
     }
 
@@ -93,13 +99,24 @@ public enum FormatCommands {
         if holds(width, runs(character, units, selection)) {
             let outer = selection.lowerBound - width ..< selection.upperBound + width
             let inner = string(units[selection])
-            return TextEdit(range: outer, replacement: inner, selection: outer.lowerBound ..< outer.lowerBound + selection.count)
+            return TextEdit(
+                range: outer,
+                replacement: inner,
+                selection: outer.lowerBound ..< outer.lowerBound + selection.count
+            )
         }
         let selected = Array(units[selection])
-        let inside = holds(width, (selected.prefix { $0 == character }.count, selected.reversed().prefix { $0 == character }.count))
+        let inside = holds(
+            width,
+            (selected.prefix { $0 == character }.count, selected.reversed().prefix { $0 == character }.count)
+        )
         if selection.count >= 2 * width, inside {
             let inner = string(units[selection.lowerBound + width ..< selection.upperBound - width])
-            return TextEdit(range: selection, replacement: inner, selection: selection.lowerBound ..< selection.lowerBound + inner.utf16.count)
+            return TextEdit(
+                range: selection,
+                replacement: inner,
+                selection: selection.lowerBound ..< selection.lowerBound + inner.utf16.count
+            )
         }
         let start = selection.lowerBound + width
         return TextEdit(
@@ -114,8 +131,13 @@ public enum FormatCommands {
         let lines = Lines(units, selection)
         let texts = (0 ..< lines.count).map(lines.text)
         let fenced = texts.count >= 2 && texts[0].hasPrefix("```") && texts[texts.count - 1] == "```"
-        let body = fenced ? texts.dropFirst().dropLast().joined(separator: "\n") : (["```"] + texts + ["```"]).joined(separator: "\n")
-        return TextEdit(range: lines.range, replacement: body, selection: lines.range.lowerBound ..< lines.range.lowerBound + body.utf16.count)
+        let body = fenced ? texts.dropFirst().dropLast().joined(separator: "\n") : (["```"] + texts + ["```"])
+            .joined(separator: "\n")
+        return TextEdit(
+            range: lines.range,
+            replacement: body,
+            selection: lines.range.lowerBound ..< lines.range.lowerBound + body.utf16.count
+        )
     }
 
     // MARK: lines
@@ -126,21 +148,27 @@ public enum FormatCommands {
 
     /// Adds `prefix` to each line, or removes the existing format from each
     /// line when every line has it. Empty lines in a multi-line selection stay.
-    private static func prefixLines(_ units: [UInt16], _ selection: Range<Int>, prefix: String, has: (String) -> Bool) -> TextEdit {
+    private static func prefixLines(
+        _ units: [UInt16],
+        _ selection: Range<Int>,
+        prefix: String,
+        has: (String) -> Bool
+    ) -> TextEdit {
         let lines = Lines(units, selection)
         let texts = (0 ..< lines.count).map(lines.text)
         let candidates = texts.filter { !$0.isEmpty || lines.count == 1 }
         let removing = !candidates.isEmpty && candidates.allSatisfy(has)
         return lines.edit { line in
             if removing {
-                return isTask(line) && prefix != "- [ ] " ? line : String(line.dropFirst(isTask(line) ? 6 : prefix.count))
+                return isTask(line) && prefix != "- [ ] " ? line :
+                    String(line.dropFirst(isTask(line) ? 6 : prefix.count))
             }
             return line.isEmpty && lines.count > 1 ? line : prefix + line
         }
     }
 
     private static func headingLevel(_ line: String) -> Int {
-        line.prefixMatch(of: /(#{1,6})(?: |$)/).map { $0.1.count } ?? 0
+        line.prefixMatch(of: /(#{1,6})(?: |$)/).map(\.1.count) ?? 0
     }
 
     /// Sets each line's `#` run to `level` (0 removes it). A heading command on
@@ -164,7 +192,11 @@ public enum FormatCommands {
         let selected = string(units[selection])
         let url = clipboard?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !selection.isEmpty else {
-            return TextEdit(range: selection, replacement: "[]()", selection: selection.lowerBound + 1 ..< selection.lowerBound + 1)
+            return TextEdit(
+                range: selection,
+                replacement: "[]()",
+                selection: selection.lowerBound + 1 ..< selection.lowerBound + 1
+            )
         }
         if let url, url.wholeMatch(of: /https?:\/\/\S+/) != nil {
             let replacement = "[" + selected + "](" + url + ")"
@@ -224,8 +256,13 @@ private struct Lines {
         let replacement = replaced.joined(separator: "\n")
         let start = range.lowerBound
         guard selection.isEmpty else {
-            let lowerBound = selection.lowerBound == start ? start : selection.lowerBound + replaced[0].utf16.count - text(0).utf16.count
-            return TextEdit(range: range, replacement: replacement, selection: lowerBound ..< start + replacement.utf16.count)
+            let lowerBound = selection.lowerBound == start ? start : selection.lowerBound + replaced[0].utf16
+                .count - text(0).utf16.count
+            return TextEdit(
+                range: range,
+                replacement: replacement,
+                selection: lowerBound ..< start + replacement.utf16.count
+            )
         }
         let caret = max(start, selection.lowerBound + replaced[0].utf16.count - text(0).utf16.count)
         return TextEdit(range: range, replacement: replacement, selection: caret ..< caret)

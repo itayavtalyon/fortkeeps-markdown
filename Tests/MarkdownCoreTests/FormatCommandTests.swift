@@ -31,7 +31,11 @@ struct FormatCommandTests {
         (.code, "a |word| b", "a `|word|` b"),
         (.code, "a `|word|` b", "a |word| b")
     ])
-    func `a wrapping command adds its delimiters and a second run removes them`(command: FormatCommand, before: String, after: String) {
+    func `a wrapping command adds its delimiters and a second run removes them`(
+        command: FormatCommand,
+        before: String,
+        after: String
+    ) {
         #expect(Self.run(command, before) == after)
     }
 
@@ -60,8 +64,22 @@ struct FormatCommandTests {
         (.quote, "x\n|a", "x\n> |a"),
         (.bulletedList, "a|b", "- a|b")
     ])
-    func `a line command adds its prefix to each line and a second run removes it`(command: FormatCommand, before: String, after: String) {
+    func `a line command adds its prefix to each line and a second run removes it`(
+        command: FormatCommand,
+        before: String,
+        after: String
+    ) {
         #expect(Self.run(command, before) == after)
+    }
+
+    @Test
+    func `a line command keeps an empty line inside a selection empty`() {
+        #expect(Self.run(.quote, "|a\n\nb|") == "|> a\n\n> b|")
+    }
+
+    @Test
+    func `a line command on one empty line adds its prefix`() {
+        #expect(Self.run(.bulletedList, "|") == "- |")
     }
 
     @Test
@@ -77,7 +95,11 @@ struct FormatCommandTests {
         (.body, "## Ti|tle", "Ti|tle"),
         (.body, "Ti|tle", "Ti|tle")
     ])
-    func `a heading command replaces the hash run and toggles off at its own level`(command: FormatCommand, before: String, after: String) {
+    func `a heading command replaces the hash run and toggles off at its own level`(
+        command: FormatCommand,
+        before: String,
+        after: String
+    ) {
         #expect(Self.run(command, before) == after)
     }
 

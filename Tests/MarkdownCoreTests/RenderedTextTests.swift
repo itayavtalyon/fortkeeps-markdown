@@ -12,6 +12,14 @@ struct RenderedTextTests {
     }
 
     @Test
+    func `the first block of each list item carries its marker`() {
+        let blocks = givenDocument("- a\n\n  b\n- [ ] c\n\n3. d\n4. e\n\nf\n").rendered.blocks
+
+        #expect(blocks.map(\.listMarker) == [.bullet, nil, .bullet, .ordered(3), .ordered(4), nil])
+        #expect(blocks.map(\.taskIndex) == [nil, nil, 0, nil, nil, nil])
+    }
+
+    @Test
     func `the hidden title is not in the rendered text`() {
         #expect(givenDocument("# Title\n\nBody\n", titleLine: .hidden).rendered.string == "Body")
         #expect(givenDocument("# Title\n\nBody\n").rendered.string == "Title\nBody")
@@ -81,6 +89,16 @@ struct RenderedTextTests {
 
         #expect(givenDocument("a\nb\n").rendered.string == "a b")
         #expect(givenDocument("a\nb\n", features: lines).rendered.string == "a\nb")
+    }
+
+    @Test
+    func `the rendered text records the inline styles of its characters`() {
+        let rendered = givenDocument("a **b** *c* `d` [e](u) ~~f~~ ***g***\n").rendered
+        let utf16 = Array(rendered.string.utf16)
+
+        let spans = rendered.spans.map { "\($0.token):" + String(decoding: utf16[$0.range], as: UTF16.self) }
+
+        #expect(spans == ["strong:b", "emphasis:c", "code:d", "link:e", "strikethrough:f", "emphasis:g", "strong:g"])
     }
 
     @Test

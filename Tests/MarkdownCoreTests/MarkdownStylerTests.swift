@@ -251,4 +251,15 @@ struct MarkdownStylerTests {
         #expect(lines.map(\.range) == [0 ..< 3, 4 ..< 7, 8 ..< 11, 12 ..< 15])
         #expect(lines.map { $0.spans.map(\.token) } == [[.syntax], [.code], [.syntax], [.syntax, .emphasis, .syntax]])
     }
+
+    @Test
+    func `styleText starts from the state it enters`() {
+        let styler = MarkdownStyler(features: MarkdownFeatures())
+        let open = styler.styleLine("```", entering: .init(), caret: nil).exiting
+
+        let lines = styler.styleText("*a*\n```", entering: open, caret: nil)
+
+        #expect(lines.map { $0.spans.map(\.token) } == [[.code], [.syntax]])
+        #expect(lines.last?.exiting.isInFence == false)
+    }
 }

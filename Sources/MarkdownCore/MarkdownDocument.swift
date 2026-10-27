@@ -58,6 +58,7 @@ public struct MarkdownDocument: Sendable {
             blocks: builder.renderedBlocks,
             links: builder.links,
             images: builder.images,
+            spans: builder.styleSpans,
             runs: builder.runs
         )
     }

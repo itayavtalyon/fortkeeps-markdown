@@ -83,9 +83,10 @@ public struct MarkdownStyler: Sendable {
         return scanner.finish(exiting: LineState())
     }
 
-    /// Styles every line of a text in order. `caret` is a UTF-16 offset in the text.
-    public func styleText(_ text: String, caret: Int?) -> [StyledLine] {
-        var state = LineState()
+    /// Styles every line of a text in order, the first line entering `state`.
+    /// `caret` is a UTF-16 offset in the text.
+    public func styleText(_ text: String, entering state: LineState = LineState(), caret: Int?) -> [StyledLine] {
+        var state = state
         var start = 0
         return text.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             let length = line.utf16.count

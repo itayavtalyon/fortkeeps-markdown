@@ -11,6 +11,12 @@ public struct RenderedText: Sendable {
         case tableRow(isHeader: Bool)
     }
 
+    /// What the view draws before the first block of a list item.
+    public enum ListMarker: Equatable, Sendable {
+        case bullet
+        case ordered(Int)
+    }
+
     /// One line-level block. Blocks are separated by one `\n` in `string`.
     public struct Block: Equatable, Sendable {
         public let kind: BlockKind
@@ -18,6 +24,8 @@ public struct RenderedText: Sendable {
         public let sourceRange: Range<Int>
         public let quoteDepth: Int
         public let listDepth: Int
+        /// The marker when this block opens a list item.
+        public let listMarker: ListMarker?
         /// The index in `MarkdownDocument.tasks` when this block opens a task item.
         public let taskIndex: Int?
         public let direction: TextDirection
@@ -63,16 +71,27 @@ public struct RenderedText: Sendable {
     public let blocks: [Block]
     public let links: [Link]
     public let images: [Image]
+    /// Inline styles: strong, emphasis, code, link, and strikethrough. An outer
+    /// span comes before the spans inside it.
+    public let spans: [MarkdownStyler.StyleSpan]
     let runs: [Run]
     /// Indices into `runs`, ordered by source offset.
     private let runsBySource: [Int]
 
-    init(string: String, blocks: [Block], links: [Link], images: [Image], runs: [Run]) {
+    init(
+        string: String,
+        blocks: [Block],
+        links: [Link],
+        images: [Image],
+        spans: [MarkdownStyler.StyleSpan],
+        runs: [Run]
+    ) {
         self.string = string
         utf16Count = string.utf16.count
         self.blocks = blocks
         self.links = links
         self.images = images
+        self.spans = spans
         self.runs = runs
         runsBySource = runs.indices.sorted { (runs[$0].source, $0) < (runs[$1].source, $1) }
     }

@@ -13,6 +13,7 @@ struct DocumentBuilder {
         let sourceRange: Range<Int>
         let quoteDepth: Int
         let listDepth: Int
+        let listMarker: RenderedText.ListMarker?
         let taskIndex: Int?
         let ownDirection: TextDirection?
     }
@@ -32,6 +33,8 @@ struct DocumentBuilder {
     var runs: [RenderedText.Run] = []
     var links: [RenderedText.Link] = []
     var images: [RenderedText.Image] = []
+    /// Inline styles in rendered offsets: strong, emphasis, code, link, strikethrough.
+    var styleSpans: [MarkdownStyler.StyleSpan] = []
     var topLevelBlocks: [MarkdownDocument.Block] = []
     var renderedBlocks: [RenderedText.Block] = []
     var tasks: [MarkdownDocument.Task] = []
@@ -42,6 +45,8 @@ struct DocumentBuilder {
     var leafDirections: [TextDirection] = []
     var pendingTasks: [PendingTask] = []
     var openTask: Int?
+    /// The marker of the list item whose first leaf is next.
+    var openMarker: RenderedText.ListMarker?
     /// The leaf that opens each task, by task index.
     var taskLeaves: [Int] = []
     var quoteDepth = 0
@@ -89,6 +94,7 @@ struct DocumentBuilder {
                 sourceRange: leaf.sourceRange,
                 quoteDepth: leaf.quoteDepth,
                 listDepth: leaf.listDepth,
+                listMarker: leaf.listMarker,
                 taskIndex: leaf.taskIndex,
                 direction: direction
             )
@@ -132,7 +138,12 @@ struct DocumentBuilder {
             quoteDepth -= 1
         case "list":
             listDepth += 1
-            Self.children(of: node).forEach { walkBlock($0) }
+            let start = Int(cmark_node_get_list_start(node))
+            let ordered = cmark_node_get_list_type(node) == CMARK_ORDERED_LIST
+            for (index, item) in Self.children(of: node).enumerated() {
+                openMarker = ordered ? .ordered(start + index) : .bullet
+                walkBlock(item)
+            }
             listDepth -= 1
         case "tasklist":
             openTask = pendingTasks.count
@@ -188,10 +199,12 @@ struct DocumentBuilder {
             sourceRange: span(of: node),
             quoteDepth: quoteDepth,
             listDepth: listDepth,
+            listMarker: openMarker,
             taskIndex: openTask,
             ownDirection: kind == .codeBlock ? .ltr : TextDirection.firstStrong(in: directionText)
         ))
         leafTexts.append(directionText)
         openTask = nil
+        openMarker = nil
     }
 }

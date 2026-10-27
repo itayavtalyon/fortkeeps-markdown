@@ -12,7 +12,7 @@ spm_build := env_var_or_default("FORTKEEPS_MARKDOWN_BUILD", env_var("HOME") / "L
 
 default: check
 
-check: build test coverage-check core-modules ios-build lint format-check
+check: build test coverage-check core-modules ios-build ios-test lint format-check
 
 # iCloud Drive conflict copies ("Foo 2.swift") compile as a second type.
 icloud-clean:
@@ -42,6 +42,10 @@ ios-build:
         exit 1
     fi
     echo "ok: package builds for iOS"
+
+# The view tests on an iOS simulator.
+ios-test:
+    scripts/ios-test.sh
 
 # The 8 ms restyle budget (design log 001 › Editor): release build, Apple silicon.
 timing:

@@ -36,9 +36,11 @@ struct RenderedTextTests {
 
     @Test
     func `an empty task item copies its marker and box`() {
-        let rendered = givenDocument("- [ ]\n").rendered
+        let document = givenDocument("a\n\n- [ ] \n\nb\n")
+        let rendered = document.rendered
 
-        #expect(rendered.copyText(0 ..< rendered.utf16Count) == "- [ ]")
+        #expect(document.tasks.count == 1)
+        #expect(rendered.copyText(0 ..< rendered.utf16Count) == "a\n- [ ]\nb")
     }
 
     @Test

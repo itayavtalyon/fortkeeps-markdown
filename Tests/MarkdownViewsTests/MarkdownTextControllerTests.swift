@@ -107,6 +107,15 @@ struct MarkdownTextControllerTests {
     }
 
     @Test
+    func `a checkbox after a byte order mark flips its own marker`() {
+        let (controller, _) = Self.givenController("\u{FEFF}- [ ] task\n")
+
+        controller.toggleTask(0)
+
+        #expect(controller.text == "\u{FEFF}- [x] task\n")
+    }
+
+    @Test
     func `the checkbox accessibility value is done or not done and its label is the task text`() {
         let (controller, _) = Self.givenController("- [x] one\n- [ ] two\n")
 
@@ -168,6 +177,31 @@ struct MarkdownTextControllerTests {
         #expect(controller.selection == 2 ..< 2)
         controller.undoManager.undo()
         #expect(controller.selection == 5 ..< 5)
+    }
+
+    @Test
+    func `while not editable a format command and Return change nothing`() {
+        let (controller, host) = Self.givenController("- a")
+        controller.isEditable = false
+        controller.selection = 3 ..< 3
+
+        #expect(!controller.pressReturn())
+        controller.perform(.bold)
+
+        #expect(controller.text == "- a")
+        #expect(host.changes.isEmpty)
+    }
+
+    @Test
+    func `a caret move ends the typing run`() {
+        let (controller, _) = Self.givenController("")
+        controller.textViewDidReplace(0 ..< 0, with: "a", event: .typed("a"), at: 0)
+        controller.caretMoved()
+        controller.textViewDidReplace(1 ..< 1, with: "b", event: .typed("b"), at: 0.1)
+
+        controller.undoManager.undo()
+
+        #expect(controller.text == "a")
     }
 
     @Test

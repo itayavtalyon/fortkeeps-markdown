@@ -66,14 +66,48 @@ struct MarkdownTextControllerModeTests {
         #expect(controller.copyText(0 ..< controller.displayString.utf16.count) == "Head\npara\na\nb")
     }
 
-    @Test
-    func `copy in the editor takes the source characters`() {
-        let (controller, _) = MarkdownTextControllerTests.givenController("# Head\n\n**b**\n")
+    @Test(arguments: [MarkdownMode.editor, .editorLocked])
+    func `copy in the editor takes the source characters`(mode: MarkdownMode) {
+        let (controller, _) = MarkdownTextControllerTests.givenController("# Head\n\n**b**\n", mode: mode)
 
         #expect(controller.copyText(0 ..< 14) == "# Head\n\n**b**\n")
     }
 
+    @Test
+    func `a refused image copies Image alt only with the link fallback`() {
+        var presentation = MarkdownPresentation()
+        let text = "a ![m](x.png) b"
+        let plain = MarkdownTextController(text: text, features: MarkdownFeatures(), presentation: presentation,
+                                           mode: .rendered, maxUTF8Bytes: nil, documentURL: nil)
+        presentation.imageFallback = .link
+        let linked = MarkdownTextController(text: text, features: MarkdownFeatures(), presentation: presentation,
+                                            mode: .rendered, maxUTF8Bytes: nil, documentURL: nil)
+        plain.setImageResult(.refused, for: "x.png")
+        linked.setImageResult(.refused, for: "x.png")
+
+        #expect(plain.copyText(0 ..< 5) == "a  b")
+        #expect(linked.copyText(0 ..< 5) == "a Image: m b")
+    }
+
+    @Test
+    func `in rendered mode a checkbox belongs to the block it opens`() {
+        let (controller, _) = MarkdownTextControllerTests.givenController("- [ ] a\n- [ ] b\n\nc\n", mode: .rendered)
+
+        #expect(controller.taskIndex(atDisplayOffset: 2) == 1)
+        #expect(controller.taskIndex(atDisplayOffset: 4) == nil)
+    }
+
     // MARK: images
+
+    @Test
+    func `an image one viewport below the visible range is requested`() async {
+        let (controller, host) = MarkdownTextControllerTests.givenController("x\n\n![a](a.png)\n", mode: .rendered)
+
+        controller.viewportChanged(0 ..< 1)
+        await settle { !host.requested.isEmpty }
+
+        #expect(host.requested == ["a.png"])
+    }
 
     @Test
     func `an image near the viewport is requested and a discarded one is cancelled`() async {
@@ -89,6 +123,8 @@ struct MarkdownTextControllerModeTests {
 
         #expect(host.requested == ["https://e.com/a.png", "https://e.com/b.png"])
         #expect(host.cancelled == ["https://e.com/a.png"])
+        await settle { controller.imageResult(for: 0) != nil }
+        #expect(controller.imageResult(for: 0) == nil)
     }
 
     @Test
@@ -120,6 +156,7 @@ struct MarkdownTextControllerModeTests {
         host.results["https://e.com/a.png"] = .image(Data([1]))
 
         controller.refreshImage(destination: "https://e.com/a.png")
+        #expect(controller.imageResult(for: 0) == nil)
         await settle { controller.imageResult(for: 0) == .image(Data([1])) }
 
         #expect(controller.imageResult(for: 0) == .image(Data([1])))
@@ -155,5 +192,12 @@ struct MarkdownTextControllerModeTests {
         controller.setImageResult(.image(Data([0x89, 0x50, 0x4E, 0x47])), for: "a.png")
 
         #expect(!controller.isAnimating(imageIndex: 0))
+    }
+
+    // MARK: shortcuts
+
+    @Test
+    func `a shortcut matches its key typed with Shift`() {
+        #expect(FormatAction.matching(key: "C", modifiers: [.command, .shift]) == .code)
     }
 }

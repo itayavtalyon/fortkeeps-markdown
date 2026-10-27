@@ -8,6 +8,15 @@ import Testing
 struct ImageCardContentTests {
     typealias Fallback = MarkdownPresentation.ImageFallback
 
+    /// Mac buttons use title case, iOS buttons sentence case.
+    #if os(macOS)
+        static let load = "Load Image"
+        static let retry = "Try Again"
+    #else
+        static let load = "Load image"
+        static let retry = "Try again"
+    #endif
+
     static func card(_ result: ImageResult?, alt: String = "Map", fallback: Fallback = .text) -> ImageCardContent {
         ImageCardContent(result: result, alt: alt, fallback: fallback)
     }
@@ -28,12 +37,12 @@ struct ImageCardContentTests {
     }
 
     @Test
-    func `a remote image that is not loaded draws the remote card with Load Image`() {
+    func `a remote image that is not loaded draws the remote card with its load button`() {
         let card = Self.card(.remoteNotLoaded(host: "e.com"))
 
         #expect(card.kind == .card)
         #expect(card.detail == "Remote image · e.com")
-        #expect(card.button == "Load Image")
+        #expect(card.button == Self.load)
         #expect(card.accessibilityLabel == "Map, remote image from e.com, not loaded")
         #expect(card.asksAgain)
     }
@@ -48,11 +57,11 @@ struct ImageCardContentTests {
     }
 
     @Test
-    func `a failed image draws Try Again with the reason`() {
+    func `a failed image draws its retry button with the reason`() {
         let card = Self.card(.failed(reason: .tooLarge))
 
         #expect(card.detail == "Couldn’t load this image.")
-        #expect(card.button == "Try Again")
+        #expect(card.button == Self.retry)
         #expect(card.help == "Too large")
     }
 

@@ -220,7 +220,8 @@ final class MarkdownTextController {
         }
         let group = UndoGroup([change])
         register(group)
-        openGroup = decision == .ownGroup ? nil : group
+        // After an own group UndoGrouping opens a new one, so the group can stay open.
+        openGroup = group
     }
 
     /// Registers a group as one undo action. Undoing it registers the

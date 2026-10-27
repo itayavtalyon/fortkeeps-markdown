@@ -305,6 +305,8 @@ Rounds 1–4 above stay as written. The answers in this round replace earlier an
   A: Keep all four. Dimmed checked tasks must still meet a 4.5:1 contrast ratio.
 - **Q: iOS typing undo?**
   A: Check it in plan 02's UI tests.
+- **Q: TextKit 2 clamps caret and selection rectangles to the text container, so an editable line cannot scroll sideways in place. What does the editor do with long code and table lines?**
+  A: The editor wraps them. Rendered mode keeps the sideways-scrolling boxes. This replaces "both modes" above.
 
 ## Design
 
@@ -575,8 +577,7 @@ While the caret is outside an image's `![alt](url)` source, that source draws on
 Under that source line, the editor draws the image's card (see Images).
 When the result is `.image`, a thumbnail replaces the card.
 A thumbnail is at most 120 pt tall and at most the column width. It keeps its aspect ratio. The editor does not upscale it.
-The lines of a fenced code block, from the opening fence to the closing fence, are one box (see Boxes).
-Consecutive table rows are one box.
+The editor wraps every source line, code and table rows included.
 
 The caret inside a task marker shows the raw marker in `text3`.
 Return in a list item continues the list with the same marker.
@@ -759,11 +760,11 @@ With the `.link` fallback, a refused image draws the link "Image: {alt}". With a
 
 ### Boxes
 
+Boxes exist in `.rendered` mode only.
 A box holds a code block or a run of table rows.
 A box line does not wrap.
 A box that is wider than the column scrolls sideways inside its own frame. Prose outside boxes keeps wrapping.
 A box scrolls with a trackpad, a horizontal scroll wheel, or Shift with a vertical scroll wheel.
-In the editor, the box scrolls to keep the caret visible.
 An edge of a box that has hidden content draws a 16 pt fade from the box background to clear.
 Under Increase Contrast, that edge draws a 1 pt `line2` line and no fade.
 A selection and a copy across a box behave as across any other text.
@@ -1024,7 +1025,7 @@ The same text in Fortkeeps in `.rendered` mode with `titleLine .hidden` hides `T
 21. Each `ImageResult` draws the card of the Image cards table, with its strings and accessibility label.
 22. Rendered copy of a nested list with a task gives the markers, `[ ]`, `[x]`, and the marker-width indentation.
 23. In `.rendered` and `.editorLocked`, Tab visits the links, checkboxes, cards, and wide boxes in reading order, and then leaves the view. Return, Space, and the arrows act as Accessibility states.
-24. A code line wider than the column does not wrap, in rendered mode and in the editor. Prose next to it wraps.
+24. In rendered mode, a code line wider than the column does not wrap, and its box scrolls sideways. Prose next to it wraps. The editor wraps the same line.
 25. An editor image draws its card under the one-line source, and a thumbnail at most 120 pt tall once the result is `.image`.
 26. The Mac view exposes each heading level to VoiceOver.
 

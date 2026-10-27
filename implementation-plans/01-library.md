@@ -219,7 +219,7 @@ Build the revision 5 changes on `stage/1f-views`.
 5. Draw each card of the Image cards table with its strings and accessibility label. Draw the `.link` fallback link with "Image" for an empty alt text.
 6. Underline iOS links in rendered mode and in the editor. Underline Mac links on keyboard focus.
 7. In the editor, draw the one-line image source, the card under it, and the thumbnail once the result is `.image`.
-8. Draw code blocks and table rows as boxes in rendered mode and in the editor, with the fade and the Increase Contrast edge.
+8. In rendered mode, draw code blocks and table rows as boxes, with the fade and the Increase Contrast edge.
 9. Reserve an image's height from its file header when the header gives the dimensions.
 10. Build the keyboard access from Accessibility for Mac and iOS.
 11. Expose heading levels on Mac. Announce lists, tables, and quotes. Follow the iOS Auto-Play Animated Images setting.
@@ -231,7 +231,7 @@ Must-pass tests:
 - Each `ImageResult` draws the card of the Image cards table, with its strings and accessibility label.
 - Rendered copy of a nested list with a task gives the markers, `[ ]`, `[x]`, and the marker-width indentation.
 - In `.rendered` and `.editorLocked`, Tab visits the links, checkboxes, cards, and wide boxes in reading order, and then leaves the view. In `.editor`, Tab inserts a tab.
-- A code line wider than the column does not wrap, in rendered mode and in the editor. Prose next to it wraps.
+- In rendered mode, a code line wider than the column does not wrap, and its box scrolls sideways. Prose next to it wraps. The editor wraps the same line.
 - An editor image draws its card under the one-line source, and a thumbnail at most 120 pt tall once the result is `.image`.
 - The Mac view exposes each heading level to VoiceOver.
 - `FortkeepsCards` passes the log 010 card checks at 100% coverage. `MarkdownCore` computes no card field.

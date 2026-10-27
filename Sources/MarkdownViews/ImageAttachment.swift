@@ -75,7 +75,9 @@ final class ImageAttachment: NSTextAttachment {
         // A header at 144 dpi describes a 2x image: half the pixels in points.
         let dpi = properties[kCGImagePropertyDPIWidth] as? CGFloat ?? 72
         let scale = dpi > 0 ? 72 / dpi : 1
-        return CGSize(width: width * scale, height: height * scale)
+        // EXIF orientations 5 to 8 turn the image a quarter, as the decoder draws it.
+        let turned = (properties[kCGImagePropertyOrientation] as? Int ?? 1) >= 5
+        return CGSize(width: (turned ? height : width) * scale, height: (turned ? width : height) * scale)
     }
 
     override func viewProvider(

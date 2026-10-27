@@ -27,6 +27,13 @@ struct MarkdownTextControllerFocusTests {
     }
 
     @Test
+    func `two adjacent tables are two focus boxes`() {
+        let (controller, _) = Self.givenController("| a |\n|---|\n| 1 |\n\n| b |\n|---|\n| 2 |\n")
+
+        #expect(controller.focusTargets() == [.box(0 ..< 3), .box(4 ..< 7)])
+    }
+
+    @Test
     func `space does not open a link and return does not toggle a checkbox`() {
         let (controller, host) = Self.givenController("[a](https://a.com)\n\n- [ ] task\n")
         let targets = controller.focusTargets()

@@ -203,7 +203,7 @@ struct MarkdownAttributedText {
     ) -> NSMutableAttributedString {
         let string = NSMutableAttributedString(string: rendered.string, attributes: baseAttributes())
         let units = rendered.utf16Count
-        for (index, block) in rendered.blocks.enumerated() {
+        for block in rendered.blocks {
             // A block's paragraph includes the newline after it.
             let end = min(units, block.range.upperBound + 1)
             let paragraph = NSRange(location: block.range.lowerBound, length: end - block.range.lowerBound)
@@ -228,9 +228,6 @@ struct MarkdownAttributedText {
             }
             if let task = block.taskIndex, tasks[task].checked {
                 string.addAttribute(.foregroundColor, value: MarkdownTheme.color(.text3), range: range)
-            }
-            if case .tableRow = block.kind, index == 0 || !Self.isTableRow(rendered.blocks[index - 1]) {
-                tabulate(rendered.blocks[index...].prefix { Self.isTableRow($0) }, in: string)
             }
         }
         markBoxes(rendered.blocks, in: string)

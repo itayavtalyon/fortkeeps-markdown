@@ -59,27 +59,11 @@ extension MarkdownTextController {
             .map(\.element)
     }
 
-    /// Each code block, and each run of table rows, as one rendered range.
+    /// Each code block, and each table, as one rendered range.
     private func boxRanges(_ blocks: [RenderedText.Block]) -> [Range<Int>] {
-        var ranges: [Range<Int>] = []
-        var previousWasRow = false
-        for block in blocks {
-            switch block.kind {
-            case .codeBlock:
-                ranges.append(block.range)
-                previousWasRow = false
-            case .tableRow:
-                if previousWasRow, let last = ranges.popLast() {
-                    ranges.append(last.lowerBound ..< block.range.upperBound)
-                } else {
-                    ranges.append(block.range)
-                }
-                previousWasRow = true
-            default:
-                previousWasRow = false
-            }
+        BoxMark.runs(blocks).map { run in
+            blocks[run.blocks.lowerBound].range.lowerBound ..< blocks[run.blocks.upperBound - 1].range.upperBound
         }
-        return ranges
     }
 
     /// Return opens a link; Space toggles a checkbox; either activates a

@@ -1,8 +1,10 @@
 #if os(macOS)
     import AppKit
+    import ImageIO
     import MarkdownCore
     @testable import MarkdownViews
     import Testing
+    import UniformTypeIdentifiers
 
     /// Design › Editor and Boxes: editor image cards and thumbnails, and the
     /// rendered boxes, on the Mac view's real layout.
@@ -142,6 +144,61 @@
 
             #expect(ImageAttachment.headerSize(data) == CGSize(width: 400, height: 300))
             #expect(ImageAttachment.headerSize(Data([1, 2, 3])) == .zero)
+        }
+
+        @Test
+        func `an image size from its header follows a quarter-turn orientation`() throws {
+            let png = try Self.png(width: 400, height: 300)
+            let source = try #require(CGImageSourceCreateWithData(png as CFData, nil))
+            let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+            let jpeg = NSMutableData()
+            let destination = try #require(CGImageDestinationCreateWithData(
+                jpeg,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+            ))
+            CGImageDestinationAddImage(destination, image, [kCGImagePropertyOrientation: 6] as CFDictionary)
+            try #require(CGImageDestinationFinalize(destination))
+
+            #expect(ImageAttachment.headerSize(jpeg as Data) == CGSize(width: 300, height: 400))
+        }
+
+        // MARK: tables
+
+        /// Two tables with one blank line between them: rendered rows at offsets 0, 4, 8, and 19.
+        static let twoTables = "| a | b |\n|---|---|\n| 1 | 2 |\n\n| cccccccc | d |\n|---|---|\n| 3 | 4 |\n"
+
+        static func tabStops(_ view: MarkdownView, at offset: Int) -> [CGFloat] {
+            let style = view.textView.textStorage?.attribute(
+                .paragraphStyle,
+                at: offset,
+                effectiveRange: nil
+            ) as? NSParagraphStyle
+            return style?.tabStops.map(\.location) ?? []
+        }
+
+        static func boxID(_ view: MarkdownView, at offset: Int) -> Int? {
+            (view.textView.textStorage?.attribute(.markdownBox, at: offset, effectiveRange: nil) as? BoxMark)?.id
+        }
+
+        @Test
+        func `a table's body rows take its header row's column stops`() {
+            let view = MarkdownViewMacTests.givenView(Self.twoTables, mode: .rendered)
+
+            #expect(Self.tabStops(view, at: 0).count == 1)
+            #expect(Self.tabStops(view, at: 4) == Self.tabStops(view, at: 0))
+            #expect(Self.tabStops(view, at: 19) == Self.tabStops(view, at: 8))
+            #expect(Self.tabStops(view, at: 8) != Self.tabStops(view, at: 0))
+        }
+
+        @Test
+        func `two adjacent tables are two boxes`() {
+            let view = MarkdownViewMacTests.givenView(Self.twoTables, mode: .rendered)
+
+            #expect(Self.boxID(view, at: 4) == Self.boxID(view, at: 0))
+            #expect(Self.boxID(view, at: 19) == Self.boxID(view, at: 8))
+            #expect(Self.boxID(view, at: 8) != Self.boxID(view, at: 0))
         }
     }
 #endif

@@ -103,16 +103,21 @@ public struct MarkdownStyler: Sendable {
     /// The UTF-16 range of the line that holds `offset` and the line on each
     /// side, without the last line's ending: the lines the editor restyles
     /// after an edit.
+    /// It scans only those lines, so a keystroke costs the same in any length of text.
     public static func neighborhood(of offset: Int, in text: String) -> Range<Int> {
-        var starts = [0]
-        for (index, unit) in text.utf16.enumerated() where unit == 0x0A {
-            starts.append(index + 1)
+        let units = text.utf16
+        func lineStart(_ index: String.Index) -> String.Index {
+            units[..<index].lastIndex(of: 0x0A).map(units.index(after:)) ?? units.startIndex
         }
-        let line = text.utf16.prefix(offset).count { $0 == 0x0A }
-        let first = max(0, line - 1)
-        let last = min(starts.count - 1, line + 1)
-        let end = last + 1 < starts.count ? starts[last + 1] - 1 : text.utf16.count
-        return starts[first] ..< end
+        func lineEnd(_ index: String.Index) -> String.Index {
+            units[index...].firstIndex(of: 0x0A) ?? units.endIndex
+        }
+        let caret = units.index(units.startIndex, offsetBy: min(offset, units.count))
+        let start = lineStart(caret)
+        let end = lineEnd(caret)
+        let first = start == units.startIndex ? start : lineStart(units.index(before: start))
+        let last = end == units.endIndex ? end : lineEnd(units.index(after: end))
+        return units.distance(from: units.startIndex, to: first) ..< units.distance(from: units.startIndex, to: last)
     }
 }
 

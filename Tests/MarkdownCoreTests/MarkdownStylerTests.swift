@@ -239,6 +239,21 @@ struct MarkdownStylerTests {
     }
 
     @Test
+    func `an offset just after a line feed is on the next line`() {
+        let text = "one\ntwo\nthree\nfour\nfive"
+
+        #expect(MarkdownStyler.neighborhood(of: 4, in: text) == 0 ..< 13)
+        #expect(MarkdownStyler.neighborhood(of: 3, in: text) == 0 ..< 7)
+    }
+
+    @Test
+    func `the neighborhood counts UTF-16 units and stops past the end`() {
+        #expect(MarkdownStyler.neighborhood(of: 3, in: "😀\nb\nc\nd") == 0 ..< 6)
+        #expect(MarkdownStyler.neighborhood(of: 99, in: "a\nb\n") == 2 ..< 4)
+        #expect(MarkdownStyler.neighborhood(of: 0, in: "") == 0 ..< 0)
+    }
+
+    @Test
     func `the neighborhood stops at the text edges`() {
         #expect(MarkdownStyler.neighborhood(of: 0, in: "a\nb\nc") == 0 ..< 3)
         #expect(MarkdownStyler.neighborhood(of: 5, in: "a\nb\nc") == 2 ..< 5)

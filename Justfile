@@ -49,7 +49,7 @@ ios-test:
 
 # The 8 ms restyle budget (design log 001 › Editor): release build, Apple silicon.
 timing:
-    FORTKEEPS_TIMING=1 swift test -c release --build-path '{{spm_build}}-release' --filter StylerTimingTests 2>&1 | grep -E 'timing:|passed|failed|error'
+    FORTKEEPS_TIMING=1 swift test -c release -Xswiftc -enable-testing --build-path '{{spm_build}}-release' --filter 'StylerTimingTests|DisplayTimingTests' 2>&1 | grep -E 'timing:|passed|failed|error'
 
 # The paste converter fuzz test for ten minutes, as CI runs it.
 fuzz:

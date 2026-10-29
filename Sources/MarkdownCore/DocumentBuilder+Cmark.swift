@@ -12,8 +12,18 @@ extension DocumentBuilder {
     /// A node with no position (a soft break) sits at the end of the last run.
     private func offset(line: Int32, column: Int32) -> Int {
         guard line > 0 else { return sourceEnd }
-        let start = lineStarts[min(Int(line) - 1, lineStarts.count - 1)]
-        return min(max(start + Int(column) - 1, 0), bytes.count)
+        return min(max(position(line: line, column: column), 0), bytes.count)
+    }
+
+    /// The byte offset of a 1-based line and column, not cut to the text.
+    private func position(line: Int32, column: Int32) -> Int {
+        lineStarts[min(Int(line) - 1, lineStarts.count - 1)] + Int(column) - 1
+    }
+
+    /// A node's byte length from its positions, before a cut at the text end.
+    func length(of node: Node) -> Int {
+        position(line: node.pointee.end_line, column: node.pointee.end_column + 1)
+            - position(line: node.pointee.start_line, column: node.pointee.start_column)
     }
 
     /// The byte between `[` and `]` of a task item: after the list marker and

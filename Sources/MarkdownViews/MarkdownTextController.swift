@@ -32,7 +32,8 @@ final class MarkdownTextController {
     private var grouping = UndoGrouping()
     /// The open undo group: later edits of the same typed run join it.
     private var openGroup: UndoGroup?
-    private var cachedDocument: MarkdownDocument?
+    /// Internal so tests can check that the editor paths do not parse the whole text.
+    private(set) var cachedDocument: MarkdownDocument?
     // Internal for the links and images extension.
     var imageResults: [String: ImageResult] = [:]
     var imageTasks: [String: Task<Void, Never>] = [:]

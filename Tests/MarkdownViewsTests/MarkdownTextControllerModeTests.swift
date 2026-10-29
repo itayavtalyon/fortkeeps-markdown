@@ -151,6 +151,20 @@ struct MarkdownTextControllerModeTests {
     }
 
     @Test
+    func `in the editor an image near the viewport is requested from its lines, without a full parse`() async {
+        let text = "![a](https://e.com/a.png)\n\n" + String(repeating: "line\n\n", count: 400) + "![b](https://e.com/b.png)\n"
+        let (controller, host) = MarkdownTextControllerTests.givenController(text, mode: .editor)
+        controller.textViewDidReplace(30 ..< 30, with: "x", event: .typed("x"), at: 0)
+
+        let far = controller.text.utf16.count - 50
+        controller.viewportChanged(far ..< far + 50)
+        await settle { host.requested.contains("https://e.com/b.png") }
+
+        #expect(host.requested == ["https://e.com/b.png"])
+        #expect(controller.cachedDocument == nil)
+    }
+
+    @Test
     func `a result is cached per destination and not requested again`() async {
         let (controller, host) = MarkdownTextControllerTests.givenController(
             "![a](https://e.com/a.png)\n",

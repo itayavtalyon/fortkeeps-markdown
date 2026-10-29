@@ -32,20 +32,28 @@ enum IPAddress {
         return part.allSatisfy(\.isNumber)
     }
 
-    /// An IPv6 literal is blocked when it is `::`, `::1`, in fc00::/7 or
-    /// fe80::/10, maps a blocked IPv4 address, or cannot be read.
+    /// An IPv6 literal is blocked when it is in fc00::/7 or fe80::/10, carries
+    /// a blocked IPv4 address, or cannot be read. `::` and `::1` carry 0.0.0.0
+    /// and 0.0.0.1.
     static func isBlockedIPv6(_ host: String) -> Bool {
         guard let bytes = ipv6Bytes(host) else { return true }
-        if bytes.allSatisfy({ $0 == 0 }) || bytes == [UInt8](repeating: 0, count: 15) + [1] {
-            return true
-        }
         if bytes[0] & 0xFE == 0xFC || (bytes[0] == 0xFE && bytes[1] & 0xC0 == 0x80) {
             return true
         }
-        if bytes[0 ..< 10].allSatisfy({ $0 == 0 }), bytes[10] == 0xFF, bytes[11] == 0xFF {
-            return isBlocked(bytes[12...].reduce(UInt32(0)) { $0 << 8 | UInt32($1) })
-        }
-        return false
+        return carriedIPv4(bytes).map(isBlocked) ?? false
+    }
+
+    /// The IPv4 address inside an IPv4-compatible (::/96), IPv4-mapped
+    /// (::ffff:0:0/96), NAT64 (64:ff9b::/96), or 6to4 (2002::/16) address.
+    private static func carriedIPv4(_ bytes: [UInt8]) -> UInt32? {
+        let prefixes: [[UInt8]] = [
+            [UInt8](repeating: 0, count: 12),
+            [UInt8](repeating: 0, count: 10) + [0xFF, 0xFF],
+            [0x00, 0x64, 0xFF, 0x9B] + [UInt8](repeating: 0, count: 8)
+        ]
+        let carried = prefixes.contains { bytes.starts(with: $0) } ? bytes[12 ..< 16]
+            : bytes.starts(with: [0x20, 0x02]) ? bytes[2 ..< 6] : nil
+        return carried.map { $0.reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
     }
 
     /// The 16 bytes of an IPv6 literal, with `::` and a trailing dotted IPv4.

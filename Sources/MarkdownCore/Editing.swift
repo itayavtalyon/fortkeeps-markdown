@@ -23,26 +23,12 @@ public struct TextEdit: Equatable, Sendable {
     }
 }
 
-extension String {
-    /// The UTF-16 units of the whole lines that a UTF-16 range touches, and
-    /// the offset where they start. It reads only those lines, so an edit
-    /// costs the same in any length of text.
-    func linesTouching(_ range: Range<Int>) -> (units: [UInt16], start: Int) {
-        let utf16 = utf16
-        let lower = utf16.index(utf16.startIndex, offsetBy: range.lowerBound)
-        let upper = utf16.index(lower, offsetBy: range.count)
-        let start = utf16[..<lower].lastIndex(of: 0x0A).map(utf16.index(after:)) ?? utf16.startIndex
-        let end = utf16[upper...].firstIndex(of: 0x0A) ?? utf16.endIndex
-        return (Array(utf16[start ..< end]), utf16.distance(from: utf16.startIndex, to: start))
-    }
-}
-
 /// Return in a list item (design log 001 › Editor).
 public enum ListContinuation {
     /// The edit Return makes in a list item, or nil for a plain newline. A
     /// task continues as `- [ ] `; Return on an empty item ends the list.
     public static func returnEdit(in text: String, selection: Range<Int>) -> TextEdit? {
-        let (units, start) = text.linesTouching(selection)
+        let (units, start) = MarkdownStyler.lines(touching: selection, in: text)
         return returnEdit(in: units, selection: selection.lowerBound - start ..< selection.upperBound - start)?
             .shifted(by: start)
     }

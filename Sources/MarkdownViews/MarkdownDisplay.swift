@@ -11,9 +11,6 @@ import MarkdownCore
 /// Rendering). Shared by the Mac and iOS views.
 @MainActor
 final class MarkdownDisplay {
-    /// Above this size the editor restyles only the edited neighborhood.
-    static let fullRestyleLimit = 20 * 1024 * 1024
-
     let controller: MarkdownTextController
     let storage: NSTextStorage
     weak var owner: MarkdownView?
@@ -21,9 +18,9 @@ final class MarkdownDisplay {
     var maxImageHeight: CGFloat = 0
     /// The text column width, for editor thumbnails and cards.
     var columnWidth: CGFloat = 400
-    /// The fence state after each line, from the last full restyle.
-    private var lineStates: [MarkdownStyler.LineState] = []
-    private var restyleTask: Task<Void, Never>?
+    /// The fence state after each line of the editor text; nil for a line
+    /// an edit added that no restyle has reached yet.
+    private var lineStates: [MarkdownStyler.LineState?] = []
 
     init(controller: MarkdownTextController, storage: NSTextStorage) {
         self.controller = controller
@@ -47,7 +44,6 @@ final class MarkdownDisplay {
 
     /// Replaces the whole display.
     func rebuild() {
-        restyleTask?.cancel()
         let string: NSAttributedString
         if controller.mode == .rendered {
             let document = controller.document
@@ -75,8 +71,7 @@ final class MarkdownDisplay {
     }
 
     /// Decorates `lines` with the images of the whole text, from the controller's model.
-    /// `destination` keeps only the lines that hold that destination.
-    private func decorateAllEditorImages(lines: [Range<Int>], destination: String? = nil) {
+    private func decorateAllEditorImages(lines: [Range<Int>]) {
         let images = controller.document.rendered.images.map { image in
             (
                 range: controller.utf16Offset(ofSourceByte: image.sourceRange.lowerBound)
@@ -84,12 +79,7 @@ final class MarkdownDisplay {
                 image: image
             )
         }
-        let lines = destination.map { destination in
-            lines.filter { line in
-                images.contains { $0.image.destination == destination && line.contains($0.range.lowerBound) }
-            }
-        } ?? lines
-        guard !images.isEmpty, !lines.isEmpty else { return }
+        guard !images.isEmpty else { return }
         storage.beginEditing()
         decorateEditorImages(images, lines: lines)
         storage.endEditing()
@@ -116,43 +106,75 @@ final class MarkdownDisplay {
         restyle(around: prefix)
     }
 
-    /// Restyles the line with `offset` and the line on each side, then the
-    /// whole text after 300 ms without an edit.
+    /// Restyles the line with `offset` and the line on each side, then each
+    /// following line while the fence state it leaves differs from the one
+    /// stored for it: a fence typed or removed restyles every line it changes,
+    /// and an edit that changes none restyles three lines. An edit that
+    /// starts on the line of `offset` adds or removes lines after that line.
     func restyle(around offset: Int) {
         guard controller.mode != .rendered else { return }
         let text = controller.text
-        let neighborhood = MarkdownStyler.neighborhood(of: min(offset, text.utf16.count), in: text)
-        let lower = text.utf16.index(text.utf16.startIndex, offsetBy: neighborhood.lowerBound)
-        let region = String(text[lower ..< text.utf16.index(lower, offsetBy: neighborhood.count)])
+        let utf16 = text.utf16
+        let neighborhood = MarkdownStyler.neighborhood(of: min(offset, utf16.count), in: text)
+        let lower = utf16.index(utf16.startIndex, offsetBy: neighborhood.lowerBound)
+        var end = utf16.index(lower, offsetBy: neighborhood.count)
         let firstLine = Self.newlines(in: text, before: lower)
-        let entering = firstLine > 0 && firstLine - 1 < lineStates.count ? lineStates[firstLine - 1] : .init()
-        let lineCaret = neighborhood.contains(caret) || neighborhood.upperBound == caret
-            ? caret - neighborhood.lowerBound : nil
-        let lines = styler.styleText(
-            region,
-            entering: entering,
-            caret: lineCaret
-        )
-        let shifted = lines.map { line in
+        // ponytail: counts every line feed on each restyle, O(text) at memory speed;
+        // pass the edit's line delta from the text views if a larger text needs it.
+        let lineCount = Self.newlines(in: text, before: text.endIndex) + 1
+        let offsetIndex = utf16.index(utf16.startIndex, offsetBy: min(offset, utf16.count))
+        let editLine = firstLine + utf16[lower ..< offsetIndex].count { $0 == 0x0A }
+        // The edit's lines start at `editLine`; the states of the lines after them move with them.
+        let delta = lineCount - lineStates.count
+        if delta > 0 {
+            lineStates.insert(contentsOf: repeatElement(nil, count: delta), at: min(editLine, lineStates.count))
+        } else if delta < 0 {
+            lineStates.removeSubrange(editLine ..< editLine - delta)
+        }
+        let entering = firstLine > 0 ? lineStates[firstLine - 1] ?? .init() : .init()
+        let base = neighborhood.lowerBound
+        let styled = styler.styleText(String(text[lower ..< end]), entering: entering, caret: lineCaret(neighborhood))
+        var lines = styled.map { line in
             (
-                range: line.range.lowerBound + neighborhood.lowerBound ..< line.range.upperBound + neighborhood
-                    .lowerBound,
-                spans: line.spans
+                range: line.range.lowerBound + base ..< line.range.upperBound + base,
+                spans: line.spans,
+                exiting: line.exiting
             )
         }
+        while let last = lines.last, firstLine + lines.count < lineCount {
+            guard lineStates[firstLine + lines.count - 1] != last.exiting else { break }
+            lineStates[firstLine + lines.count - 1] = last.exiting
+            let start = utf16.index(after: end)
+            end = utf16[start...].firstIndex(of: 0x0A) ?? utf16.endIndex
+            let range = last.range.upperBound + 1 ..< last.range.upperBound + 1 + utf16.distance(from: start, to: end)
+            let line = styler.styleLine(String(text[start ..< end]), entering: last.exiting, caret: lineCaret(range))
+            lines.append((range, line.spans, line.exiting))
+        }
+        lineStates.replaceSubrange(firstLine ..< firstLine + lines.count, with: lines.map(\.exiting))
+        // The region is parsed alone, so its code lines are blanked: a fence that
+        // opens or closes outside the region cannot change what reads as an image.
+        var units = Array(utf16[lower ..< end])
+        for (index, line) in lines.enumerated() {
+            let entersFence = (index == 0 ? entering : lines[index - 1].exiting).isInFence
+            guard entersFence || line.exiting.isInFence else { continue }
+            let local = line.range.lowerBound - base ..< line.range.upperBound - base
+            units.replaceSubrange(local, with: repeatElement(0x20, count: local.count))
+        }
+        let images = editorImages(in: String(decoding: units, as: UTF16.self), at: base)
         storage.beginEditing()
-        builder.style(shifted, in: storage)
-        decorateEditorImages(
-            editorImages(in: region, at: neighborhood.lowerBound),
-            lines: shifted.map(\.range)
-        )
+        builder.style(lines.map { ($0.range, $0.spans) }, in: storage)
+        decorateEditorImages(images, lines: lines.map(\.range))
         storage.endEditing()
-        scheduleFullRestyle()
+    }
+
+    /// The caret's offset in a range of lines, or nil when it is outside them.
+    private func lineCaret(_ lines: Range<Int>) -> Int? {
+        lines.contains(caret) || lines.upperBound == caret ? caret - lines.lowerBound : nil
     }
 
     /// The line feeds before `index`.
     /// ponytail: O(text) at memory speed, 5 ms per 10 MB on an M1 Max in a release
-    /// build; keep line starts from the full restyle if a larger text needs it.
+    /// build; keep a line-start table if a larger text needs it.
     static func newlines(in text: String, before index: String.Index) -> Int {
         let end = text.utf8.distance(from: text.utf8.startIndex, to: index)
         // A plain loop over the buffer; `count(where:)` on a slice of it ran about 50 times slower.
@@ -163,26 +185,6 @@ final class MarkdownDisplay {
             }
             return count
         } ?? text.utf8[..<index].count { $0 == 0x0A }
-    }
-
-    private func scheduleFullRestyle() {
-        restyleTask?.cancel()
-        guard controller.text.utf8.count <= Self.fullRestyleLimit else { return }
-        restyleTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            self?.fullRestyle()
-        }
-    }
-
-    func fullRestyle() {
-        guard controller.mode != .rendered, storage.string == controller.text else { return }
-        let lines = styler.styleText(controller.text, caret: caret)
-        lineStates = lines.map(\.exiting)
-        storage.beginEditing()
-        builder.styleEditorLines(lines, in: storage)
-        storage.endEditing()
-        decorateAllEditorImages(lines: lines.map(\.range))
     }
 
     // MARK: images
@@ -207,8 +209,23 @@ final class MarkdownDisplay {
     /// Redraws the images of one destination after its result changed.
     func refreshImages(destination: String) {
         guard controller.mode == .rendered else {
-            guard storage.string == controller.text else { return }
-            decorateAllEditorImages(lines: lineRanges(of: controller.text), destination: destination)
+            // Only the lines whose marks show that destination change; each is parsed alone.
+            var lines: [Range<Int>] = []
+            let all = NSRange(location: 0, length: storage.length)
+            storage.enumerateAttribute(.markdownEditorImages, in: all) { value, range, _ in
+                if let marks = value as? [EditorImageMark], marks.contains(where: { $0.destination == destination }) {
+                    lines.append(range.location ..< NSMaxRange(range))
+                }
+            }
+            let text = storage.string as NSString
+            storage.beginEditing()
+            for line in lines {
+                decorateEditorImages(
+                    editorImages(in: text.substring(with: NSRange(line)), at: line.lowerBound),
+                    lines: [line]
+                )
+            }
+            storage.endEditing()
             return
         }
         let images = controller.document.rendered.images

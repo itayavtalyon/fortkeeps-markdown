@@ -186,6 +186,15 @@ struct MarkdownDocumentTests {
         #expect(givenDocument("- [ ] see ![chart](c.png)\n").tasks.first?.text == "see Image: chart")
     }
 
+    /// swift-cmark 0.9.0 shifts an inline on these lines; the image starts at its `![`.
+    @Test(arguments: [
+        ("- [ ] t\n![m](x.png)\nx", 8 ..< 19), ("- t\n![m](x.png)", 4 ..< 15), ("> q\n![m](x.png)", 4 ..< 15),
+        ("para\n   ![m](x.png)\n", 8 ..< 19), ("para\n![m](x.png)", 5 ..< 16)
+    ])
+    func `an image on a lazy or indented continuation line keeps its source range`(text: String, range: Range<Int>) {
+        #expect(givenDocument(text).rendered.images.map(\.sourceRange) == [range])
+    }
+
     @Test
     func `a task text reads an image with no alt as Image, as copy does`() {
         #expect(givenDocument("- [ ] see ![](c.png) now\n").tasks.first?.text == "see Image now")

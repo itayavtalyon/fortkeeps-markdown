@@ -18,7 +18,7 @@ public enum FormatCommand: Equatable, Sendable {
 /// item, a mixed selection, nested markers) are not built. Offsets are UTF-16.
 public enum FormatCommands {
     public static func apply(_ command: FormatCommand, to text: String, selection: Range<Int>) -> TextEdit {
-        let (units, start) = text.linesTouching(selection)
+        let (units, start) = MarkdownStyler.lines(touching: selection, in: text)
         return apply(command, to: units, selection: selection.lowerBound - start ..< selection.upperBound - start)
             .shifted(by: start)
     }
@@ -26,7 +26,7 @@ public enum FormatCommands {
     /// True when the selection already has the command's format: the format
     /// bar shows the button as pressed.
     public static func isActive(_ command: FormatCommand, in text: String, selection: Range<Int>) -> Bool {
-        let (units, start) = text.linesTouching(selection)
+        let (units, start) = MarkdownStyler.lines(touching: selection, in: text)
         return isActive(command, in: units, selection: selection.lowerBound - start ..< selection.upperBound - start)
     }
 

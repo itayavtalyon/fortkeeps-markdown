@@ -75,17 +75,28 @@ extension MarkdownTextController {
 
     // MARK: images
 
-    func imageDisplayOffset(_ index: Int) -> Int {
-        let image = document.rendered.images[index]
-        return mode == .rendered ? image.offset : utf16Offset(ofSourceByte: image.sourceRange.lowerBound)
-    }
-
     /// Requests the images within one viewport above and below the visible
     /// range, and cancels the requests of images that left it.
     func viewportChanged(_ visible: Range<Int>) {
         let near = visible.lowerBound - visible.count ... visible.upperBound + visible.count
-        let images = document.rendered.images
-        let wanted = Set(images.indices.filter { near.contains(imageDisplayOffset($0)) }.map { images[$0].destination })
+        let wanted: Set<String>
+        if mode == .rendered {
+            let images = document.rendered.images
+            wanted = Set(images.indices.filter { near.contains(images[$0].offset) }.map { images[$0].destination })
+        } else {
+            // The editor parses only the lines near the viewport, not the whole text after each edit.
+            let count = text.utf16.count
+            let lines = MarkdownStyler.lines(
+                touching: min(max(near.lowerBound, 0), count) ..< min(max(near.upperBound, 0), count),
+                in: text
+            )
+            let region = MarkdownDocument(
+                text: String(decoding: lines.units, as: UTF16.self),
+                features: features,
+                presentation: presentation
+            )
+            wanted = Set(region.rendered.images.map(\.destination))
+        }
         for (destination, task) in imageTasks where !wanted.contains(destination) {
             task.cancel()
             imageTasks[destination] = nil

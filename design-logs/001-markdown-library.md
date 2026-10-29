@@ -1,6 +1,6 @@
 # 001 - Fortkeeps Scroll and the FortkeepsMarkdown library
 
-Revision 5, 2026-10-27. The plan 01 implementer wrote this revision from Itay's plan 01 review answers (Round 9). Revision 4 (2026-10-25) came from the stage 1b decisions (Round 8). Revision 3 was written by the Chief Architect. Status: Design.
+Revision 6, 2026-10-29. The plan 01 whole-plan reviewer wrote this revision from Itay's answers (Round 10). Revision 5 (2026-10-27) came from Itay's plan 01 review answers (Round 9). Revision 4 (2026-10-25) came from the stage 1b decisions (Round 8). Revision 3 was written by the Chief Architect. Status: Design.
 Rule source: the design-log-grill snapshot (2026-10-13). The Mac was offline, so the live rules were not read.
 Items that wait on someone other than the implementer carry the tag **WAIT-n**. They are listed in Known Limitations › Waiting items, with the stage each blocks. No other implementer choice is open.
 
@@ -308,6 +308,15 @@ Rounds 1–4 above stay as written. The answers in this round replace earlier an
 - **Q: TextKit 2 clamps caret and selection rectangles to the text container, so an editable line cannot scroll sideways in place. What does the editor do with long code and table lines?**
   A: The editor wraps them. Rendered mode keeps the sideways-scrolling boxes. This replaces "both modes" above.
 
+### Round 10 (2026-10-29: Itay, the plan 01 whole-plan review)
+
+- **Q: The 300 ms full restyle takes 5.7 s on a 2 MB text and runs after every typing pause. What replaces it?**
+  A: After an edit, the editor restyles forward from the edited lines until a line leaves the same fence state as before. Editor images come from the restyled lines, not from a parse of the whole text.
+- **Q: The blocklist lets through IPv6 addresses that carry an IPv4 address (`::127.0.0.1`, `64:ff9b::a00:1`, `2002:7f00:1::`). Block them?**
+  A: Read the IPv4 address inside the IPv4-compatible, IPv4-mapped, NAT64, and 6to4 forms, and refuse the host when that address is refused.
+- **Q: A keystroke in a 2 MB text takes about 13 ms, and in a 20 MB text about 125 ms, almost all of it NSTextStorage attribute writes. Does the budget change?**
+  A: No. The 8 ms budget stays at 64 KiB. Plan 02 measures typing in the apps.
+
 ## Design
 
 ### Product
@@ -585,8 +594,7 @@ Return in a task item continues with `- [ ] `.
 Return on an empty list item ends the list.
 
 The editor restyles the paragraph that contains the caret, the paragraph before it, and the paragraph after it.
-After 300 ms without an edit, the editor restyles the whole text when the text is 20 MB or smaller.
-Above 20 MB, the editor restyles only the built blocks.
+When a restyled line leaves a different fence state than before, the editor also restyles the next line, and goes on until a line leaves the same fence state as before.
 The 8 ms budget is the 95th percentile of the neighborhood restyles on a 64 KiB text, in a release build, on an Apple-silicon Mac. The log records the chip.
 
 When `maxUTF8Bytes` is set, an insertion that would pass the limit keeps the longest prefix that fits.
@@ -694,7 +702,8 @@ The app checks the literal host before any DNS lookup.
 The app refuses these hosts:
 - `localhost`, and a host that ends in `.local`, with or without a trailing dot;
 - the IPv4 ranges `0.0.0.0/8`, `10.0.0.0/8`, `100.64.0.0/10`, `127.0.0.0/8`, `169.254.0.0/16`, `172.16.0.0/12`, `192.168.0.0/16`, `198.18.0.0/15`, `224.0.0.0/4`, and `240.0.0.0/4`;
-- the IPv6 addresses `::`, `::1`, `fc00::/7`, `fe80::/10`, and an IPv4-mapped IPv6 address in a refused IPv4 range;
+- the IPv6 addresses `fc00::/7` and `fe80::/10`, and an IPv4-compatible (`::/96`), IPv4-mapped (`::ffff:0:0/96`), NAT64 (`64:ff9b::/96`), or 6to4 (`2002::/16`) address that carries a refused IPv4 address (`::` and `::1` carry `0.0.0.0` and `0.0.0.1`);
+- a host with a percent escape;
 - an IPv4 host written in a decimal, octal, or hexadecimal form other than dotted decimal.
 A public name that resolves to a private address is not checked.
 The timeout is 10 seconds.

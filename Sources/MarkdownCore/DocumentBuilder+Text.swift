@@ -32,17 +32,31 @@ extension DocumentBuilder {
                     sourceRange: span(of: child)
                 ))
             case "image":
+                let source = imageSource(child)
                 images.append(RenderedText.Image(
                     offset: length,
                     destination: Self.url(child),
                     alt: Self.plainText(of: child),
-                    sourceRange: span(of: child)
+                    sourceRange: source
                 ))
-                appendHidden("\u{FFFC}", source: span(of: child))
+                appendHidden("\u{FFFC}", source: source)
             default:
                 styled(child, Self.inlineStyles[Self.typeName(child)])
             }
         }
+    }
+
+    /// An image's source. swift-cmark 0.9.0 shifts an inline on a lazy or
+    /// indented continuation line, so when cmark's start is not the image's
+    /// `![`, the image starts at the first `![` after the last run. Its length
+    /// is cmark's, before `span(of:)` cuts a shifted end at the text end.
+    private func imageSource(_ node: Node) -> Range<Int> {
+        let cmark = span(of: node).lowerBound
+        let opener = Array("![".utf8)
+        let start = cmark >= sourceEnd && bytes[cmark...].starts(with: opener)
+            ? cmark
+            : (sourceEnd ..< max(sourceEnd, alignmentEnd)).first { bytes[$0...].starts(with: opener) } ?? cmark
+        return start ..< min(start + length(of: node), bytes.count)
     }
 
     /// Walks a node's children inside one span of `token`; no span when nil.

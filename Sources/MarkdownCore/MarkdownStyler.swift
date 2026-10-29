@@ -119,6 +119,18 @@ public struct MarkdownStyler: Sendable {
         let last = end == units.endIndex ? end : lineEnd(units.index(after: end))
         return units.distance(from: units.startIndex, to: first) ..< units.distance(from: units.startIndex, to: last)
     }
+
+    /// The UTF-16 units of the whole lines that a UTF-16 range touches, and
+    /// the offset where they start. It reads only those lines, so an edit
+    /// costs the same in any length of text.
+    public static func lines(touching range: Range<Int>, in text: String) -> (units: [UInt16], start: Int) {
+        let utf16 = text.utf16
+        let lower = utf16.index(utf16.startIndex, offsetBy: range.lowerBound)
+        let upper = utf16.index(lower, offsetBy: range.count)
+        let start = utf16[..<lower].lastIndex(of: 0x0A).map(utf16.index(after:)) ?? utf16.startIndex
+        let end = utf16[upper...].firstIndex(of: 0x0A) ?? utf16.endIndex
+        return (Array(utf16[start ..< end]), utf16.distance(from: utf16.startIndex, to: start))
+    }
 }
 
 /// An open code fence: its character and the length of its run.

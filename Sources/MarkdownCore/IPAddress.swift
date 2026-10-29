@@ -33,8 +33,7 @@ enum IPAddress {
     }
 
     /// An IPv6 literal is blocked when it is `::`, `::1`, in fc00::/7 or
-    /// fe80::/10, maps a blocked IPv4 address, or cannot be read (a zone
-    /// index included).
+    /// fe80::/10, maps a blocked IPv4 address, or cannot be read.
     static func isBlockedIPv6(_ host: String) -> Bool {
         guard let bytes = ipv6Bytes(host) else { return true }
         if bytes.allSatisfy({ $0 == 0 }) || bytes == [UInt8](repeating: 0, count: 15) + [1] {

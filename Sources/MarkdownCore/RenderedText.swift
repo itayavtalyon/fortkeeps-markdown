@@ -156,8 +156,13 @@ public struct RenderedText: Sendable {
     /// copies `Image: {alt}`. With `listMarkers`, a block whose start is in
     /// the range copies its list indentation, its marker, and a task's box.
     public func copyText(_ range: Range<Int>, imagesDrawnAsText: Set<Int> = [], listMarkers: Bool = true) -> String {
-        let utf16 = Array(string.utf16)
-        let pieces = blocks.compactMap { block -> String? in
+        // Only the range is read, so copying one block costs the same in any length of text.
+        let lower = string.utf16.index(string.utf16.startIndex, offsetBy: range.lowerBound)
+        let units = Array(string.utf16[lower ..< string.utf16.index(lower, offsetBy: range.count)])
+        let utf16 = { (offset: Int) in units[offset - range.lowerBound] }
+        let first = Self.partition(blocks.count) { blocks[$0].range.upperBound >= range.lowerBound }
+        let touched = blocks[first...].prefix { $0.range.lowerBound < range.upperBound }
+        let pieces = touched.compactMap { block -> String? in
             let start = max(block.range.lowerBound, range.lowerBound)
             let end = min(block.range.upperBound, range.upperBound)
             let startsInRange = range.contains(block.range.lowerBound)
@@ -169,14 +174,14 @@ public struct RenderedText: Sendable {
             var piece = prefix
             var unit = start
             while unit < end {
-                if utf16[unit] == 0xFFFC, let index = images.firstIndex(where: { $0.offset == unit }) {
+                if utf16(unit) == 0xFFFC, let index = imageIndex(at: unit) {
                     let alt = images[index].alt
                     piece += imagesDrawnAsText.contains(index) ? (alt.isEmpty ? "Image" : "Image: " + alt) : ""
                     unit += 1
                     continue
                 }
-                let next = (unit + 1 ..< end).first { utf16[$0] == 0xFFFC } ?? end
-                piece += String(decoding: utf16[unit ..< next], as: UTF16.self)
+                let next = (unit + 1 ..< end).first { utf16($0) == 0xFFFC } ?? end
+                piece += String(decoding: units[unit - range.lowerBound ..< next - range.lowerBound], as: UTF16.self)
                 unit = next
             }
             return piece.isEmpty ? nil : piece
@@ -184,20 +189,33 @@ public struct RenderedText: Sendable {
         return pieces.joined(separator: "\n")
     }
 
+    /// The index of the image at a rendered offset. Images are in offset order.
+    private func imageIndex(at offset: Int) -> Int? {
+        let index = Self.partition(images.count) { images[$0].offset >= offset }
+        return index < images.count && images[index].offset == offset ? index : nil
+    }
+
+    /// The first index in `0 ..< count` where `isAtOrAfter` holds, for a
+    /// predicate that is false and then true; `count` when it never holds.
+    private static func partition(_ count: Int, _ isAtOrAfter: (Int) -> Bool) -> Int {
+        var low = 0
+        var high = count
+        while low < high {
+            let mid = (low + high) / 2
+            if isAtOrAfter(mid) {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        return low
+    }
+
     // MARK: runs
 
     private func runContaining(rendered offset: Int) -> Run? {
-        var low = 0
-        var high = runs.count
-        while low < high {
-            let mid = (low + high) / 2
-            if runs[mid].renderedEnd <= offset {
-                low = mid + 1
-            } else {
-                high = mid
-            }
-        }
-        return low < runs.count && runs[low].rendered <= offset ? runs[low] : nil
+        let index = Self.partition(runs.count) { runs[$0].renderedEnd > offset }
+        return index < runs.count && runs[index].rendered <= offset ? runs[index] : nil
     }
 
     /// Runs do not overlap in the source, so only zero-length runs can sit
@@ -220,17 +238,7 @@ public struct RenderedText: Sendable {
     /// The first position in `runsBySource` whose run satisfies a predicate
     /// that is false and then true in source order.
     private func sourcePosition(where predicate: (Run) -> Bool) -> Int {
-        var low = 0
-        var high = runsBySource.count
-        while low < high {
-            let mid = (low + high) / 2
-            if predicate(runs[runsBySource[mid]]) {
-                high = mid
-            } else {
-                low = mid + 1
-            }
-        }
-        return low
+        Self.partition(runsBySource.count) { predicate(runs[runsBySource[$0]]) }
     }
 
     private func sourceStart(of run: Run, at rendered: Int) -> Int {

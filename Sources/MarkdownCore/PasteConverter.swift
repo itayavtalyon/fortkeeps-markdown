@@ -102,11 +102,11 @@ struct MarkdownRenderer {
     /// A list item's blocks: the first after the marker, the rest indented by
     /// the marker's width. A nested list follows on the next line.
     private func list(_ node: HTMLNode, ordered: Bool) -> String {
-        var number = Int(node.attribute("start") ?? "") ?? 1
+        // CommonMark reads a list number of at most nine digits.
+        let start = min(max(Int(node.attribute("start") ?? "") ?? 1, 0), Self.maximumNumber)
         var items: [String] = []
-        for item in node.children where item.name == "li" {
-            let marker = ordered ? "\(number)." : "-"
-            number += 1
+        for (index, item) in node.children.filter({ $0.name == "li" }).enumerated() {
+            let marker = ordered ? "\(min(start + index, Self.maximumNumber))." : "-"
             var children = item.children
             let task = Self.taskPrefix(removingFrom: &children)
             let itemBlocks = blocks(children)
@@ -126,6 +126,8 @@ struct MarkdownRenderer {
         return items.joined(separator: "\n")
     }
 
+    static let maximumNumber = 999_999_999
+
     /// `[x] ` or `[ ] ` when the item starts with a checkbox input, which is removed.
     private static func taskPrefix(removingFrom children: inout [HTMLNode]) -> String {
         guard let index = children
@@ -141,6 +143,10 @@ struct MarkdownRenderer {
 /// A GFM table: the `thead` row or the first row is the header, a `colspan`
 /// cell puts its content in the first cell and empty cells after it.
 struct TableRenderer {
+    /// A row keeps its first 1000 columns, so a small hostile paste cannot
+    /// pad every row to millions of cells.
+    static let maximumColumns = 1000
+
     let documentURL: URL?
 
     func table(_ node: HTMLNode) -> String? {
@@ -171,11 +177,14 @@ struct TableRenderer {
     }
 
     private func cells(of row: HTMLNode) -> [String] {
-        row.children.filter { $0.name == "td" || $0.name == "th" }.flatMap { cell in
-            let span = min(max(Int(cell.attribute("colspan") ?? "") ?? 1, 1), 1000)
+        var cells: [String] = []
+        for cell in row.children where cell.name == "td" || cell.name == "th" {
+            guard cells.count < Self.maximumColumns else { break }
+            let span = min(max(Int(cell.attribute("colspan") ?? "") ?? 1, 1), Self.maximumColumns - cells.count)
             let text = InlineRenderer(documentURL: documentURL, singleLine: true, escapesPipes: true)
                 .paragraph(cell.children)
-            return [text] + Array(repeating: "", count: span - 1)
+            cells += [text] + Array(repeating: "", count: span - 1)
         }
+        return cells
     }
 }

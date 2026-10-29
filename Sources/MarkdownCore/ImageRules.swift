@@ -23,10 +23,12 @@ public enum ImageRules {
     }
 
     /// True for a host the app must not contact: `localhost`, `.local`, a
-    /// private, loopback, link-local, or multicast address, or an IPv4
-    /// address written in any form other than dotted decimal. The check reads
-    /// the literal host only, before any DNS lookup.
+    /// private, loopback, link-local, or multicast address, an IPv4 address
+    /// written in any form other than dotted decimal, or a host with a percent
+    /// escape (`%31%32%37.0.0.1` is 127.0.0.1 to a URL parser that decodes
+    /// it). The check reads the literal host only, before any DNS lookup.
     public static func isBlockedHost(_ host: String) -> Bool {
+        guard !host.contains("%") else { return true }
         var name = host.lowercased()
         if name.hasPrefix("["), name.hasSuffix("]") {
             name = String(name.dropFirst().dropLast())

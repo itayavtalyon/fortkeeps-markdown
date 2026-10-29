@@ -184,7 +184,7 @@ final class ParsedMarkdown {
         cmark_node_set_literal(node, characters)
     }
 
-    private static func literal(of node: Node) -> String {
+    static func literal(of node: Node) -> String {
         // HTML, text, and code nodes always carry a literal.
         String(cString: cmark_node_get_literal(node)!) // swiftlint:disable:this force_unwrapping
     }

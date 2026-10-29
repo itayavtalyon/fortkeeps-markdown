@@ -52,15 +52,8 @@ public struct MarkdownDocument: Sendable {
         title = titleNode.map { DocumentBuilder.plainText(of: $0).trimmingCharacters(in: .whitespaces) }
         builder.build(parsed.root, skipping: presentation.titleLine == .hidden ? titleNode : nil)
         blocks = builder.topLevelBlocks
-        tasks = builder.tasks
-        rendered = RenderedText(
-            string: builder.string,
-            blocks: builder.renderedBlocks,
-            links: builder.links,
-            images: builder.images,
-            spans: builder.styleSpans,
-            runs: builder.runs
-        )
+        rendered = builder.rendered
+        tasks = builder.tasks(in: rendered)
     }
 
     /// The text with the task's marker byte flipped: a space becomes `x`, and

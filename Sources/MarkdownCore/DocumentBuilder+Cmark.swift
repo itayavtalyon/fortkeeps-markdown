@@ -49,11 +49,6 @@ extension DocumentBuilder {
         String(cString: cmark_node_get_type_string(node))
     }
 
-    static func literal(_ node: Node) -> String {
-        // Text, code, and HTML nodes always carry a literal.
-        String(cString: cmark_node_get_literal(node)!) // swiftlint:disable:this force_unwrapping
-    }
-
     static func url(_ node: Node) -> String {
         // A link or an image always carries a URL, empty or not.
         String(cString: cmark_node_get_url(node)!) // swiftlint:disable:this force_unwrapping

@@ -54,11 +54,15 @@ struct MarkdownEscaper {
         case "*", "~": return flanking
         case "_": return flanking && !(Self.isWord(before) && Self.isWord(after))
         case "<": return after.map { $0.isLetter || "/!?".contains($0) } ?? false
-        case "&": return Self.startsEntity(String(rest))
+        case "&": return Self.startsEntity(String(rest.prefix(Self.longestEntity)))
         case "|": return escapesPipes
         default: return false
         }
     }
+
+    /// `&CounterClockwiseContourIntegral;` is the longest HTML5 entity, at 33
+    /// characters; reading past it would make a run of `&` quadratic.
+    static let longestEntity = 33
 
     /// True when the text starts with an entity that CommonMark decodes;
     /// `&unknown;` is not one and stays as it is.

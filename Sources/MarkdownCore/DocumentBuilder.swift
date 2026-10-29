@@ -38,7 +38,6 @@ struct DocumentBuilder {
     var styleSpans: [MarkdownStyler.StyleSpan] = []
     var topLevelBlocks: [MarkdownDocument.Block] = []
     var renderedBlocks: [RenderedText.Block] = []
-    var tasks: [MarkdownDocument.Task] = []
 
     var leaves: [Leaf] = []
     /// Each leaf's characters without code spans, for the top-level direction.
@@ -103,15 +102,31 @@ struct DocumentBuilder {
                 direction: direction
             )
         }
-        let utf16 = Array(string.utf16)
-        tasks = pendingTasks.enumerated().map { index, pending in
+    }
+
+    var rendered: RenderedText {
+        RenderedText(
+            string: string,
+            blocks: renderedBlocks,
+            links: links,
+            images: images,
+            spans: styleSpans,
+            runs: runs
+        )
+    }
+
+    /// Each task with its first block as drawn, images as text, trimmed.
+    func tasks(in rendered: RenderedText) -> [MarkdownDocument.Task] {
+        let allImages = Set(rendered.images.indices)
+        return pendingTasks.enumerated().map { index, pending in
             let leaf = taskLeaves[index]
             return MarkdownDocument.Task(
                 index: index,
                 line: pending.line,
                 byteOffset: pending.byteOffset,
                 checked: pending.checked,
-                text: visibleText(leaves[leaf].range, in: utf16).trimmingCharacters(in: .whitespacesAndNewlines),
+                text: rendered.copyText(leaves[leaf].range, imagesDrawnAsText: allImages, listMarkers: false)
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
                 direction: leafDirections[leaf]
             )
         }
@@ -121,7 +136,7 @@ struct DocumentBuilder {
     static func plainText(of node: Node) -> String {
         children(of: node).map { child in
             switch Self.typeName(child) {
-            case "text", "code", "html_inline": Self.literal(child)
+            case "text", "code", "html_inline": ParsedMarkdown.literal(of: child)
             case "softbreak", "linebreak": " "
             default: plainText(of: child)
             }
@@ -199,11 +214,11 @@ struct DocumentBuilder {
             walkInlines(node)
         case .codeBlock:
             appendLines(
-                Self.literal(node),
+                ParsedMarkdown.literal(of: node),
                 firstLine: Int(node.pointee.start_line) + (node.pointee.as.code.fenced != 0 ? 1 : 0)
             )
         case .htmlBlock:
-            appendLines(Self.literal(node), firstLine: Int(node.pointee.start_line))
+            appendLines(ParsedMarkdown.literal(of: node), firstLine: Int(node.pointee.start_line))
         case .tableRow:
             for (index, cell) in Self.children(of: node).enumerated() {
                 if index > 0 {

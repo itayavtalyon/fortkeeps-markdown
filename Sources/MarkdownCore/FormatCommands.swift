@@ -18,29 +18,37 @@ public enum FormatCommand: Equatable, Sendable {
 /// item, a mixed selection, nested markers) are not built. Offsets are UTF-16.
 public enum FormatCommands {
     public static func apply(_ command: FormatCommand, to text: String, selection: Range<Int>) -> TextEdit {
-        let units = Array(text.utf16)
-        switch command {
-        case .bold: return wrap("**", in: units, selection: selection)
-        case .italic: return wrap("*", in: units, selection: selection)
-        case .code:
-            return Lines(units, selection).count > 1 ? fence(units, selection) : wrap(
-                "`",
-                in: units,
-                selection: selection
-            )
-        case let .link(clipboard): return link(units, selection, clipboard: clipboard)
-        case .quote: return prefixLines(units, selection, prefix: "> ", has: { $0.hasPrefix("> ") })
-        case .bulletedList: return prefixLines(units, selection, prefix: "- ", has: { $0.hasPrefix("- ") })
-        case .checkbox: return prefixLines(units, selection, prefix: "- [ ] ", has: isTask)
-        case let .heading(level): return heading(units, selection, level: level)
-        case .body: return heading(units, selection, level: 0)
-        }
+        let (units, start) = text.linesTouching(selection)
+        return apply(command, to: units, selection: selection.lowerBound - start ..< selection.upperBound - start)
+            .shifted(by: start)
     }
 
     /// True when the selection already has the command's format: the format
     /// bar shows the button as pressed.
     public static func isActive(_ command: FormatCommand, in text: String, selection: Range<Int>) -> Bool {
-        let units = Array(text.utf16)
+        let (units, start) = text.linesTouching(selection)
+        return isActive(command, in: units, selection: selection.lowerBound - start ..< selection.upperBound - start)
+    }
+
+    // Every command reads only the lines its selection touches, so it works
+    // on those lines, in their own offsets.
+
+    private static func apply(_ command: FormatCommand, to units: [UInt16], selection: Range<Int>) -> TextEdit {
+        switch command {
+        case .bold: wrap("**", in: units, selection: selection)
+        case .italic: wrap("*", in: units, selection: selection)
+        case .code where Lines(units, selection).count > 1: fence(units, selection)
+        case .code: wrap("`", in: units, selection: selection)
+        case let .link(clipboard): link(units, selection, clipboard: clipboard)
+        case .quote: prefixLines(units, selection, prefix: "> ", has: { $0.hasPrefix("> ") })
+        case .bulletedList: prefixLines(units, selection, prefix: "- ", has: { $0.hasPrefix("- ") })
+        case .checkbox: prefixLines(units, selection, prefix: "- [ ] ", has: isTask)
+        case let .heading(level): heading(units, selection, level: level)
+        case .body: heading(units, selection, level: 0)
+        }
+    }
+
+    private static func isActive(_ command: FormatCommand, in units: [UInt16], selection: Range<Int>) -> Bool {
         let line = Lines(units, selection).text(0)
         switch command {
         case .bold: return wrapped("**", units, selection) || styled(.strong, units, selection)

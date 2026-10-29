@@ -130,7 +130,8 @@ struct FormatCommandTests {
     @Test(arguments: [
         (FormatCommand.bold, "a **w|or|d** b", true), (.bold, "a w|or|d b", false), (.italic, "*|x|*", true),
         (.quote, "> a|", true), (.quote, "a|", false), (.heading(2), "## a|", true), (.heading(1), "## a|", false),
-        (.bulletedList, "- a|", true), (.checkbox, "- [ ] a|", true), (.code, "`a|b`", true), (.body, "a|", true)
+        (.bulletedList, "- a|", true), (.checkbox, "- [ ] a|", true), (.code, "`a|b`", true), (.body, "a|", true),
+        (.bold, "first\na **w|or|d** b", true), (.quote, "first\n> a|", true)
     ])
     func `a command is active when the selection has its format`(command: FormatCommand, marked: String, active: Bool) {
         let parts = marked.components(separatedBy: "|")

@@ -173,10 +173,10 @@ final class MarkdownTextController {
     }
 
     private func apply(_ edit: TextEdit, reason: TextChange.Reason, event: UndoGrouping.Event?, time: Double) {
-        let units = Array(text.utf16)
-        let removed = String(decoding: units[edit.range], as: UTF16.self)
-        text = String(decoding: units[..<edit.range.lowerBound], as: UTF16.self) + edit.replacement
-            + String(decoding: units[edit.range.upperBound...], as: UTF16.self)
+        let lower = text.utf16.index(text.utf16.startIndex, offsetBy: edit.range.lowerBound)
+        let upper = text.utf16.index(lower, offsetBy: edit.range.count)
+        let removed = String(text[lower ..< upper])
+        text.replaceSubrange(lower ..< upper, with: edit.replacement)
         cachedDocument = nil
         let change = Change(location: edit.range.lowerBound, removed: removed, inserted: edit.replacement)
         if let event {

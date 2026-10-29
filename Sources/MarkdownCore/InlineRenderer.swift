@@ -78,12 +78,26 @@ struct InlineRenderer {
         else {
             return [.text(Self.collapseWhitespace(alt))]
         }
-        let escapedAlt = alt.replacingOccurrences(of: "[", with: "\\[").replacingOccurrences(of: "]", with: "\\]")
-        return [.markup("![" + escapedAlt + "](" + Self.destination(source) + ")")]
+        return [.markup("![" + Self.backslashed(alt, "\\[]") + "](" + Self.destination(source) + ")")]
     }
 
+    /// A destination as it reads back: a backslash escapes itself, and a
+    /// destination with a space or a bracket goes in angle brackets with its
+    /// `<` and `>` escaped, so it cannot close early and start new syntax.
+    /// The URL standard drops tabs and line breaks from a URL.
     static func destination(_ url: String) -> String {
-        url.contains(where: { " ()<>".contains($0) }) ? "<" + url + ">" : url
+        let url = backslashed(String(url.unicodeScalars.filter { !"\t\n\r".unicodeScalars.contains($0) }), "\\")
+        return url.contains(where: { " ()<>".contains($0) }) ? "<" + backslashed(url, "<>") + ">" : url
+    }
+
+    /// The text with a backslash before each character of `characters`.
+    static func backslashed(_ text: String, _ characters: String) -> String {
+        text.reduce(into: "") { result, character in
+            if characters.contains(character) {
+                result.append("\\")
+            }
+            result.append(character)
+        }
     }
 
     /// A backtick run longer than any inside, padded when the code starts or

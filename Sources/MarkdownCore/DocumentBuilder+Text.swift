@@ -9,11 +9,11 @@ extension DocumentBuilder {
         for child in Self.children(of: node) {
             switch Self.typeName(child) {
             case "text", "html_inline":
-                appendAligned(Self.literal(child), from: span(of: child).lowerBound)
-                directionText += Self.literal(child)
+                appendAligned(ParsedMarkdown.literal(of: child), from: span(of: child).lowerBound)
+                directionText += ParsedMarkdown.literal(of: child)
             case "code":
                 let start = length
-                appendAligned(Self.literal(child), from: span(of: child).lowerBound)
+                appendAligned(ParsedMarkdown.literal(of: child), from: span(of: child).lowerBound)
                 styleSpans.append(MarkdownStyler.StyleSpan(range: start ..< length, token: .code))
             case "softbreak":
                 appendHidden(features.softBreakAsLine ? "\n" : " ", at: sourceEnd)
@@ -292,18 +292,5 @@ extension DocumentBuilder {
             end -= 1
         }
         return end
-    }
-
-    /// The drawn characters of a range, with each image as `Image: {alt}`.
-    /// A U+FFFC typed in the text is not an image and stays.
-    func visibleText(_ range: Range<Int>, in utf16: [UInt16]) -> String {
-        var text = ""
-        var start = range.lowerBound
-        for unit in range where utf16[unit] == 0xFFFC {
-            text += String(decoding: utf16[start ..< unit], as: UTF16.self)
-            text += images.first { $0.offset == unit }.map { "Image: " + $0.alt } ?? "\u{FFFC}"
-            start = unit + 1
-        }
-        return text + String(decoding: utf16[start ..< range.upperBound], as: UTF16.self)
     }
 }

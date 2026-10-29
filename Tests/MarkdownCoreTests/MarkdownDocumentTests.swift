@@ -187,6 +187,11 @@ struct MarkdownDocumentTests {
     }
 
     @Test
+    func `a task text reads an image with no alt as Image, as copy does`() {
+        #expect(givenDocument("- [ ] see ![](c.png) now\n").tasks.first?.text == "see Image now")
+    }
+
+    @Test
     func `a task text shows each image as its own alt text and keeps a typed U+FFFC`() {
         #expect(givenDocument("- [ ] ![a](1.png) \u{FFFC} ![b](2.png)\n").tasks.first?
             .text == "Image: a \u{FFFC} Image: b")

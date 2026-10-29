@@ -12,6 +12,29 @@ public struct TextEdit: Equatable, Sendable {
         self.replacement = replacement
         self.selection = selection
     }
+
+    /// The same edit `offset` units later in the text.
+    func shifted(by offset: Int) -> TextEdit {
+        TextEdit(
+            range: range.lowerBound + offset ..< range.upperBound + offset,
+            replacement: replacement,
+            selection: selection.lowerBound + offset ..< selection.upperBound + offset
+        )
+    }
+}
+
+extension String {
+    /// The UTF-16 units of the whole lines that a UTF-16 range touches, and
+    /// the offset where they start. It reads only those lines, so an edit
+    /// costs the same in any length of text.
+    func linesTouching(_ range: Range<Int>) -> (units: [UInt16], start: Int) {
+        let utf16 = utf16
+        let lower = utf16.index(utf16.startIndex, offsetBy: range.lowerBound)
+        let upper = utf16.index(lower, offsetBy: range.count)
+        let start = utf16[..<lower].lastIndex(of: 0x0A).map(utf16.index(after:)) ?? utf16.startIndex
+        let end = utf16[upper...].firstIndex(of: 0x0A) ?? utf16.endIndex
+        return (Array(utf16[start ..< end]), utf16.distance(from: utf16.startIndex, to: start))
+    }
 }
 
 /// Return in a list item (design log 001 › Editor).
@@ -19,16 +42,21 @@ public enum ListContinuation {
     /// The edit Return makes in a list item, or nil for a plain newline. A
     /// task continues as `- [ ] `; Return on an empty item ends the list.
     public static func returnEdit(in text: String, selection: Range<Int>) -> TextEdit? {
-        let units = Array(text.utf16)
-        let lineStart = units[..<selection.lowerBound].lastIndex(of: 0x0A).map { $0 + 1 } ?? 0
+        let (units, start) = text.linesTouching(selection)
+        return returnEdit(in: units, selection: selection.lowerBound - start ..< selection.upperBound - start)?
+            .shifted(by: start)
+    }
+
+    /// The edit in the lines a selection touches, in their own offsets.
+    private static func returnEdit(in units: [UInt16], selection: Range<Int>) -> TextEdit? {
         let lineEnd = units[selection.lowerBound...].firstIndex(of: 0x0A) ?? units.count
-        let line = String(decoding: units[lineStart ..< lineEnd], as: UTF16.self)
+        let line = String(decoding: units[..<lineEnd], as: UTF16.self)
         guard let match = line.prefixMatch(
             of: /((?:[ ]{0,3}>[ ]?)*)([ \t]*)([-*+]|(\d{1,9})([.)]))([ \t]+|$)(\[[ xX]\](?:[ \t]+|$))?/
         ) else { return nil }
-        let contentStart = lineStart + match.0.utf16.count
+        let contentStart = match.0.utf16.count
         guard selection.lowerBound >= contentStart else { return nil }
-        let markerStart = lineStart + match.1.utf16.count + match.2.utf16.count
+        let markerStart = match.1.utf16.count + match.2.utf16.count
         let content = units[contentStart ..< lineEnd]
         if content.allSatisfy({ $0 == 0x20 || $0 == 0x09 }) {
             return TextEdit(range: markerStart ..< lineEnd, replacement: "", selection: markerStart ..< markerStart)
@@ -110,8 +138,9 @@ public enum ByteLimit {
         limit: Int?
     ) -> String {
         guard let limit else { return insertion }
-        let units = Array(text.utf16)
-        let removed = String(decoding: units[range], as: UTF16.self).utf8.count
+        let utf16 = text.utf16
+        let lower = utf16.index(utf16.startIndex, offsetBy: range.lowerBound)
+        let removed = text.utf8.distance(from: lower, to: utf16.index(lower, offsetBy: range.count))
         var room = limit - (text.utf8.count - removed)
         var kept = ""
         for character in insertion {

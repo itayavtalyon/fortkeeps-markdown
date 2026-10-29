@@ -97,6 +97,13 @@ struct PasteConverterTests {
     }
 
     @Test
+    func `an ordered list start outside CommonMark's nine digits is clamped`() {
+        #expect(Self
+            .markdown("<ol start=\"9223372036854775807\"><li>a</li><li>b</li></ol>") == "999999999. a\n999999999. b")
+        #expect(Self.markdown("<ol start=\"-3\"><li>a</li><li>b</li></ol>") == "0. a\n1. b")
+    }
+
+    @Test
     func `blockquote becomes a quote`() {
         #expect(Self.markdown("<blockquote><p>a</p><p>b</p></blockquote>") == "> a\n>\n> b")
     }
@@ -126,6 +133,16 @@ struct PasteConverterTests {
                 "<table><tr><th>a</th><th>b</th><th>c</th></tr><tr><td colspan=\"2\">wide</td><td>z</td></tr></table>"
             )
             == "| a | b | c |\n| --- | --- | --- |\n| wide |  | z |")
+    }
+
+    @Test
+    func `a table row keeps its first 1000 columns`() {
+        let html = "<table><tr><td colspan=\"999\">a</td><td colspan=\"5\">b</td><td>c</td></tr>"
+            + "<tr><td>d</td></tr></table>"
+        let rows = Self.markdown(html).split(separator: "\n")
+
+        #expect(rows[0] == "| a | " + String(repeating: " | ", count: 998) + "b |")
+        #expect(rows[2] == "| d" + String(repeating: " | ", count: 999) + " |")
     }
 
     @Test
@@ -203,6 +220,7 @@ struct PasteConverterTests {
         ("a <b> c", "a \\<b> c"),
         ("a < b", "a < b"),
         ("AT&T &amp;", "AT&T \\&amp;"),
+        ("&CounterClockwiseContourIntegral;", "\\&CounterClockwiseContourIntegral;"),
         ("~~x~~ and a ~ b", "\\~\\~x\\~\\~ and a ~ b"),
         ("back\\slash \\* x", "back\\slash \\\\\\* x"),
         ("===", "\\==="),
@@ -268,5 +286,35 @@ struct PasteConverterTests {
             features: MarkdownFeatures(),
             documentURL: nil
         ) == "x")
+    }
+}
+
+/// Design › Paste: a pasted page decides every attribute, so each one reads back as written.
+extension PasteConverterTests {
+    static func pastedDocument(_ html: String) -> MarkdownDocument {
+        MarkdownDocument(text: markdown(html), features: MarkdownFeatures(), presentation: MarkdownPresentation())
+    }
+
+    @Test
+    func `a destination with angle brackets cannot close early and start new syntax`() {
+        let href = "https://e.com/>)![x](https://t.example/p.png"
+        let document = Self.pastedDocument("<a href=\"\(href)\">click</a>")
+
+        #expect(document.rendered.links.map(\.destination) == [href])
+        #expect(document.rendered.images.isEmpty)
+    }
+
+    @Test
+    func `a destination drops line breaks and tabs and keeps its backslashes`() {
+        let document = Self.pastedDocument("<a href=\"https://e.com/a\r\nb\tc\\*d\">x</a>")
+
+        #expect(document.rendered.links.map(\.destination) == ["https://e.com/abc\\*d"])
+    }
+
+    @Test
+    func `an alt text that ends in a backslash reads back as written`() {
+        let document = Self.pastedDocument(#"<img alt="a\" src="https://e.com/a.png">"#)
+
+        #expect(document.rendered.images.map(\.alt) == [#"a\"#])
     }
 }

@@ -44,6 +44,13 @@ struct RenderedTextTests {
     }
 
     @Test
+    func `a copy that starts at an empty task item copies its marker and box`() {
+        let rendered = givenDocument("a\n\n- [ ] \n\nb\n").rendered
+
+        #expect(rendered.copyText(2 ..< rendered.utf16Count) == "- [ ]\nb")
+    }
+
+    @Test
     func `an image drawn as text with an empty alt copies Image`() {
         let rendered = givenDocument("a ![](x.png) b\n").rendered
 

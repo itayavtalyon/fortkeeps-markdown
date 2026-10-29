@@ -24,6 +24,7 @@ Stages 1a, 1b, 1c, and 1f can start now. Stage 1d can start except steps 5–6. 
 |---|------|--------|
 | 01 | [Library](01-library.md) | Not started |
 | 02 | [Apps](02-apps.md) | After 01 |
+| 03 | [Scroll decisions (log 002)](03-scroll-decisions.md) | Built inside the 01 and 02 stages it names |
 
 ## Definition of done (every stage)
 

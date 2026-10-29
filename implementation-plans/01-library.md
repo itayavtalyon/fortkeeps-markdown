@@ -744,7 +744,15 @@ Whole-plan deep review of stages 1a–1g at 01d2575, with the simplicity and adv
 
 - Editor images are found by parsing only the restyled lines (with their code lines blanked). An inline that spans lines from above the region, such as a code span, can change what reads as an image until the region covers it. The differential uses whole-line edits for this reason.
 - Opening a large text in the editor still styles it all at once (5.7 s at 2 MB). Design's progress indicator for files over 5 MB is plan 02. Its DRAFT status line "Large file: styling updates as you scroll" names a 20 MB rule that no longer exists in the editor.
-- A keystroke at 2 MB takes about 13 ms and at 20 MB about 125 ms, in NSTextStorage attribute writes; Round 10 keeps the 8 ms budget at 64 KiB.
-- `EditorImageMark` decodes its image on every decoration of its line; iOS box views do not mirror the main selection.
+- A keystroke at 2 MB takes about 13 ms and at 20 MB about 125 ms, in NSTextStorage attribute writes; Round 10 keeps the 8 ms budget at 64 KiB. (Reduced in 8532f20; see below.)
+- `EditorImageMark` decodes its image on every decoration of its line; iOS box views do not mirror the main selection. (Fixed in 8532f20.)
 - `scripts/check-coverage.py` prints a traceback, not a message, when `llvm-cov show` fails (for example after a filtered test run).
+
+**Open items fixed (2026-10-29).** Commit 8532f20, on Itay's go.
+
+- Keystroke cost. A probe found the cause: each NSTextStorage attribute write moves the storage's whole run array, 0.5 ms per write at 2 MB (512,000 runs), also without a layout manager. A restyle now styles its region in a copy and writes only the runs that differ. The theme keeps one dynamic color per role, so equal styles compare equal (each call made a new color before, and every run differed). Release build, M1 Max: the keystroke restyle at 2 MB went from 5.6 ms to 1.8 ms, and at 20 MB from 48 ms to 17 ms. A typical keystroke now writes one run. A keystroke at 2 MB takes 10.4 ms in the view; a plain TextKit 2 text view with the same styled text takes 4.8 ms, and the rest is TextKit's response to the edit. At 20 MB, 16 ms of the restyle is the two line-feed counts (the `ponytail:` notes in `MarkdownDisplay` name the upgrade). The 64 KiB timing p95 is 0.9 ms (0.6 ms before; the copy costs a little on a small text).
+- Thumbnails. The display decodes an editor image once per result. A restyle of its line reuses the image, and `refreshImages` drops it when the result changes.
+- iOS box selection. A box view is never first responder, so its text view drew no selection. `mirrorSelection` is shared: the Mac box selects its copy of the characters, and the iOS box draws the selection's text segments in a layer under its text.
+- Tests: `a restyle writes to the storage only when a style changed`, `an editor thumbnail is decoded once per result`, and `the main selection shows in a box view` (Mac and iOS). Mutations: 9 one-clause mutants on macOS (always write, no range check, no color cache, no thumbnail cache, no thumbnail drop, four selection-mirror mutants), all killed; 2 on the iPhone 18 Pro simulator (no mirror on a selection change, no segment rectangles), both killed. The seeded differential killed the mutant without the range check.
+- Gate: `just check` passes on 8532f20: 120 MarkdownViews, 285 MarkdownCore, and 17 FortkeepsCards tests on macOS, coverage 100% for both pure modules, the module trace, the iOS build, the MarkdownViews tests on iPhone 18 Pro, lint, and format.
 

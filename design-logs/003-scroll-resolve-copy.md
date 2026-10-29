@@ -1,6 +1,6 @@
 # 003 — Scroll Resolve copy
 
-**Status:** Design. Silent reload decided by Itay 2026-10-29.
+**Status:** Design. Reload with a note decided by Itay 2026-10-29.
 **Created:** 2026-10-29
 
 Copy for Fortkeeps Scroll's file-conflict and missing-file states. Logs 001 and 002 are not edited.
@@ -34,9 +34,15 @@ Copy for Fortkeeps Scroll's file-conflict and missing-file states. Logs 001 and 
 - VoiceOver label: `<name>, needs permission to open`
 - The picker opens in the file's last known folder. Mac: set NSOpenPanel's `directoryURL` there and preselect the file where macOS allows it. iOS: set UIDocumentPicker's `directoryURL` to that folder. Preselecting the file is best effort.
 
-### Reload without unsaved edits (decided by Itay, 2026-10-29)
+### Reload with a note, no unsaved edits (decided by Itay, 2026-10-29)
 
-With no unsaved edits, Scroll reloads a file changed on disk without a prompt, keeping the scroll position and caret. The reload is undoable (`Undo Reload` on Mac).
+With no unsaved edits, Scroll reloads a file changed on disk without a dialog and shows a note. The reload keeps the scroll position and caret, and it is undoable (`Undo Reload` on Mac).
+
+- Note text: `Updated with changes from another app.` It appears at the top of the document for about 4 seconds.
+- VoiceOver announces it politely, without moving focus.
+- It stays while the pointer is over it.
+- It has an `Undo` button (the same as Undo Reload).
+- With Reduce Motion on, it appears and disappears without the fade.
 
 ### Sandbox and distribution
 
@@ -48,5 +54,5 @@ Scroll's App Store build is sandboxed. It keeps security-scoped bookmarks for Re
 
 | ID | Question | Status |
 |---|---|---|
-| OQ-1 | Silent reload when the file has no unsaved edits? | **Decided by Itay 2026-10-29:** yes, see Design. |
+| OQ-1 | Reload without a dialog when the file has no unsaved edits? | **Decided by Itay 2026-10-29:** yes, with the `Updated with changes from another app.` note; see Design. |
 | OQ-2 | A direct-download Mac build of Scroll? | OPEN (Mac App Store is the distribution). |

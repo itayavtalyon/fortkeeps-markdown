@@ -14,6 +14,9 @@
         let textView = UITextView(usingTextLayoutManager: true)
         private let leadingFade = CAGradientLayer()
         private let trailingFade = CAGradientLayer()
+        /// The main selection over the box's characters: a box view is not first
+        /// responder, so its text view draws no selection of its own.
+        let selectionLayer = CAShapeLayer()
 
         init(mark: BoxMark) {
             self.mark = mark
@@ -31,6 +34,7 @@
             textView.textContainer.widthTracksTextView = false
             textView.textContainer.lineFragmentPadding = 0
             addSubview(textView)
+            textView.layer.insertSublayer(selectionLayer, at: 0)
             for fade in [leadingFade, trailingFade] {
                 fade.startPoint = CGPoint(x: 0, y: 0.5)
                 fade.endPoint = CGPoint(x: 1, y: 0.5)
@@ -69,6 +73,20 @@
 
         var scrollOffset: CGFloat {
             contentOffset.x
+        }
+
+        /// Draws the main selection over the box's characters, in box offsets.
+        func showSelection(_ local: Range<Int>) {
+            let path = CGMutablePath()
+            if let layout = textView.textLayoutManager, !local.isEmpty, let range = layout.textRange(local) {
+                layout.ensureLayout(for: range)
+                layout.enumerateTextSegments(in: range, type: .selection, options: []) { _, frame, _, _ in
+                    path.addRect(frame)
+                    return true
+                }
+            }
+            selectionLayer.path = path
+            selectionLayer.fillColor = tintColor.withAlphaComponent(0.2).resolvedColor(with: traitCollection).cgColor
         }
 
         /// A fade on each edge with hidden content; a 1 pt `line2` edge under Increase Contrast.

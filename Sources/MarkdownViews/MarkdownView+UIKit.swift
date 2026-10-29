@@ -311,6 +311,7 @@
             // The old caret line hides its task marker and its image source again.
             display.restyle(around: previous)
             display.restyle(around: range.lowerBound)
+            mirrorSelection()
             updateFormatBar()
         }
 

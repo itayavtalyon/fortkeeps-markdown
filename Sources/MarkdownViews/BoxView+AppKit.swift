@@ -81,6 +81,11 @@
             contentView.bounds.minX
         }
 
+        /// Selects the box's copy of the main selection, in box offsets.
+        func showSelection(_ local: Range<Int>) {
+            textView.setSelectedRange(NSRange(local))
+        }
+
         /// A fade on each edge with hidden content; a 1 pt `line2` edge under Increase Contrast.
         @objc private func scrolled() {
             let hiddenBefore = contentView.bounds.minX > 0.5
@@ -124,18 +129,6 @@
 
         var containerOrigin: CGPoint {
             textView.textContainerOrigin
-        }
-
-        /// The main selection shows inside each box view too.
-        func mirrorSelection() {
-            let selection = controller.selection
-            for view in boxViews.values {
-                let lower = max(selection.lowerBound, view.range.lowerBound)
-                let upper = min(selection.upperBound, view.range.upperBound)
-                let local = lower < upper ? NSRange(location: lower - view.range.lowerBound, length: upper - lower)
-                    : NSRange(location: 0, length: 0)
-                view.textView.setSelectedRange(local)
-            }
         }
     }
 #endif

@@ -24,7 +24,7 @@ struct MarkdownTheme {
         case editor
     }
 
-    enum Role {
+    enum Role: CaseIterable {
         case pane, text, text2, text3, accent, pill, line2
     }
 
@@ -122,7 +122,15 @@ struct MarkdownTheme {
 
     // MARK: colors
 
+    /// One dynamic color per role: equal styles compare equal, so a restyle
+    /// writes only the runs that changed.
+    nonisolated static let colors = Dictionary(uniqueKeysWithValues: Role.allCases.map { ($0, dynamicColor($0)) })
+
     nonisolated static func color(_ role: Role) -> PlatformColor {
+        colors[role] ?? dynamicColor(role)
+    }
+
+    nonisolated static func dynamicColor(_ role: Role) -> PlatformColor {
         #if os(macOS)
             NSColor(name: nil) { appearance in
                 let match = appearance.bestMatch(from: [

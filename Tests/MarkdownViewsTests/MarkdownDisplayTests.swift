@@ -12,7 +12,7 @@ import Testing
 @MainActor
 struct MarkdownDisplayTests {
     /// The font and the light-appearance colors of every UTF-16 unit of the
-    /// display: the theme makes a new dynamic color object on every call.
+    /// display, so a test compares what draws, not color objects.
     static func attributes(_ display: MarkdownDisplay) -> [String] {
         (0 ..< display.storage.length).map { offset in
             let attributes = display.storage.attributes(at: offset, effectiveRange: nil)
@@ -47,6 +47,24 @@ struct MarkdownDisplayTests {
         display.restyle(around: caret)
 
         #expect(Self.attributes(display) == full)
+    }
+
+    @Test
+    func `a restyle writes to the storage only when a style changed`() {
+        let display = Self.givenDisplay("a *b* `c`\n- [ ] task\n")
+        var edits = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: NSTextStorage.didProcessEditingNotification, object: display.storage, queue: nil
+        ) { _ in edits += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        display.restyle(around: 3)
+        let unchanged = edits
+        Self.type("# ", at: 0 ..< 0, in: display)
+
+        #expect(unchanged == 0)
+        #expect(edits == 2)
+        #expect(MarkdownTheme.color(.text3) === MarkdownTheme.color(.text3))
     }
 
     static func givenDisplay(_ text: String) -> MarkdownDisplay {

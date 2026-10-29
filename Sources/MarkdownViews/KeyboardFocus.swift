@@ -121,9 +121,18 @@ extension MarkdownView {
             let content = display.storage.attributedSubstring(from: NSRange(geometry.range))
             view.update(content: content, geometry: geometry, origin: containerOrigin)
         }
-        #if os(macOS)
-            mirrorSelection()
-        #endif
+        mirrorSelection()
+    }
+
+    /// The main selection shows inside each box view too.
+    func mirrorSelection() {
+        let selection = controller.selection
+        for view in boxViews.values {
+            let lower = max(selection.lowerBound, view.range.lowerBound)
+            let upper = min(selection.upperBound, view.range.upperBound)
+            let start = view.range.lowerBound
+            view.showSelection(lower < upper ? lower - start ..< upper - start : 0 ..< 0)
+        }
     }
 
     /// Moves focus to the next or previous element; false past either end.

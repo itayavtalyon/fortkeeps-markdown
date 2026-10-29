@@ -21,6 +21,8 @@ final class MarkdownDisplay {
     /// The fence state after each line of the editor text; nil for a line
     /// an edit added that no restyle has reached yet.
     private var lineStates: [MarkdownStyler.LineState?] = []
+    /// The decoded editor image of each destination with an image result.
+    var thumbnails: [String: PlatformImage?] = [:]
 
     init(controller: MarkdownTextController, storage: NSTextStorage) {
         self.controller = controller
@@ -81,7 +83,7 @@ final class MarkdownDisplay {
         }
         guard !images.isEmpty else { return }
         storage.beginEditing()
-        decorateEditorImages(images, lines: lines)
+        decorateEditorImages(images, lines: lines, in: storage)
         storage.endEditing()
     }
 
@@ -161,10 +163,35 @@ final class MarkdownDisplay {
             units.replaceSubrange(local, with: repeatElement(0x20, count: local.count))
         }
         let images = editorImages(in: String(decoding: units, as: UTF16.self), at: base)
+        write(lines.map { ($0.range, $0.spans) }, images: images, region: NSRange(location: base, length: units.count))
+    }
+
+    /// Styles `lines` and their images in a copy of the storage's `region`,
+    /// then writes the runs of the copy that differ from the storage. Each
+    /// storage attribute write moves the storage's whole run array (0.5 ms at
+    /// 2 MB on an M1 Max), so a restyle writes only what changed.
+    private func write(
+        _ lines: [(range: Range<Int>, spans: [MarkdownStyler.StyleSpan])],
+        images: [(range: Range<Int>, image: RenderedText.Image)],
+        region: NSRange
+    ) {
+        let offset = region.location
+        let styled = NSMutableAttributedString(attributedString: storage.attributedSubstring(from: region))
+        builder.style(
+            lines.map { ($0.range.lowerBound - offset ..< $0.range.upperBound - offset, $0.spans) },
+            in: styled
+        )
+        decorateEditorImages(images, lines: lines.map(\.range), in: styled, at: offset)
         storage.beginEditing()
-        builder.style(lines.map { ($0.range, $0.spans) }, in: storage)
-        decorateEditorImages(images, lines: lines.map(\.range))
-        storage.endEditing()
+        defer { storage.endEditing() }
+        styled.enumerateAttributes(in: NSRange(location: 0, length: styled.length)) { attributes, run, _ in
+            let target = NSRange(location: run.location + offset, length: run.length)
+            var current = NSRange()
+            let old = storage.attributes(at: target.location, longestEffectiveRange: &current, in: target)
+            if current != target || !NSDictionary(dictionary: old).isEqual(to: attributes) {
+                storage.setAttributes(attributes, range: target)
+            }
+        }
     }
 
     /// The caret's offset in a range of lines, or nil when it is outside them.
@@ -208,6 +235,7 @@ final class MarkdownDisplay {
 
     /// Redraws the images of one destination after its result changed.
     func refreshImages(destination: String) {
+        thumbnails[destination] = nil
         guard controller.mode == .rendered else {
             // Only the lines whose marks show that destination change; each is parsed alone.
             var lines: [Range<Int>] = []
@@ -222,7 +250,8 @@ final class MarkdownDisplay {
             for line in lines {
                 decorateEditorImages(
                     editorImages(in: text.substring(with: NSRange(line)), at: line.lowerBound),
-                    lines: [line]
+                    lines: [line],
+                    in: storage
                 )
             }
             storage.endEditing()

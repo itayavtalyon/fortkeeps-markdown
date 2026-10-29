@@ -217,6 +217,23 @@
         }
 
         @Test
+        func `the main selection shows in a box view`() throws {
+            let view = Self.givenView("intro\n\n" + Self.longCode, mode: .rendered)
+            view.updateBoxes()
+            let box = try #require(view.boxViews.values.first)
+
+            view.textView.selectedRange = NSRange(location: 2, length: 13)
+            view.textViewDidChangeSelection(view.textView)
+            let inside = box.selectionLayer.path?.boundingBoxOfPath ?? .null
+            view.textView.selectedRange = NSRange(location: 1, length: 0)
+            view.textViewDidChangeSelection(view.textView)
+
+            #expect(inside.minX == 0)
+            #expect(inside.width > 0)
+            #expect(box.selectionLayer.path?.isEmpty == true)
+        }
+
+        @Test
         func `the editor wraps a wide code line`() throws {
             let view = Self.givenView(Self.longCode)
 

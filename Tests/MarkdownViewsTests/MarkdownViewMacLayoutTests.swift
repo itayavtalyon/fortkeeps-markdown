@@ -62,6 +62,22 @@
         }
 
         @Test
+        func `an editor thumbnail is decoded once per result`() throws {
+            let view = MarkdownViewMacTests.givenView("![Map](a.png)\nafter")
+            try view.controller.setImageResult(.image(Self.png(width: 400, height: 300)), for: "a.png")
+            let first = try #require(try Self.imageFragment(view, line: 0).editorImageBoxes.first?.mark.thumbnail)
+
+            view.display.restyle(around: 0)
+            let restyled = try Self.imageFragment(view, line: 0).editorImageBoxes.first?.mark.thumbnail
+            try view.controller.setImageResult(.image(Self.png(width: 200, height: 100)), for: "a.png")
+            let replaced = try Self.imageFragment(view, line: 0).editorImageBoxes.first?.mark
+
+            #expect(restyled === first)
+            #expect(replaced?.thumbnail !== first)
+            #expect(replaced?.size == CGSize(width: 200, height: 100))
+        }
+
+        @Test
         func `a click on an editor card activates the image`() throws {
             let host = RecordingHost()
             let view = MarkdownView(text: "![Map](https://e.com/a.png)\n", host: host)
@@ -128,6 +144,20 @@
             #expect(box.scrollOffset == 40)
             box.scroll(by: -100)
             #expect(box.scrollOffset == 0)
+        }
+
+        @Test
+        func `the main selection shows in a box view`() throws {
+            let view = MarkdownViewMacTests.givenView("intro\n\n" + Self.longCode, mode: .rendered)
+            view.updateBoxes()
+            let box = try #require(view.boxViews.values.first)
+
+            view.textView.setSelectedRange(NSRange(location: 2, length: 13))
+            let inside = box.textView.selectedRange()
+            view.textView.setSelectedRange(NSRange(location: 1, length: 0))
+
+            #expect(inside == NSRange(location: 0, length: 9))
+            #expect(box.textView.selectedRange() == NSRange(location: 0, length: 0))
         }
 
         @Test

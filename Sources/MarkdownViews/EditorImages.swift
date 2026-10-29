@@ -25,16 +25,12 @@ final class EditorImageMark: NSObject {
     let thumbnail: PlatformImage?
     let size: CGSize
 
-    init(destination: String, content: ImageCardContent, columnWidth: CGFloat) {
+    /// `image` is the decoded image of a content of kind `.image`.
+    init(destination: String, content: ImageCardContent, image: PlatformImage?, columnWidth: CGFloat) {
         self.destination = destination
         self.content = content
         let width = max(columnWidth, 1)
-        let decoded: PlatformImage? = if case let .image(data) = content.kind {
-            PlatformImage(data: data)
-        } else {
-            nil
-        }
-        if let image = decoded, image.size.width > 0, image.size.height > 0 {
+        if let image, image.size.width > 0, image.size.height > 0 {
             thumbnail = image
             let scale = min(1, width / image.size.width, Self.thumbnailHeight / image.size.height)
             size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
@@ -159,36 +155,57 @@ extension MarkdownDisplay {
         }
     }
 
+    /// The decoded image of a destination, decoded once per result: a restyle
+    /// of its line reuses it, and `refreshImages` drops it when the result changes.
+    private func thumbnail(_ destination: String, _ content: ImageCardContent) -> PlatformImage? {
+        guard case let .image(data) = content.kind else { return nil }
+        if let decoded = thumbnails[destination] {
+            return decoded
+        }
+        let decoded = PlatformImage(data: data)
+        thumbnails[destination] = decoded
+        return decoded
+    }
+
     /// Dims each image source, keeps it on one line while the caret is
     /// outside it, and reserves the space for its card or thumbnail under
-    /// its line. `lines` are the restyled line ranges.
-    func decorateEditorImages(_ images: [(range: Range<Int>, image: RenderedText.Image)], lines: [Range<Int>]) {
-        let text = storage.string as NSString
+    /// its line. `lines` are the restyled line ranges; `string` holds the
+    /// text from UTF-16 `offset`.
+    func decorateEditorImages(
+        _ images: [(range: Range<Int>, image: RenderedText.Image)],
+        lines: [Range<Int>],
+        in string: NSMutableAttributedString,
+        at offset: Int = 0
+    ) {
+        let text = string.string as NSString
         for line in lines {
             let inLine = images.filter { line.contains($0.range.lowerBound) }
             guard !inLine.isEmpty else { continue }
             let marks = inLine.map { item in
-                EditorImageMark(
+                let content = ImageCardContent(
+                    result: controller.imageResults[item.image.destination],
+                    alt: item.image.alt,
+                    fallback: .text,
+                    isUntitled: controller.documentURL == nil
+                )
+                return EditorImageMark(
                     destination: item.image.destination,
-                    content: ImageCardContent(
-                        result: controller.imageResults[item.image.destination],
-                        alt: item.image.alt,
-                        fallback: .text,
-                        isUntitled: controller.documentURL == nil
-                    ),
+                    content: content,
+                    image: thumbnail(item.image.destination, content),
                     columnWidth: columnWidth
                 )
             }
-            let lineRange = NSRange(location: line.lowerBound, length: line.count)
+            let lineRange = NSRange(location: line.lowerBound - offset, length: line.count)
             for item in inLine {
-                storage.addAttribute(
+                string.addAttribute(
                     .foregroundColor,
                     value: MarkdownTheme.color(.text3),
-                    range: NSRange(location: item.range.lowerBound, length: item.range.count)
+                    range: NSRange(location: item.range.lowerBound - offset, length: item.range.count)
                 )
             }
-            let base = storage.attribute(.paragraphStyle, at: line.lowerBound, effectiveRange: nil) as? NSParagraphStyle
-            let style = (base?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+            let base = string.attribute(.paragraphStyle, at: lineRange.location, effectiveRange: nil)
+            let style = ((base as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle) ??
+                NSMutableParagraphStyle()
             style.paragraphSpacing = EditorImageMark.height(marks)
             let onlyImage = inLine.count == 1 && text.substring(with: lineRange)
                 .trimmingCharacters(in: .whitespaces).utf16.count == inLine[0].range.count
@@ -196,7 +213,7 @@ extension MarkdownDisplay {
                 .contains { $0.range.lowerBound ... $0.range.upperBound ~= controller.selection.lowerBound }
             // Set both ways, so decorating a line again is the same as once.
             style.lineBreakMode = onlyImage && !caretInside ? .byTruncatingTail : .byWordWrapping
-            storage.addAttributes([.paragraphStyle: style, .markdownEditorImages: marks as NSArray], range: lineRange)
+            string.addAttributes([.paragraphStyle: style, .markdownEditorImages: marks as NSArray], range: lineRange)
         }
     }
 }

@@ -1,6 +1,6 @@
 # 003 — Scroll Resolve copy
 
-**Status:** Design (1 open question, Itay's call).
+**Status:** Design. Silent reload decided by Itay 2026-10-29.
 **Created:** 2026-10-29
 
 Copy for Fortkeeps Scroll's file-conflict and missing-file states. Logs 001 and 002 are not edited.
@@ -34,10 +34,19 @@ Copy for Fortkeeps Scroll's file-conflict and missing-file states. Logs 001 and 
 - VoiceOver label: `<name>, needs permission to open`
 - The picker opens in the file's last known folder. Mac: set NSOpenPanel's `directoryURL` there and preselect the file where macOS allows it. iOS: set UIDocumentPicker's `directoryURL` to that folder. Preselecting the file is best effort.
 
+### Reload without unsaved edits (decided by Itay, 2026-10-29)
+
+With no unsaved edits, Scroll reloads a file changed on disk without a prompt, keeping the scroll position and caret. The reload is undoable (`Undo Reload` on Mac).
+
+### Sandbox and distribution
+
+Scroll's App Store build is sandboxed. It keeps security-scoped bookmarks for Recent, relaunch restore and the folder sidebar; when one goes stale, the stale-permission section above applies. Distribution is the Mac App Store; a direct-download build is still open.
+
 ## Known Limitations
 
 ### Open questions
 
 | ID | Question | Status |
 |---|---|---|
-| OQ-1 | Silent reload when the file changed on disk and Scroll has no unsaved edits? | OPEN, Itay's call |
+| OQ-1 | Silent reload when the file has no unsaved edits? | **Decided by Itay 2026-10-29:** yes, see Design. |
+| OQ-2 | A direct-download Mac build of Scroll? | OPEN (Mac App Store is the distribution). |

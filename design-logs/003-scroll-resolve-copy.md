@@ -1,0 +1,43 @@
+# 003 — Scroll Resolve copy
+
+**Status:** Design (1 open question, Itay's call).
+**Created:** 2026-10-29
+
+Copy for Fortkeeps Scroll's file-conflict and missing-file states. Logs 001 and 002 are not edited.
+
+## Design
+
+### File changed outside Scroll
+
+| Element | Mac | iOS |
+|---|---|---|
+| Title | `"<name>" changed outside Scroll` | same |
+| Body | `Another app edited this file while you had unsaved changes. Choose which version to keep.` | same |
+| Buttons | `Use Version on Disk` / `Keep My Changes` / `Compare…` | `Use version on disk` / `Keep my changes` / `Compare` |
+
+- Nothing is selected by default; neither Return nor Esc picks a button.
+- After Keep, the status line reads `Saved your changes over the other version.`
+- Merge view title: `Compare versions of "<name>"`; columns `On Disk` and `Your Changes`.
+
+### File deleted or moved while open
+
+- Title: `Can't find "<name>"`
+- Body: `It may have been moved or deleted. Your text is still here.`
+- Buttons: `Save As…` / `Close`
+- VoiceOver label: `<name>, can't find this file`
+
+### Stale permission (Story Weaver's copy, approved by Interface)
+
+- Recent row note: `Scroll needs your permission to open this file again.`
+- Tapping the row opens a sheet titled `Allow access to "<name>"`, body `Choose the file again so Scroll can open it.`, buttons `Choose File…` / `Remove from Recent` / `Cancel`.
+- Folder sidebar: title `Allow access to "<folder>"`, button `Choose Folder…`.
+- VoiceOver label: `<name>, needs permission to open`
+- The picker opens in the file's last known folder. Mac: set NSOpenPanel's `directoryURL` there and preselect the file where macOS allows it. iOS: set UIDocumentPicker's `directoryURL` to that folder. Preselecting the file is best effort.
+
+## Known Limitations
+
+### Open questions
+
+| ID | Question | Status |
+|---|---|---|
+| OQ-1 | Silent reload when the file changed on disk and Scroll has no unsaved edits? | OPEN, Itay's call |

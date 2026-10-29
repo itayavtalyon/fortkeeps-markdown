@@ -3,7 +3,7 @@
 Revision 1, 2026-10-29. Written from Itay's decisions: the 2026-10-26 decisions (formerly PR #3), the 2026-10-27/29 review answers (formerly PR #4, round 9), and the team-room decisions of 2026-10-29. Status: Design.
 Log 001 and plan 01 stay as written (log immutability). This log amends or clarifies them. Each decision names the log 001 or plan 01 section it amends. Where this log and log 001 differ, this log wins.
 Work items are in plan 03 (`implementation-plans/03-scroll-decisions.md`).
-Items marked **PROPOSED** wait for Itay's OK and are not yet decided.
+Items marked **PROPOSED** wait for Itay's OK and are not yet decided. The iPhone home-screen layout was PROPOSED and is DECIDED (Itay, 2026-10-29 21:46).
 
 ## Background
 
@@ -75,7 +75,7 @@ Rounds of log 001 stay as written. Where an answer here differs from an earlier 
 - **Q: Which copy terms are fixed?** (amends log 001 › Windows and chrome, Tasks, Images, Files, and screens §3.1, §3.2, §3.18)
   A: The menu command is `New File` everywhere (not New Document), in both the sidebar and the File menu. The VoiceOver checkbox state is "checked / unchecked". The folder-access prompt may say plainly that Scroll reads and writes only the folder you choose (true because Scroll is sandboxed and uses security-scoped access). In an untitled, unsaved document local images can't be shown (no base folder), and the card says `Save the document to show local images.`
 - **Q: What does the iPhone home screen show?** (amends log 001 › Windows and chrome, "On iOS, the launch screen is the system document browser", for iPhone)
-  A: Decided by Itay: both open files and recent files. The detailed layout (Interface's layout, agreed by Story Weaver) is **PROPOSED**, awaiting Itay's OK; see Design › iPhone home screen. The strings are decided.
+  A: Decided by Itay: both open files and recent files. The detailed layout (Interface's layout, agreed by Story Weaver) is **DECIDED by Itay 2026-10-29 21:46** (approved as proposed); see Design › iPhone home screen. The strings are decided.
 - **Q: What does a Recent file that can't be found show?**
   A: The row is dimmed with the note `Can't find this file. It may have been moved or deleted.` Tapping it opens a sheet titled `Can't find "<name>"` with `Find File…`, `Remove from Recent`, and `Cancel`. VoiceOver label: `<name>, can't find this file`.
 - **Q: Do the launch accessibility requirements apply only to Scroll?**
@@ -179,7 +179,7 @@ The folder-access prompt may say plainly that Scroll reads and writes only the f
 
 Decided (Itay): the iPhone home screen shows both open files and recent files.
 
-**PROPOSED, awaiting Itay's OK** (Interface's layout, agreed by Story Weaver):
+**DECIDED by Itay 2026-10-29 21:46**, approved as proposed (Interface's layout, agreed by Story Weaver):
 - One scrolling list with two sections, Open first and then Recent.
 - When nothing is open, the Open section is hidden entirely.
 - A file is never in both sections: closing moves it to the top of Recent, and opening from Recent moves it to Open.
@@ -275,9 +275,9 @@ Other copy (Round 3): `New File` (menu and sidebar) · checkbox VoiceOver value 
 | WAIT-4 | The `FK Scroll` app icon in the Fortkeeps theme. | Interface | Resolved: assets in `design/icon/`. |
 | WAIT-5 | Roadmap V1-42: where Fortkeeps' phone code lives. | Itay | Resolved 2026-10-29: answer A (Apple apps in remember-mac, Android its own Kotlin repo, web in fortkeeps-cloud; shared core `libremember` and the sync protocol). |
 | WAIT-6 | Roadmap V1-44: the bundle ID prefix. | Itay | Resolved 2026-10-26: `app.fortkeeps.*`; Scroll is `app.fortkeeps.scroll`. |
-| WAIT-7 | Itay's OK on the PROPOSED iPhone home-screen layout. | Itay | Plan 03 stage 3d steps 1–6. |
+| WAIT-7 | Itay's OK on the iPhone home-screen layout. | Itay | Resolved 2026-10-29 21:46: approved as proposed. |
 
-WAIT-4, WAIT-5, and WAIT-6 are resolved. WAIT-1, WAIT-2, WAIT-3, and WAIT-7 are open (all WAIT-3 image strings are settled as of 2026-10-29).
+WAIT-4, WAIT-5, WAIT-6, and WAIT-7 are resolved. WAIT-1, WAIT-2, and WAIT-3 are open (all WAIT-3 image strings are settled as of 2026-10-29).
 
 Deferred, not waiting on a person: signing, notarization, TestFlight, and the App Store for Fortkeeps Scroll wait until the Apple Developer membership (roadmap V1-43).
 

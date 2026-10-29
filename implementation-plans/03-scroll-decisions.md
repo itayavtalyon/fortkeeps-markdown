@@ -22,7 +22,7 @@ Do not build a step marked PROPOSED in log 002 until Itay approves it and a new 
 | 3a | Package target, pinned spec examples, MD-29, list copy | Plan 01 stages 1a, 1b, 1c | Not started | — |
 | 3b | HTML spike tests | Plan 01 stage 1e step 8 | Not started | WAIT-1 (the policy only; the tests are written now) |
 | 3c | Views: images, wide blocks, keyboard, VoiceOver, editor | Plan 01 stage 1f | Not started | — |
-| 3d | Apps: image activation, signing deferral, copy terms, iPhone home screen | Plan 02 stages 2b, 2c, 2d, 2f | Not started | WAIT-3 (string tests), WAIT-7 (steps 1–6 of the home screen) |
+| 3d | Apps: image activation, signing deferral, copy terms, iPhone home screen | Plan 02 stages 2b, 2c, 2d, 2f | Not started | WAIT-3 (string tests) |
 
 ### 3a — Package target, pinned spec examples, MD-29, list copy
 
@@ -115,7 +115,7 @@ Copy terms (2c, 2d, 2f):
 5. Name the create command `New File` in both the sidebar and the File menu, on every platform.
 6. The folder-access prompt may say that Scroll reads and writes only the folder you choose (final wording from Story Weaver, WAIT-3).
 
-iPhone home screen (2d). Steps 7–12 are PROPOSED in log 002 and wait on WAIT-7:
+iPhone home screen (2d). Steps 7–12 are DECIDED in log 002 (Itay, 2026-10-29 21:46; WAIT-7 resolved):
 
 7. One scrolling list with an Open section, then a Recent section. Hide the Open section when nothing is open.
 8. Keep a file in one section only: closing moves it to the top of Recent; opening from Recent moves it to Open. Recent holds 20 files, newest first.
@@ -138,7 +138,7 @@ Must-pass tests:
 - The File menu and the sidebar both read `New File`.
 - An untitled document with a local image shows `Save the document to show local images.`
 - A Recent file whose bookmark fails shows the dimmed row, the note, the sheet with its three buttons, and the VoiceOver label above. `Find File…` keeps the row's place. `Remove from Recent` leaves the file on disk.
-- (After WAIT-7) Open and Recent never hold the same file; Recent caps at 20; swipe actions never delete a file.
+- Open and Recent never hold the same file; Recent caps at 20; swipe actions never delete a file.
 
 ## Handover
 

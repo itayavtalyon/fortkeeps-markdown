@@ -220,8 +220,8 @@ public enum FormatCommands {
     }
 }
 
-/// The lines a selection touches. A selection that ends at a line start does
-/// not touch that line.
+/// The lines a selection touches, in units that start at the selection's
+/// first line. A selection that ends at a line start does not touch that line.
 private struct Lines {
     let units: [UInt16]
     let selection: Range<Int>
@@ -231,12 +231,11 @@ private struct Lines {
     init(_ units: [UInt16], _ selection: Range<Int>) {
         self.units = units
         self.selection = selection
-        let start = units[..<selection.lowerBound].lastIndex(of: 0x0A).map { $0 + 1 } ?? 0
         let lastOffset = selection.isEmpty ? selection.upperBound : max(selection.lowerBound, selection.upperBound - 1)
         let end = units[lastOffset...].firstIndex(of: 0x0A) ?? units.count
         var ranges: [Range<Int>] = []
-        var lineStart = start
-        for index in start ..< end where units[index] == 0x0A {
+        var lineStart = 0
+        for index in 0 ..< end where units[index] == 0x0A {
             ranges.append(lineStart ..< index)
             lineStart = index + 1
         }

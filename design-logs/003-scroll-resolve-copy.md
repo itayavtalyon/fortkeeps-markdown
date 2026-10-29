@@ -1,6 +1,6 @@
 # 003 — Scroll Resolve copy
 
-**Status:** Design. Reload with a note decided by Itay 2026-10-29.
+**Status:** Design. Reload with a note and distribution decided by Itay 2026-10-29. No open questions.
 **Created:** 2026-10-29
 
 Copy for Fortkeeps Scroll's file-conflict and missing-file states. Logs 001 and 002 are not edited.
@@ -46,7 +46,9 @@ With no unsaved edits, Scroll reloads a file changed on disk without a dialog an
 
 ### Sandbox and distribution
 
-Scroll's App Store build is sandboxed. It keeps security-scoped bookmarks for Recent, relaunch restore and the folder sidebar; when one goes stale, the stale-permission section above applies. Distribution is the Mac App Store; a direct-download build is still open.
+Scroll ships on the Mac App Store and as a direct-download DMG from fortkeeps.com that updates via Sparkle (details in the private Mac updates log). Both builds are sandboxed, so they behave the same. Each keeps security-scoped bookmarks for Recent, relaunch restore and the folder sidebar; when one goes stale, the stale-permission section above applies.
+
+The App Store build leaves out `Check for Updates…` and the automatic-update settings entirely; they are not greyed out. The direct-download build keeps both. That is the only difference between the two builds, implemented with a compile-time flag (for example a `SPARKLE` build setting). (Interface's rule.)
 
 ## Known Limitations
 
@@ -55,4 +57,4 @@ Scroll's App Store build is sandboxed. It keeps security-scoped bookmarks for Re
 | ID | Question | Status |
 |---|---|---|
 | OQ-1 | Reload without a dialog when the file has no unsaved edits? | **Decided by Itay 2026-10-29:** yes, with the `Updated with changes from another app.` note; see Design. |
-| OQ-2 | A direct-download Mac build of Scroll? | OPEN (Mac App Store is the distribution). |
+| OQ-2 | A direct-download Mac build of Scroll? | **Decided by Itay 2026-10-29:** yes; Mac App Store plus a sandboxed direct-download DMG from fortkeeps.com that updates via Sparkle. |

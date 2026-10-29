@@ -697,7 +697,7 @@ An entry expires 3 days after its last view. The expiry is one constant.
 Each view of a cached image resets its clock.
 The app purges expired entries at launch and when the app goes to the background.
 A cached image draws with no click and no network request, in any document.
-Reload Image in the context menu fetches a fresh copy with the same rules and replaces the entry. On failure the old copy stays, and the card shows "Couldn’t reload this image." (DRAFT)
+Reload Image in the context menu fetches a fresh copy with the same rules and replaces the entry. On failure the old copy stays. If the old image is gone, the standard card shows: `Image can't be shown` plus the reason line. If the old image is still showing, the image stays and a status line under it (not a toast) reads `Couldn't reload this image. {reason}`, where {reason} is one of the four final reasons; the line is announced to VoiceOver and stays until the next reload.
 Settings has Clear Image Cache, with the current size. Clearing is immediate and has no confirmation.
 
 An image fits the text column width at most. The app does not upscale an image.
@@ -888,7 +888,7 @@ Story Weaver finalizes them (WAIT-3).
 The plan's exact-string tests use the final strings.
 The app name inside strings is "Fortkeeps Scroll".
 
-Final image strings (FINAL: Story Weaver's final copy, approved 2026-10-29; all WAIT-3 image strings are settled):
+Final image strings (FINAL: Story Weaver's final copy, approved 2026-10-29; all WAIT-3 image strings are fully settled):
 
 | Key | Mac | iOS |
 |---|---|---|
@@ -901,6 +901,7 @@ Final image strings (FINAL: Story Weaver's final copy, approved 2026-10-29; all 
 | `img.link.noalt` | Image | Image |
 | `img.load` (the click action) | Load Image | Load image |
 | `img.load.hint` (VoiceOver hint) | Loads the image from {host}. | Loads the image from {host}. |
+| `img.reloadFailed` (status line under a kept image) | Couldn't reload this image. {reason} | Couldn't reload this image. {reason} |
 | `img.load.hint.local` (VoiceOver hint, local file) | Shows the image from this file. | Shows the image from this file. |
 | `img.ax.card` (card accessibility label) | Image can't be shown. {reason} | Image can't be shown. {reason} |
 | `img.ax.card.alt` (appended when there is alt text) |  Alt text: {alt} |  Alt text: {alt} |

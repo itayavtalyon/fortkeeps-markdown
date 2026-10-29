@@ -34,7 +34,7 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 | 1b | Parser, features, presentation | Not started | — |
 | 1c | Document model, anchor, copy text | Not started | — |
 | 1d | Styler, edits, format commands, undo, byte limit | Not started | WAIT-2 (steps 5–6 only) |
-| 1e | Paste, image and link classifiers, line diff, HTML policy | Not started | WAIT-1 (step 8 only) |
+| 1e | Paste, image and link classifiers, line diff, HTML policy | Not started | WAIT-1 (step 8 only: the spike tests below are written now; the policy waits on the result) |
 | 1f | Views, modes, host protocol, cards, accessibility | Not started | — |
 
 ### 1a — Package, license, fonts, colors, CI guards
@@ -45,8 +45,8 @@ Keep coverage at 100% lines and functions on `MarkdownCore`.
 4. Create the package `FortkeepsMarkdown` for macOS 15 and iOS 18.
 5. Add the target `MarkdownCore`.
 6. Add the target `MarkdownViews` that depends on `MarkdownCore`.
-7. Add a test target for `MarkdownCore`.
-8. Add a test target for `MarkdownViews`.
+7. Add the target `FortkeepsCards` that depends on `MarkdownCore` only. It holds the Fortkeeps card fields (stage 1c). `MarkdownCore` holds no Fortkeeps-specific type.
+8. Add a test target for `MarkdownCore`, one for `MarkdownViews`, and one for `FortkeepsCards`.
 9. Copy the font files and `OFL.txt` that Design names.
 10. Write `design/fonts/README.md` with the release tag and the SHA-256 of each file.
 11. Put the Design color values in one Swift file as named constants.
@@ -59,6 +59,7 @@ Must-pass tests:
 
 - The package builds for macOS and for iOS.
 - A test fails when `MarkdownCore` imports AppKit, UIKit, or SwiftUI.
+- A test fails when `MarkdownCore` imports `FortkeepsCards`, or when `FortkeepsCards` imports AppKit, UIKit, or SwiftUI.
 - A test fails when `MarkdownCore` or `MarkdownViews` uses `URLSession`, `FileManager`, or `FileHandle`.
 - Each color constant equals the Design value.
 - Each font file matches its recorded SHA-256.
@@ -84,7 +85,7 @@ Must-pass tests:
 - Each false field leaves its construct as text.
 - A leading `---` stays a thematic break.
 - The disallowed tag names appear as text when `html` is true.
-- The GFM spec tests pass with the defaults.
+- The GFM spec tests pass with the defaults. Examples 140, 141, 142, 145, and 147 (tag filter) and 610, 614, 616, 619, and 620 (autolink) are pinned to the `swift-markdown` extension output: the test stores that output as the expected value and fails when it changes (confirmed by Itay, round 9).
 - Log 010 cases 01–30 pass with the Fortkeeps value and `titleLine .hidden`.
 
 ### 1c — Document model, anchor, copy text
@@ -93,6 +94,7 @@ Must-pass tests:
 2. Build the base direction of each block.
 3. Build the rendered-mode copy string for any selection.
 4. Build the line-1 title rule for `titleLine .hidden`.
+4a. Build the Fortkeeps card fields in `FortkeepsCards`, on top of the `MarkdownCore` model. Keep them out of `MarkdownCore`.
 5. Build `MarkdownAnchor` as a `Codable` value in source byte offsets.
 6. Build the map from a source offset to a rendered position and back.
 7. Snap a selection on hidden syntax to the nearest content character.
@@ -101,10 +103,14 @@ Must-pass tests:
 Must-pass tests:
 
 - A task offset points at the byte between the brackets, with and without a BOM.
-- A toggle of that byte, then a second toggle, restores the text.
+- A toggle of `[ ]` gives `[x]`, and a second toggle gives `[ ]` again. A toggle of `[X]` gives `[ ]`, and a second toggle gives `[x]`, not `[X]` (MD-29, kept in round 9).
 - A Hebrew block is RTL. A Latin block is LTR. A Hebrew task list puts the checkbox on the trailing edge.
 - The copy of a heading, a link, a code span, and a fence matches Design. The copy has no direction marks.
 - A drawn image adds no copy characters.
+- A rendered-mode copy of a bulleted list gives `- ` markers. An ordered list gives `1. `, `2. `, and so on, keeping the start number.
+- A task list copies as `- [ ] milk` and `- [x] milk`.
+- A nested list copies with 2 spaces per bullet level and 3 spaces per ordered level.
+- `FortkeepsCards` builds its fields from a `MarkdownCore` model, and `MarkdownCore` builds with `FortkeepsCards` removed.
 - A source-to-rendered-to-source round trip keeps each offset that is not on hidden syntax.
 - An anchor encodes and decodes to the same value.
 - With `.hidden`, a tick on line 5 flips the correct byte.
@@ -149,7 +155,8 @@ Record the chip with the 8 ms result.
 5. Build the host blocklist for every form that Design lists.
 6. Build the pure link classifier: browser, mail, sibling file, fragment, and none.
 7. Build the line diff for Resolve.
-8. When WAIT-1 is in Design, build the HTML policy from it. Until then, `html` true shows raw HTML as text, the same as `html` false, and the stage notes record that.
+8. HTML spike (WAIT-1). Write the spike tests below now, against a native safe-subset renderer. Policy: when they all pass, Itay records the result in Design and `html` true renders the safe subset. Until the result is in Design, `html` true shows raw HTML as text, the same as `html` false, and the stage notes record that. When a spike test cannot pass, stop and report it to Itay.
+   The safe subset renders these tags natively: `b`, `strong`, `i`, `em`, `u`, `s`, `del`, `ins`, `sub`, `sup`, `code`, `kbd`, `mark`, `br`, `p`, `div`, `span`, `h1`–`h6`, `ul`, `ol`, `li`, `blockquote`, `pre`, `hr`, `a`, `img`, `details`, `summary`, `table`, `thead`, `tbody`, `tr`, `th`, `td`. The allowed attributes are `href` on `a`, `src`, `alt`, `width`, and `height` on `img`, `align` on table cells, and `open` on `details`. Every other attribute is stripped.
 
 Must-pass tests:
 
@@ -170,6 +177,22 @@ Must-pass tests:
 - `javascript:` is none.
 - The line diff of two texts gives the expected hunks, and applying all "theirs" choices gives the second text.
 
+HTML spike tests (step 8; written now, run against the safe-subset renderer):
+
+- Allowed tags render: `<b>x</b>`, `<em>x</em>`, `<sub>2</sub>`, `<kbd>⌘</kbd>`, `<br>`, `<details><summary>s</summary>b</details>`, and a `<table>` with `<th>` each render as their native style, with no tag characters shown.
+- `<script>alert(1)</script>` shows as text (GFM tag filter). No script runs.
+- `<iframe src="https://example.com"></iframe>`, `<style>p{}</style>`, `<textarea>`, `<title>`, `<xmp>`, `<noembed>`, `<noframes>`, and `<plaintext>` show as text. Nothing loads.
+- `<object>`, `<embed>`, `<form>`, `<input>`, `<button>`, `<link>`, `<meta>`, `<base>`, `<svg>`, and `<math>`: only that tag turns into text; its allowed children still render.
+- `<a href="https://example.com" onclick="x()">a</a>` renders the link and strips `onclick`. Every `on*` attribute (`onload`, `onerror`, `onmouseover`, any case) is stripped.
+- `<a href="javascript:alert(1)">a</a>`, `JaVaScRiPt:`, `&#106;avascript:`, ` javascript:` with leading space or tab, and `vbscript:`: the link text renders and following it does nothing.
+- `<img src="javascript:x">`, `<img src="data:image/png;base64,...">`, and `<img src="http://x">` follow the image rules: refused.
+- `<img src="https://example.com/a.png" onerror="x()">` strips `onerror` and draws the remote-image card with no request.
+- `style` and `class` attributes are stripped: `<p style="color:red" class="x">a</p>` renders a plain paragraph.
+- Nested HTML: `<div><b><i>x</i></b></div>` renders bold italic. Nesting 200 levels deep renders without a crash, and depth past 64 shows the rest as text.
+- Malformed HTML: an unclosed `<b>x` closes at the end of its HTML block. A stray `</i>` is dropped. Overlapping `<b><i>x</b></i>` renders `x` bold italic with no tag characters. An attribute with no closing quote turns that tag into text.
+- Raw HTML inside a code span (`` `<b>x</b>` ``) and inside a fenced or indented code block is untouched: the tag characters show as code.
+- With `html` false, every case above shows its source as text.
+
 ### 1f — Views, modes, host protocol, cards, accessibility
 
 1. Define `MarkdownHost`, `ImageRequest`, `ImageResult`, `LinkActivation`, and `TextChange` from Design.
@@ -179,13 +202,21 @@ Must-pass tests:
 5. Keep the anchor on a mode switch, and move VoiceOver focus to it.
 6. Map the style tokens to the Design fonts, sizes, and colors.
 7. Scale with Dynamic Type on iOS.
-8. Build the image cards for each `ImageResult`.
+8. Build the image cards for each `ImageResult`. A `.refused` result draws the "Image can't be shown" card with `imageFallback .text`, and the `Image: {alt}` link (or `Image` with no alt) with `.link`. A card has a title and at most one reason line (one per `ImageFailure`); its accessibility label is the title and the reason together. Until WAIT-3, use the PROPOSED strings in Design › Copy.
+8a. Call `activateImage(_:)` when the person clicks a `.remoteNotLoaded`, `.failed`, or `.needsAccess` card, or presses Return or Space on it while it is focused. Never fetch from `image(for:)`. Give the remote card the action `Load Image` (Mac) / `Load image` (iOS) and the VoiceOver hint `Loads the image from {host}.` (PROPOSED).
+8b. In the editor, keep the image source line fully visible and draw the card or the loaded thumbnail under it. Never collapse the source.
+8c. Put a code block or table wider than the column in its own sideways-scrolling box with the 16 pt edge fade, per Design › Rendering › Wide blocks. Wrap prose.
 9. Cancel the image task when the view discards a block.
-10. Build the format bar for Mac and iOS.
+10. Build the format bar for Mac and iOS. The Heading button opens a menu of Heading 1, Heading 2, Heading 3, and Body. On Mac, Control-F6 moves focus into the bar and Esc returns it to the text.
 11. Wire the Design shortcuts.
 12. Report every change with its reason.
-13. Expose the accessibility elements from the model.
+13. Expose the accessibility elements from the model. Expose each heading's level. Put links, checkboxes, and image cards in the Tab order in reading order. Return opens a focused link. Space toggles a focused checkbox. (Launch blockers.)
 14. Turn smart quotes and smart dashes off.
+15. Dim checked task text with `text3` in the editor as well as in `.rendered`.
+16. After Undo or Redo, put the caret at the end of the restored text.
+17. Indent list and quote content 22 pt per level.
+18. On iOS, underline every link in every mode.
+19. On iOS, show a gif's first frame with the play action when Auto-Play Animated Images is off.
 
 Must-pass tests:
 
@@ -200,7 +231,19 @@ Must-pass tests:
 - `~~` is dimmed only when `strikethrough` is true.
 - Copy separates blocks with one newline.
 - Select All and Copy on a 2 MB document equal the model copy string.
-- With Reduce Motion on, a gif reports not animating.
+- With Reduce Motion on, a gif reports not animating. With iOS Auto-Play Animated Images off, a gif reports not animating.
+- A view test double records `activateImage(_:)` on a click and on Return or Space on a focused remote card, and records zero `activateImage(_:)` calls and no fetch from `image(for:)` alone.
+- A `.refused` result draws the card with `.text`, and `Image: {alt}` with `.link`; an empty alt gives `Image`.
+- The card accessibility label equals the title and the reason line together.
+- The editor shows the full `![alt](url)` line with the thumbnail under it after `.image`.
+- A 2,000 pt wide code block and table scroll sideways in their box; the page does not scroll sideways; a long paragraph wraps. The edge fade shows only on a side with hidden content.
+- Keyboard: Tab visits links, checkboxes, and image cards in reading order; Return opens a link; Space toggles a checkbox; Control-F6 focuses the Mac format bar and Esc returns to the text.
+- Each Mac heading reports its level to accessibility.
+- The Heading button menu lists Heading 1, Heading 2, Heading 3, and Body.
+- A checked task in the editor uses `text3`, and its contrast on `pane` is at least 4.5:1 in light and dark.
+- After Undo, the caret is at the end of the restored text.
+- A nested list item and a nested quote indent 22 pt per level.
+- On iOS, a link is underlined with no hover or focus.
 
 ## Handover
 

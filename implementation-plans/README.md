@@ -9,12 +9,14 @@ When a step depends on a WAIT item that is not yet written into Design, stop. As
 
 | Tag | Item | Blocks |
 |---|---|---|
-| WAIT-1 | HTML native-support test result | The HTML part of 01 stage 1e |
+| WAIT-1 | HTML spike result (policy: safe subset if the spike tests pass) | 01 stage 1e step 8 (tests are written now) |
 | WAIT-2 | Exact format-command cases (Interface) | 01 stage 1d steps 5–6 |
 | WAIT-3 | Final copy (Story Weaver) | Exact-string tests in 02 |
 | WAIT-4 | `FK Scroll` icon (Interface) | Resolved: assets in `design/icon/` |
-| WAIT-5 | Roadmap V1-42 | Fortkeeps adoption only |
+| WAIT-5 | Roadmap V1-42 | Resolved 2026-10-29: answer A (Apple apps in remember-mac; Android separate Kotlin repo; web in fortkeeps-cloud) |
 | WAIT-6 | Roadmap V1-44 bundle ID prefix | Resolved 2026-10-26: `app.fortkeeps.*`; Scroll is `app.fortkeeps.scroll` |
+
+Deferred: signing for 02 stages 2c and 2d waits for the Apple Developer membership (roadmap V1-43); build unsigned until then.
 
 Stages 1a, 1b, 1c, and 1f can start now. Stage 1d can start except steps 5–6. Stage 1e can start except the HTML policy step.
 

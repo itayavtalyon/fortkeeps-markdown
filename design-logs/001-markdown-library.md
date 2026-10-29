@@ -1,6 +1,7 @@
 # 001 - Fortkeeps Scroll and the FortkeepsMarkdown library
 
 Revision 3, 2026-10-25. Chief Architect wrote this revision on the box from Itay's decisions. Status: Design.
+Amended 2026-10-29 (round 9): image fallback and the `activateImage(_:)` host method, editor images, wide blocks, keyboard and VoiceOver launch blockers, list copy, `FortkeepsCards`, PROPOSED image strings, the HTML spike policy, WAIT-5 closed (V1-42 A), signing deferred (V1-43).
 Rule source: the design-log-grill snapshot (2026-10-13). The Mac was offline, so the live rules were not read.
 Items that wait on someone other than the implementer carry the tag **WAIT-n**. They are listed in Known Limitations › Waiting items, with the stage each blocks. No other implementer choice is open.
 
@@ -217,7 +218,7 @@ Rounds 1–4 above stay as written. The answers in this round replace earlier an
 - **Q: What does VoiceOver say for a checkbox?**
   A: "done" or "not done".
 - **Q: What is the price, privacy, and distribution?**
-  A: Free, with no in-app purchase and no account. "No analytics, no network except images you load", with a CI guard. An `app.fortkeeps.` bundle ID after V1-43. The App Store and a notarized DMG.
+  A: Free, with no in-app purchase and no account. "No analytics, no network except images you load", with a CI guard. An `app.fortkeeps.` bundle ID after V1-44 (corrected in round 9). The App Store and a notarized DMG.
 - **Q: Where is the Resolve comparison computed?**
   A: In the library, line by line, with tests.
 - **Q: How does an untitled document treat local images?**
@@ -251,6 +252,47 @@ Rounds 1–4 above stay as written. The answers in this round replace earlier an
 - **Q: What is the bundle ID prefix (WAIT-6, roadmap V1-44)?**
   A: `app.fortkeeps.*` everywhere. Fortkeeps Scroll is `app.fortkeeps.scroll` on Mac and iOS.
 - WAIT-5 reopened 2026-10-26: Android and web app are in phase one; see roadmap V1-42.
+
+### Round 9 (2026-10-27 to 2026-10-29: Itay, the Scroll review answers)
+
+Rounds 1–8 stay as written. Where an answer here differs from an earlier one, this round wins and Design states the winner.
+
+- **Q: What does a refused image show?**
+  A: It follows `imageFallback`. With `.text`, the "Image can't be shown" card. With `.link`, the link `Image: {alt}`, or `Image` when the alt text is empty. The Design text that drew the card for every `.refused` is corrected.
+- **Q: How does the host learn that the person clicked an image card?**
+  A: A separate host method, distinct from `image(for:)`. A click is consent to fetch. The protocol has no default methods, so the method is required.
+- **Q: How does a drawn image show in the editor?**
+  A: The source stays on its own line, fully visible, with a thumbnail under it once the image is loaded. The syntax does not collapse. This replaces the "collapses to one dimmed line" rule.
+- **Q: How do wide code blocks and tables behave?**
+  A: Each scrolls sideways in its own box, with an edge fade. Prose wraps. The box scrolls by trackpad, keyboard, and VoiceOver's three-finger swipe.
+- **Q: Is keyboard access a launch blocker?**
+  A: Yes. Tab moves through links, checkboxes, and image cards in reading order. Return opens a focused link. Space toggles a focused checkbox. Control-F6 moves into the Mac format bar, and Esc returns to the text.
+- **Q: Is VoiceOver a launch blocker?**
+  A: Yes. The Mac exposes heading levels. iOS respects the Auto-Play Animated Images setting.
+- **Q: Are iOS links underlined?**
+  A: Always, since iOS has no hover.
+- **Q: What does copying a rendered list give?**
+  A: Real Markdown markers (`- `, `1. `). Task items copy as `- [ ] milk` and `- [x] milk`. Nested items keep their indentation.
+- **Q: Where is the iOS typing-undo check?**
+  A: In plan 02's UI tests.
+- **Q: Which output do the 10 GFM spec examples that touch the tag filter and autolink pin to?**
+  A: Examples 140, 141, 142, 145, and 147 (tag filter) and 610, 614, 616, 619, and 620 (autolink) stay pinned to the extension output. Itay confirmed the earlier agent call.
+- **Q: Does the MD-29 toggle change?**
+  A: No. `[X]` becomes a space, and a second toggle gives `[x]`. A second toggle does not restore `X`. The remember-mac log 010 conformance README says it restores the original bytes; that README is corrected in remember-mac (follow-up, not in this repo).
+- **Q: Where do the Fortkeeps card fields live?**
+  A: They are still built in stage 1c, but in their own target `FortkeepsCards` in this package, not in `MarkdownCore`. The core stays generic. This confirms the earlier agent call, amended.
+- **Q: Are the stage 1f choices kept?**
+  A: Yes. The Heading button opens a menu of Heading 1, Heading 2, Heading 3, and Body. Checked tasks are dimmed in the editor too, and the dimmed text meets 4.5:1 contrast. After Undo, the caret goes to the end of the restored text. Indent is 22 pt per list or quote level.
+- **Q: Which image strings go to Story Weaver?**
+  A: The PROPOSED copy in Copy › Proposed image strings. It is pending WAIT-3 and is not final.
+- **Q: What is the raw-HTML policy?**
+  A: Render a safe subset if the spike tests in plan 01 stage 1e step 8 pass. The spike result still closes WAIT-1.
+- **Q: Was the bundle-ID answer of round 6 tied to the right roadmap item?**
+  A: No. It is V1-44, not V1-43. Round 6 is corrected.
+- **Q: Where does Fortkeeps' phone code live (WAIT-5, roadmap V1-42)?**
+  A: Answer A. The Apple apps (Mac, iPhone, iPad) are one multiplatform SwiftUI app in remember-mac. Android is a separate native repo (Kotlin and Jetpack Compose). The web app is in fortkeeps-cloud (HTML and vanilla JS). They share the core through the C engine `libremember` and the open sync protocol. WAIT-5 is closed.
+- **Q: When is the Apple Developer membership bought (roadmap V1-43)?**
+  A: Late: "when most of the development is done and all that's left depends on getting the membership". Scroll signing in plan 02 stages 2c and 2d is deferred until then.
 
 ## Design
 
@@ -302,6 +344,7 @@ The methods are:
 | `func image(for request: ImageRequest) async -> ImageResult` | The view needs an image near the viewport. | Any. The view cancels the task when it discards the block. |
 | `func open(_ link: LinkActivation)` | The person follows a link. | Main actor. |
 | `func textDidChange(_ change: TextChange)` | After the view applies a change. | Main actor. |
+| `func activateImage(_ activation: ImageActivation)` | The person clicks an image card, or presses Return or Space on a focused card, or chooses the card's action. | Main actor. |
 
 `ImageRequest` has `destination: String`, `documentURL: URL?`, and `maxPixelSize: CGSize`.
 `ImageResult` is one of:
@@ -313,10 +356,16 @@ The methods are:
 | `.remoteNotLoaded(host: String)` | The remote-image card. |
 | `.loading` | The loading card. The host calls `MarkdownView.refreshImage(destination:)` when the result changes. |
 | `.failed(reason: ImageFailure)` | The failed card with Try Again. `ImageFailure` is `tooLarge`, `timedOut`, `unsupported`, or `network`. |
-| `.refused` | The "can't be shown" card, with no button. |
+| `.refused` | With `imageFallback .text`: the "Image can't be shown" card, with no button. With `imageFallback .link`: the link `Image: {alt}`, or `Image` when the alt is empty. |
 
 The view caches each result per destination for the lifetime of the document.
 The view does not retry by itself.
+
+`activateImage(_:)` is the "person clicked" event. It is separate from `image(for:)`, which only asks for the current state.
+A click is consent to fetch. The host fetches only after `activateImage(_:)` (or Load All Images in This Document), never because of `image(for:)`.
+`ImageActivation` has `destination: String`, `documentURL: URL?`, and `card`: the `ImageResult` case the card showed (`.remoteNotLoaded`, `.failed`, or `.needsAccess`).
+The view calls `activateImage(_:)` only for those three cards. A `.loading` card, a `.refused` card, and an `Image: {alt}` link do not call it. The link calls `open(_:)`.
+After `activateImage(_:)`, the host returns `.loading` from `image(for:)` and calls `MarkdownView.refreshImage(destination:)` when the result changes.
 
 `LinkActivation` has `destination: String`, `resolvedURL: URL?`, `documentURL: URL?`, `modifiers`, and `source` (`markdown` or `html`).
 
@@ -390,7 +439,7 @@ No other feature field exists.
 
 `MarkdownPresentation` has two fields:
 - `titleLine`: `.inBody` or `.hidden`. `.hidden` applies the log 010 MD-09–MD-12 title rule in `.rendered` mode only. The editor always shows every byte. Task byte offsets do not change.
-- `imageFallback`: `.text` or `.link`. `.link` draws `Image: {alt}` as a link element that calls `open(_:)`.
+- `imageFallback`: `.text` or `.link`. It decides what a `.refused` result draws. `.text` draws the "Image can't be shown" card. `.link` draws `Image: {alt}` as a link element that calls `open(_:)`; with an empty alt the link text is `Image`.
 
 ### Parse
 
@@ -425,21 +474,29 @@ On Mac, body text is 14.5 pt with a line height of 1.6.
 On iOS, an H1 is relative to `.title2`, an H2 to `.title3`, body to `.body`, and code to `.callout`. Dynamic Type has no cap.
 Code uses IBM Plex Mono at 13 pt on the `pill` color.
 A code block does not wrap.
-A code block scrolls horizontally.
+A code block scrolls horizontally in its own box (see Wide blocks).
 A code block has no syntax coloring.
-A link uses `accent` and underlines on hover or focus.
+A link uses `accent`. On Mac, it underlines on hover or focus. On iOS, a link is always underlined, since iOS has no hover. This holds in every mode.
 A table header is weight 600.
 Table cell padding is 6 pt by 10 pt.
-A wide table scrolls horizontally.
+A wide table scrolls horizontally in its own box (see Wide blocks).
 A quote has a 2 pt `line2` bar on the leading edge and `text2` text.
 `**strong**` is weight 600.
 `*emphasis*` is italic.
 Strikethrough is the body font with a line through it and no new color.
 The rendered view does not spellcheck.
 
+Wide blocks: a code block or a table wider than the text column scrolls sideways in its own box. The page itself never scrolls sideways. Prose, headings, lists, and quotes wrap.
+The box shows a 16 pt edge fade from `pane` on each side that has hidden content. The fade hides when that side is at its end.
+The box scrolls with a trackpad or mouse sideways scroll, and with VoiceOver's three-finger swipe left and right.
+In `.editor`, moving the caret inside the box scrolls it to keep the caret visible. In `.rendered` and `.editorLocked`, a box with hidden content is a scroll area that Full Keyboard Access can focus; Left and Right Arrow scroll it by 40 pt, and Option-Left and Option-Right scroll it to the start and end.
+
 Copy in `.rendered` mode writes the characters the view drew for the selection.
 The copy has no heading marks and no emphasis marks.
 A link copies its label.
+A list item copies with a real Markdown marker: `- ` for a bulleted item and `1. ` (its own number) for an ordered item.
+A task item copies as `- [ ] milk` or `- [x] milk`.
+A nested item keeps its indentation: 2 spaces per level under a bullet, 3 spaces under an ordered item, as in the paste map.
 Code content is copied.
 Fence markers are not copied.
 A drawn image adds no characters.
@@ -452,7 +509,8 @@ The copy adds no direction marks.
 A task draws a checkbox in place of `[ ]` or `[x]`.
 The checkbox is 15 pt on Mac.
 The checkbox hit size is 44 pt on iOS.
-A checked item's words use `text3`.
+A checked item's words use `text3`, in `.rendered` and in the editor. `text3` meets 4.5:1 on `pane` in both appearances (6.4:1 dark, 5.9:1 light). Increase Contrast maps it to `text2`.
+List and quote content indents 22 pt per level.
 A click flips one byte.
 The byte is the character between `[` and `]`.
 An unchecked task becomes `x`.
@@ -496,7 +554,7 @@ A body with no syntax is the system font at 15 pt on Mac, with a line height of 
 On iOS, those sizes scale with Dynamic Type.
 The editor spellchecks.
 Smart quotes and smart dashes are off. Edit › Substitutions turns them on for the app.
-When an image draws, its `![alt](url)` source collapses to one dimmed line while the caret is outside it.
+The `![alt](url)` source of an image always stays visible on its own line, styled as syntax. It never collapses. Once the result is `.image`, a thumbnail draws under that line, at the size rules of Images. Before that, the matching card draws under the line.
 
 The caret inside a task marker shows the raw marker in `text3`.
 Return in a list item continues the list with the same marker.
@@ -540,7 +598,8 @@ Link rules:
 - Command-K with no selection: inserts `[|]()` with the caret between the brackets.
 
 The format bar shows Bold, Italic, Heading, Bulleted List, Checkbox, Link, Code, and Quote, in that order.
-Each button performs the matching command.
+Each button performs the matching command. The Heading button opens a menu of Heading 1, Heading 2, Heading 3, and Body. Each menu item performs that command.
+On Mac, Control-F6 moves keyboard focus from the text into the format bar, showing it if it is hidden by typing. Tab and the arrow keys move between buttons. Esc returns focus to the text at the same selection.
 A button shows its active state with a filled background and the selected trait.
 On Mac, the bar floats 8 pt above the selection, or below it when there is no room. It shows only while text is selected. It hides on typing or scrolling. Esc hides it.
 On iOS, the bar docks above the software keyboard. With a hardware keyboard on iPad, it docks at the bottom of the window.
@@ -556,6 +615,7 @@ A typed word run is one undo group. The group ends on whitespace after 1 s witho
 Each of these is one undo group: a paste, a list continuation, a format command, a checkbox click, Replace All, and a Resolve Apply.
 Committed IME composition is one undo group.
 Undo reports reason `undo`. Redo reports reason `redo`.
+After Undo or Redo, the caret goes to the end of the restored text, with no selection.
 `reload(text:)` clears the stack.
 
 ### Paste
@@ -627,7 +687,7 @@ A decoded image wider or taller than 8192 pixels gives `.failed(tooLarge)`. The 
 A gif plays, except when Reduce Motion is on, or iOS Auto-Play Animated Images is off. Then the gif shows frame 1 with a play glyph and the accessibility action "Play animation" (DRAFT).
 
 A remote image never loads automatically.
-The app returns `.remoteNotLoaded(host)` until the person clicks the card, or presses Return or Space on it.
+The app returns `.remoteNotLoaded(host)` until the view calls `activateImage(_:)` for that card (a click, or Return or Space on the focused card).
 The context menu item Load All Images in This Document loads every remote image of this document. The app does not remember that choice.
 The app writes a loaded image to the image cache.
 The image cache is in the app's sandboxed Caches folder.
@@ -645,12 +705,12 @@ A drawn image is at most 80% of the viewport height, with its aspect ratio kept.
 When the file header gives the dimensions, the view reserves the height. Otherwise, the view reflows once and keeps the first visible text line in place.
 A linked image follows its link.
 A drawn image has the image trait and its alt text as the label. An image with an empty alt is hidden from VoiceOver.
-The editor does not draw an image whose result is not `.image`. It draws the matching card.
+The editor does not draw an image whose result is not `.image`. It draws what `.rendered` draws for that result (the card, or the `Image: {alt}` link), under the source line.
 
 ### HTML
 
 `html` false draws raw HTML characters as text.
-`html` true: WAIT-1. A native-support test decides between a native subset and a sandboxed web view. The test result goes into this log before plan 01 stage 1e starts.
+`html` true: WAIT-1. The policy is a native safe subset if the spike tests of plan 01 stage 1e step 8 pass. If they fail, the HTML stays as text and a new round of this log decides. The test result goes into this log before plan 01 stage 1e step 8 is built.
 In both outcomes, these rules hold:
 - No script runs.
 - Nothing loads from the network.
@@ -776,10 +836,15 @@ Where that file conflicts with itself, these rules hold (confirmed by Itay 2026-
 ### Accessibility
 
 - Increase Contrast maps `text3` to `text2` and `line2` to `text3`.
-- A heading exposes its level.
+Keyboard access and VoiceOver are launch blockers. Fortkeeps Scroll does not ship until each rule below passes.
+
+- A heading exposes its level, on Mac and iOS (`accessibilityHeading` level 1–6 on Mac).
 - Lists, tables, and quotes are announced.
-- Reading-view links and checkboxes are in the keyboard Tab order with Full Keyboard Access.
-- Return activates a focused link.
+- Tab moves through links, checkboxes, and image cards in reading order, in every mode. Shift-Tab moves back.
+- Return opens a focused link.
+- Space toggles a focused checkbox.
+- On Mac, Control-F6 moves into the format bar, and Esc goes back to the text.
+- On iOS, a gif follows the Auto-Play Animated Images setting (see Images).
 - Every screen passes `performAccessibilityAudit()` in UI tests.
 - No meaning rests on color alone.
 
@@ -806,8 +871,9 @@ The app does not download a font.
 ### Fortkeeps later
 
 This library is the Markdown source for Fortkeeps plan 18 stages 18e and 18f.
+The Fortkeeps card fields are in the target `FortkeepsCards` in this package. `FortkeepsCards` depends on `MarkdownCore`. `MarkdownCore` has no Fortkeeps-specific type.
 Log 010 stays as written until that work starts.
-Fortkeeps consumes the package by SemVer tag after roadmap V1-42 (WAIT-5).
+Fortkeeps consumes the package by SemVer tag. Roadmap V1-42 is answered (WAIT-5 closed 2026-10-29): the Apple apps are one multiplatform SwiftUI app in remember-mac, which adds this package. Android (a separate Kotlin and Jetpack Compose repo) and the web app (fortkeeps-cloud) do not use this Swift package; they share the core through `libremember` and the sync protocol.
 The library passes log 010 conformance cases 01–30 with the Fortkeeps value before 18e starts.
 Until the Android design log exists, log 010 stays the Fortkeeps Android reference.
 The adoption edit to log 010 records these overrides:
@@ -821,6 +887,22 @@ Every string marked (DRAFT) comes from `001-markdown-library-screens.md` or from
 Story Weaver finalizes them (WAIT-3).
 The plan's exact-string tests use the final strings.
 The app name inside strings is "Fortkeeps Scroll".
+
+Proposed image strings (PROPOSED, pending WAIT-3; not final; Story Weaver decides):
+
+| Key | Mac | iOS |
+|---|---|---|
+| `img.refused.title` | Image can't be shown | Image can't be shown |
+| `img.reason.tooLarge` | It's too large to show. | It's too large to show. |
+| `img.reason.timedOut` | It took too long to load. | It took too long to load. |
+| `img.reason.unsupported` | This image format isn't supported. | This image format isn't supported. |
+| `img.reason.network` | Couldn't reach it. Check your connection. | Couldn't reach it. Check your connection. |
+| `img.link` | Image: {alt} | Image: {alt} |
+| `img.link.noalt` | Image | Image |
+| `img.load` (the click action) | Load Image | Load image |
+| `img.load.hint` (VoiceOver hint) | Loads the image from {host}. | Loads the image from {host}. |
+
+The card shows the title and at most one reason line. The reason line matches the `ImageFailure` case. The card's accessibility label is the title and the reason together, as one string.
 
 ## Examples
 
@@ -880,6 +962,10 @@ The same text in Fortkeeps in `.rendered` mode with `titleLine .hidden` hides `T
 17. `MarkdownCore` has no UI, file, or network import. The analytics denylist check passes.
 18. A 64 KiB neighborhood restyle meets the 8 ms budget at the 95th percentile.
 19. `performAccessibilityAudit()` passes on every screen. The checkbox value reads `done` or `not done`.
+20. Keyboard (launch blocker): Tab reaches every link, checkbox, and image card in reading order. Return opens a link. Space toggles a checkbox. Control-F6 and Esc move into and out of the Mac format bar.
+21. VoiceOver (launch blocker): Mac headings expose their level. With iOS Auto-Play Animated Images off, a gif shows frame 1.
+22. A refused image shows the card with `.text` and `Image: {alt}` or `Image` with `.link`. An image card click calls `activateImage(_:)` and no fetch happens before it.
+23. Copy of a rendered list gives `- `, `1. `, `- [ ] `, and `- [x] ` markers with nested indentation.
 
 ## Known Limitations
 
@@ -891,14 +977,16 @@ A folder bookmark gives read access to the whole folder.
 
 | Tag | Item | Who | Blocks |
 |---|---|---|---|
-| WAIT-1 | The HTML result of the native-support test (native subset or sandboxed web view). | Itay, after the test | The HTML part of plan 01 stage 1e. |
+| WAIT-1 | The HTML spike result. Policy: a native safe subset if the spike tests pass. | Itay, after the test | Plan 01 stage 1e step 8. |
 | WAIT-2 | The exact format-command cases. | Interface | Plan 01 stage 1d steps 5–6. |
-| WAIT-3 | The final on-screen copy. | Story Weaver | The exact-string tests in plan 02. |
+| WAIT-3 | The final on-screen copy, including the PROPOSED image strings. | Story Weaver | The exact-string tests in plan 02. |
 | WAIT-4 | The `FK Scroll` app icon in the Fortkeeps theme. | Interface | Resolved: assets in `design/icon/`. |
-| WAIT-5 | Roadmap V1-42: where Fortkeeps' phone code lives. | Itay | Fortkeeps adoption (plan 18) only. No stage here. Reopened 2026-10-26: Android and web app are in phase one. |
+| WAIT-5 | Roadmap V1-42: where Fortkeeps' phone code lives. | Itay | Resolved 2026-10-29: answer A (Apple apps in remember-mac, Android its own Kotlin repo, web in fortkeeps-cloud; shared core `libremember` and the sync protocol). |
 | WAIT-6 | Roadmap V1-44: the bundle ID prefix. | Itay | Resolved 2026-10-26: `app.fortkeeps.*`; Scroll is `app.fortkeeps.scroll`. |
 
-WAIT-4 and WAIT-6 are resolved. WAIT-4 was a design task, not an open question. WAIT-5 is open. The other rules of this log are complete.
+WAIT-4, WAIT-5, and WAIT-6 are resolved. WAIT-4 was a design task, not an open question. WAIT-1, WAIT-2, and WAIT-3 are open.
+
+Deferred, not waiting on a person: signing, notarization, TestFlight, and the App Store for Fortkeeps Scroll wait until Itay buys the Apple Developer membership (roadmap V1-43: "when most of the development is done and all that's left depends on getting the membership"). Until then, plan 02 stages 2c and 2d build unsigned, for tests only. The other rules of this log are complete.
 
 ## Future Work
 

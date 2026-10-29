@@ -35,8 +35,8 @@ Test that policy in the plan 01 test target.
 |---|---|---|---|
 | 2a | Document policy | Not started | — |
 | 2b | Image loader and cache | Not started | — |
-| 2c | Mac app | Not started | WAIT-3 (string tests) |
-| 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset) |
+| 2c | Mac app | Not started | WAIT-3 (string tests). Signing deferred until the Apple Developer membership (V1-43). |
+| 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset). Signing deferred until the Apple Developer membership (V1-43). |
 | 2e | Outside changes and Resolve | Not started | — |
 | 2f | Sidebar, export, settings, relaunch | Not started | — |
 
@@ -67,7 +67,7 @@ Must-pass tests:
 5. Refuse an image wider or taller than 8192 pixels, from the header, before decode.
 6. Refuse a symlink whose target leaves the document directory.
 7. Return `.needsAccess` when the sandbox has no folder access.
-8. Return `.remoteNotLoaded` until the person loads the image.
+8. Return `.remoteNotLoaded` until the view calls `activateImage(_:)` for that card, or the person chooses Load All Images in This Document. Fetch only after that call.
 9. Build the cache in the sandboxed Caches folder, with `isExcludedFromBackup`, keyed by URL.
 10. Expire an entry 3 days after its last view.
 11. Purge at launch and on entering the background.
@@ -79,6 +79,7 @@ Must-pass tests:
 - A symlink out of the directory is refused.
 - An SVG and an undecodable byte stream give `.failed(unsupported)`.
 - Opening a document with a remote image makes zero requests.
+- `activateImage(_:)` on a remote card starts exactly one fetch; `image(for:)` alone starts none.
 - A loaded image is cached. A relaunch draws it with zero requests.
 - With a fake clock, an entry expires after 3 days without a view. A view resets the clock.
 - Every cache file has `isExcludedFromBackup`.
@@ -87,7 +88,7 @@ Must-pass tests:
 
 ### 2c — Mac app
 
-1. Create the Mac app target `Fortkeeps Scroll` on macOS 15, with the bundle ID `app.fortkeeps.scroll` (WAIT-6 resolved 2026-10-26).
+1. Create the Mac app target `Fortkeeps Scroll` on macOS 15, with the bundle ID `app.fortkeeps.scroll` (WAIT-6 resolved 2026-10-26). Build unsigned, for tests only. Signing and notarization are deferred until Itay buys the Apple Developer membership (roadmap V1-43); do not add a team ID or a provisioning profile.
 2. Store each file in an `NSDocument`.
 3. Use the system document tabs and the Design menus and shortcuts.
 4. Open each document in `.editor`. Lock selects `.editorLocked`.
@@ -109,6 +110,7 @@ Must-pass tests:
 - A failed save shows the strip and keeps the text.
 - Option-Command-L toggles Lock, and Lock disables the checkboxes.
 - `performAccessibilityAudit()` passes on the document window and the empty window.
+- Launch blockers (keyboard and VoiceOver): a UI test with Full Keyboard Access tabs through links, checkboxes, and image cards in reading order; Return opens a link; Space toggles a checkbox; Control-F6 enters the format bar and Esc returns. Each heading exposes its level.
 
 Done when the stage definition of done holds.
 Then run this manual check:
@@ -118,7 +120,7 @@ Then run this manual check:
 
 ### 2d — iOS and iPadOS app
 
-1. Create the iOS app target on iOS 18. Set `CFBundleDisplayName` to `FK Scroll`. Use the bundle ID `app.fortkeeps.scroll` (WAIT-6 resolved 2026-10-26). Use the Interface icon (WAIT-4). Until the icon exists, use a blank placeholder asset and record that in Implementation Notes.
+1. Create the iOS app target on iOS 18. Set `CFBundleDisplayName` to `FK Scroll`. Use the bundle ID `app.fortkeeps.scroll` (WAIT-6 resolved 2026-10-26). Build unsigned, for the simulator and tests only, until the Apple Developer membership exists (roadmap V1-43). Use the Interface icon (WAIT-4). Until the icon exists, use a blank placeholder asset and record that in Implementation Notes.
 2. Store each file in a `UIDocument`.
 3. Use the system document browser as the launch screen.
 4. Show the iPad tab strip with the file name and a close control labelled "Close {name}".
@@ -135,6 +137,8 @@ Must-pass tests:
 - New creates `Untitled.md` in the current folder.
 - The iOS checkbox path saves immediately.
 - `performAccessibilityAudit()` passes on the document screen.
+- iOS typing undo (UI test): type "hello world" with a 1 s pause before "world", then shake-to-undo or the three-finger undo gesture removes "world" only, and the caret is at the end of the restored text.
+- With Auto-Play Animated Images off, a gif shows frame 1 with the play action. Every link is underlined.
 
 ### 2e — Outside changes and Resolve
 

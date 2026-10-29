@@ -118,7 +118,7 @@ Click behaviour (log 001 Round 4 + D2): http/https → default browser; mailto �
 Copy (DRAFT): `link.missing` "“{name}” isn’t in this folder." · `link.menu.open` "Open Link" · `link.menu.copy` "Copy Link" · `link.menu.edit` "Edit Link".
 
 ### 3.8 Images — remote placeholder `001-wireframes/05-remote-image-placeholder.png`
-Images draw inline below/in place of their source line (the source `![alt](url)` stays visible, dimmed, above the image; collapsed to one line when caret is outside — Q).
+Images draw inline below their source line (the source `![alt](url)` stays fully visible on one line above the image; it never collapses — decided by Itay, log 001 round 9).
 - **Local, allowed:** draws at column width max, no upscaling, ≤80 % viewport height, scroll-anchored reflow.
 - **Remote (D8):** a calm card: image glyph, alt text (or "Image"), "Remote image · {host}", button **Load Image**. Click anywhere on the card or Return/Space when focused loads *that* image only, for this window session. No document-level bar, no "load all" nag. Context menu offers "Load All Images in This Document" (decided Q7): this document only, never remembered. **Image cache (decided Q7, Itay 2026-10-25):**
   - Only images the person chose to load (one click or Load All Images) are cached. Nothing is ever fetched automatically.
@@ -131,7 +131,7 @@ Images draw inline below/in place of their source line (the source `![alt](url)`
   - VoiceOver: cached/loaded image = image trait, label "{alt}" (empty alt → decorative, hidden), hint none; custom action "Reload image". Placeholder = button, label "{alt}, remote image from {host}, not loaded", hint "Loads this image". Expired placeholders read the same as never-loaded ones.
 - **Loading:** spinner glyph replaced by system progress indicator (static under Reduce Motion), text "Loading…"; Cancel by Esc.
 - **Failed:** card stays with "Couldn’t load this image." and **Try Again**; reasons in tooltip/VO hint (too large, not allowed, timed out, unsupported format).
-- **Refused by rules** (private host, SVG, data URL): "This image can’t be shown." no button.
+- **Refused by rules** (private host, SVG, data URL): follows `imageFallback` (log 001 round 9). `.text`: the "Image can't be shown" card, no button. `.link`: the link "Image: {alt}", or "Image" with no alt. Copy is PROPOSED in log 001 › Copy, pending WAIT-3.
 - GIF under Reduce Motion: frame 1 + Play glyph, a11y action "Play animation".
 A11y: card is a button, label "{alt}, remote image from {host}", hint "Loads this image". Empty-alt loaded image is decorative (hidden).
 Copy (DRAFT): `img.remote.sub` "Remote image · {host}" · `img.load` Mac "Load Image" / iOS "Load image" · `img.noalt` "Image" · `img.loading` "Loading…" · `img.failed` "Couldn’t load this image." · `img.retry` Mac "Try Again" / iOS "Try again" · `img.refused` "This image can’t be shown." · `img.play` "Play animation" · `img.reload` Mac "Reload Image" / iOS "Reload image" · `img.reloadFailed` "Couldn’t reload this image." · `img.ax.placeholder` "{alt}, remote image from {host}, not loaded".

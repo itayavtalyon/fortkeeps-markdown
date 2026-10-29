@@ -1,7 +1,7 @@
 # 001 - Fortkeeps Scroll and the FortkeepsMarkdown library
 
 Revision 3, 2026-10-25. Chief Architect wrote this revision on the box from Itay's decisions. Status: Design.
-Amended 2026-10-29 (round 9): image fallback and the `activateImage(_:)` host method, editor images, wide blocks, keyboard and VoiceOver launch blockers, list copy, `FortkeepsCards`, PROPOSED image strings, the HTML spike policy, WAIT-5 closed (V1-42 A), signing deferred (V1-43).
+Amended 2026-10-29 (round 9): image fallback and the `activateImage(_:)` host method, editor images, wide blocks, keyboard and VoiceOver launch blockers, list copy, `FortkeepsCards`, image strings (FINAL 2026-10-29), the HTML spike policy, WAIT-5 closed (V1-42 A), signing deferred (V1-43).
 Rule source: the design-log-grill snapshot (2026-10-13). The Mac was offline, so the live rules were not read.
 Items that wait on someone other than the implementer carry the tag **WAIT-n**. They are listed in Known Limitations › Waiting items, with the stage each blocks. No other implementer choice is open.
 
@@ -284,7 +284,7 @@ Rounds 1–8 stay as written. Where an answer here differs from an earlier one, 
 - **Q: Are the stage 1f choices kept?**
   A: Yes. The Heading button opens a menu of Heading 1, Heading 2, Heading 3, and Body. Checked tasks are dimmed in the editor too, and the dimmed text meets 4.5:1 contrast. After Undo, the caret goes to the end of the restored text. Indent is 22 pt per list or quote level.
 - **Q: Which image strings go to Story Weaver?**
-  A: The PROPOSED copy in Copy › Proposed image strings. It is pending WAIT-3 and is not final.
+  A: The copy in Copy › Final image strings. Story Weaver approved it as final on 2026-10-29; the image-strings part of WAIT-3 is closed.
 - **Q: What is the raw-HTML policy?**
   A: Render a safe subset if the spike tests in plan 01 stage 1e step 8 pass. The spike result still closes WAIT-1.
 - **Q: Was the bundle-ID answer of round 6 tied to the right roadmap item?**
@@ -888,7 +888,7 @@ Story Weaver finalizes them (WAIT-3).
 The plan's exact-string tests use the final strings.
 The app name inside strings is "Fortkeeps Scroll".
 
-Proposed image strings (PROPOSED, pending WAIT-3; not final; Story Weaver decides):
+Final image strings (FINAL: Story Weaver's final copy, approved 2026-10-29; the image-strings part of WAIT-3 is closed):
 
 | Key | Mac | iOS |
 |---|---|---|
@@ -901,8 +901,11 @@ Proposed image strings (PROPOSED, pending WAIT-3; not final; Story Weaver decide
 | `img.link.noalt` | Image | Image |
 | `img.load` (the click action) | Load Image | Load image |
 | `img.load.hint` (VoiceOver hint) | Loads the image from {host}. | Loads the image from {host}. |
+| `img.load.hint.local` (VoiceOver hint, local file) | Shows the image from this file. | Shows the image from this file. |
+| `img.ax.card` (card accessibility label) | Image can't be shown. {reason} | Image can't be shown. {reason} |
+| `img.ax.card.alt` (appended when there is alt text) |  Alt text: {alt} |  Alt text: {alt} |
 
-The card shows the title and at most one reason line. The reason line matches the `ImageFailure` case. The card's accessibility label is the title and the reason together, as one string.
+The card shows the title and at most one reason line. The reason line matches the `ImageFailure` case. The card's accessibility label is `Image can't be shown. {reason}`, plus ` Alt text: {alt}` when there is alt text. The click action (`activateImage`) is `Load Image` on Mac and `Load image` on iOS; its VoiceOver hint is `Loads the image from {host}.`, or `Shows the image from this file.` for a local file.
 
 ## Examples
 
@@ -979,12 +982,12 @@ A folder bookmark gives read access to the whole folder.
 |---|---|---|---|
 | WAIT-1 | The HTML spike result. Policy: a native safe subset if the spike tests pass. | Itay, after the test | Plan 01 stage 1e step 8. |
 | WAIT-2 | The exact format-command cases. | Interface | Plan 01 stage 1d steps 5–6. |
-| WAIT-3 | The final on-screen copy, including the PROPOSED image strings. | Story Weaver | The exact-string tests in plan 02. |
+| WAIT-3 | The final on-screen copy. The image-strings part is closed (FINAL, approved 2026-10-29, Copy › Final image strings); the other strings are open. | Story Weaver | The exact-string tests in plan 02. |
 | WAIT-4 | The `FK Scroll` app icon in the Fortkeeps theme. | Interface | Resolved: assets in `design/icon/`. |
 | WAIT-5 | Roadmap V1-42: where Fortkeeps' phone code lives. | Itay | Resolved 2026-10-29: answer A (Apple apps in remember-mac, Android its own Kotlin repo, web in fortkeeps-cloud; shared core `libremember` and the sync protocol). |
 | WAIT-6 | Roadmap V1-44: the bundle ID prefix. | Itay | Resolved 2026-10-26: `app.fortkeeps.*`; Scroll is `app.fortkeeps.scroll`. |
 
-WAIT-4, WAIT-5, and WAIT-6 are resolved. WAIT-4 was a design task, not an open question. WAIT-1, WAIT-2, and WAIT-3 are open.
+WAIT-4, WAIT-5, and WAIT-6 are resolved. WAIT-4 was a design task, not an open question. WAIT-1, WAIT-2, and WAIT-3 are open (WAIT-3's image-strings part is closed 2026-10-29).
 
 Deferred, not waiting on a person: signing, notarization, TestFlight, and the App Store for Fortkeeps Scroll wait until Itay buys the Apple Developer membership (roadmap V1-43: "when most of the development is done and all that's left depends on getting the membership"). Until then, plan 02 stages 2c and 2d build unsigned, for tests only. The other rules of this log are complete.
 

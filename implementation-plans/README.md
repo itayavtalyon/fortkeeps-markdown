@@ -11,7 +11,7 @@ When a step depends on a WAIT item that is not yet written into Design, stop. As
 |---|---|---|
 | WAIT-1 | HTML spike result (policy: safe subset if the spike tests pass) | 01 stage 1e step 8 (tests are written now) |
 | WAIT-2 | Exact format-command cases (Interface) | 01 stage 1d steps 5–6 |
-| WAIT-3 | Final copy (Story Weaver) | Exact-string tests in 02 |
+| WAIT-3 | Final copy (Story Weaver). Image strings closed: FINAL 2026-10-29; other strings open | Exact-string tests in 02 |
 | WAIT-4 | `FK Scroll` icon (Interface) | Resolved: assets in `design/icon/` |
 | WAIT-5 | Roadmap V1-42 | Resolved 2026-10-29: answer A (Apple apps in remember-mac; Android separate Kotlin repo; web in fortkeeps-cloud) |
 | WAIT-6 | Roadmap V1-44 bundle ID prefix | Resolved 2026-10-26: `app.fortkeeps.*`; Scroll is `app.fortkeeps.scroll` |

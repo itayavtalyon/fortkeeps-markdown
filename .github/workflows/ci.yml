@@ -1,0 +1,28 @@
+name: CI
+
+# Runs the same gate as the local pre-push check.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: just check
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Install tools
+        run: brew install just swiftlint swiftformat shellcheck ruff
+      - name: Versions
+        run: swift --version && xcodebuild -version
+      - name: Gate
+        run: just check
+      - name: Paste converter fuzz (10 minutes)
+        run: just fuzz

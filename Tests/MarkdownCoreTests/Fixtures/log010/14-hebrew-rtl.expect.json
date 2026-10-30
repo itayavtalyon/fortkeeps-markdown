@@ -1,0 +1,58 @@
+{
+  "title": "רשימת קניות",
+  "variant": "doc",
+  "factSize": null,
+  "visibleLength": 54,
+  "link": null,
+  "summary": {
+    "items": 3,
+    "done": 1,
+    "sections": 1
+  },
+  "tasks": [
+    {
+      "index": 0,
+      "line": 6,
+      "byteOffset": 72,
+      "checked": false,
+      "text": "עגבניות"
+    },
+    {
+      "index": 1,
+      "line": 7,
+      "byteOffset": 93,
+      "checked": true,
+      "text": "מלפפונים"
+    },
+    {
+      "index": 2,
+      "line": 8,
+      "byteOffset": 116,
+      "checked": false,
+      "text": "בצל"
+    }
+  ],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "h1",
+      "line": 0,
+      "dir": "rtl"
+    },
+    {
+      "type": "paragraph",
+      "line": 2,
+      "dir": "rtl"
+    },
+    {
+      "type": "h2",
+      "line": 4,
+      "dir": "rtl"
+    },
+    {
+      "type": "bullet_list",
+      "line": 6,
+      "dir": "rtl"
+    }
+  ]
+}

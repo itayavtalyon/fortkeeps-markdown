@@ -1,0 +1,17 @@
+{
+  "title": null,
+  "variant": "fact",
+  "factSize": "XL",
+  "visibleLength": 57,
+  "link": null,
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "bullet_list",
+      "line": 0,
+      "dir": "ltr"
+    }
+  ]
+}

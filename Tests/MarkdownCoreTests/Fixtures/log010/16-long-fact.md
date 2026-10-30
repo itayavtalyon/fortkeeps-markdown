@@ -1,0 +1,1 @@
+Agents should read workflow:project-status before they pick up a project. It says where the status card lives, which links to follow (cites for decisions, related for sibling projects), and how to write the handoff at the end of a session so the next agent can continue without asking the user again what was done.

@@ -1,0 +1,1 @@
+Use Zed for markdown editing. Tabs are 2 spaces.

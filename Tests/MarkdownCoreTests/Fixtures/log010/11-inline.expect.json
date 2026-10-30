@@ -1,0 +1,17 @@
+{
+  "title": null,
+  "variant": "fact",
+  "factSize": "MD",
+  "visibleLength": 171,
+  "link": null,
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "paragraph",
+      "line": 0,
+      "dir": "ltr"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "name" : "IBM Plex",
+    "package" : null,
+    "license" : "SIL OFL 1.1",
+    "file" : "ibm-plex.txt"
+  },
+  {
+    "name" : "swift-cmark (cmark-gfm)",
+    "package" : "swift-cmark",
+    "license" : "BSD-2-Clause",
+    "file" : "swift-cmark.txt"
+  }
+]

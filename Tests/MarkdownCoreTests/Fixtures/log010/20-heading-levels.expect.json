@@ -1,0 +1,47 @@
+{
+  "title": "Levels",
+  "variant": "doc",
+  "factSize": null,
+  "visibleLength": 69,
+  "link": null,
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "h1",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "h2",
+      "line": 2,
+      "dir": "ltr"
+    },
+    {
+      "type": "h3",
+      "line": 3,
+      "dir": "ltr"
+    },
+    {
+      "type": "h4",
+      "line": 4,
+      "dir": "ltr"
+    },
+    {
+      "type": "h5",
+      "line": 5,
+      "dir": "ltr"
+    },
+    {
+      "type": "h6",
+      "line": 6,
+      "dir": "ltr"
+    },
+    {
+      "type": "paragraph",
+      "line": 7,
+      "dir": "ltr"
+    }
+  ]
+}

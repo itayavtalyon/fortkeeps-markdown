@@ -1,0 +1,1 @@
+שלום **עולם** and [קישור](https://example.co.il)

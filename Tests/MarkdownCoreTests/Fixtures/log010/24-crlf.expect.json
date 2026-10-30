@@ -1,0 +1,41 @@
+{
+  "title": "CRLF doc",
+  "variant": "doc",
+  "factSize": null,
+  "visibleLength": 21,
+  "link": null,
+  "summary": {
+    "items": 2,
+    "done": 1,
+    "sections": 0
+  },
+  "tasks": [
+    {
+      "index": 0,
+      "line": 2,
+      "byteOffset": 17,
+      "checked": false,
+      "text": "first"
+    },
+    {
+      "index": 1,
+      "line": 3,
+      "byteOffset": 30,
+      "checked": true,
+      "text": "second"
+    }
+  ],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "h1",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "bullet_list",
+      "line": 2,
+      "dir": "ltr"
+    }
+  ]
+}

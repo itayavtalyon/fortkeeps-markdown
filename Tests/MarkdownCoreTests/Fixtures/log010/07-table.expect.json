@@ -1,0 +1,22 @@
+{
+  "title": null,
+  "variant": "status",
+  "factSize": null,
+  "visibleLength": 116,
+  "link": null,
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "paragraph",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "table",
+      "line": 2,
+      "dir": "ltr"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+![A cat](https://example.com/cat.png) and a dog and ![here](pics/local.png)

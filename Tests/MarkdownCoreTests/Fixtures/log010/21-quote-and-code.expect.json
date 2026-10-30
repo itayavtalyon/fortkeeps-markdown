@@ -1,0 +1,39 @@
+{
+  "title": null,
+  "variant": "fact",
+  "factSize": "LG",
+  "visibleLength": 81,
+  "link": null,
+  "summary": {
+    "items": 1,
+    "done": 0,
+    "sections": 0
+  },
+  "tasks": [
+    {
+      "index": 0,
+      "line": 1,
+      "byteOffset": 28,
+      "checked": false,
+      "text": "quoted task"
+    }
+  ],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "blockquote",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "fence",
+      "line": 3,
+      "dir": "ltr"
+    },
+    {
+      "type": "code_block",
+      "line": 7,
+      "dir": "ltr"
+    }
+  ]
+}

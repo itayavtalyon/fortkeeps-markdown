@@ -1,6 +1,6 @@
 # Implementation plans: Fortkeeps Scroll
 
-Source of truth: [`design-logs/001-markdown-library.md`](../design-logs/001-markdown-library.md) revision 3, Design, and [`001-markdown-library-screens.md`](../design-logs/001-markdown-library-screens.md) where the log names it.
+Source of truth: [`design-logs/001-markdown-library.md`](../design-logs/001-markdown-library.md) revision 4, Design, and [`001-markdown-library-screens.md`](../design-logs/001-markdown-library-screens.md) where the log names it.
 Do not invent a rule that Design does not state.
 Do not edit remember-mac.
 When a step depends on a WAIT item that is not yet written into Design, stop. Ask Itay with a structured question.
@@ -22,7 +22,7 @@ Stages 1a, 1b, 1c, and 1f can start now. Stage 1d can start except steps 5–6. 
 
 | # | Plan | Status |
 |---|------|--------|
-| 01 | [Library](01-library.md) | Not started |
+| 01 | [Library](01-library.md) | In review (1a–1f; deep review of the whole plan) |
 | 02 | [Apps](02-apps.md) | After 01 |
 | 03 | [Scroll decisions (log 002)](03-scroll-decisions.md) | Built inside the 01 and 02 stages it names |
 

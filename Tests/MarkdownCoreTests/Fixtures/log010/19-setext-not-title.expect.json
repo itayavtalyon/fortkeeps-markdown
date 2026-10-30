@@ -1,0 +1,22 @@
+{
+  "title": null,
+  "variant": "fact",
+  "factSize": "XL",
+  "visibleLength": 50,
+  "link": null,
+  "summary": null,
+  "tasks": [],
+  "statusFields": [],
+  "blocks": [
+    {
+      "type": "h1",
+      "line": 0,
+      "dir": "ltr"
+    },
+    {
+      "type": "paragraph",
+      "line": 3,
+      "dir": "ltr"
+    }
+  ]
+}

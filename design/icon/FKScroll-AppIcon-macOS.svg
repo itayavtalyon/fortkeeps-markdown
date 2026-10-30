@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs><filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.28"/></filter></defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="#E8E0D4" filter="url(#s)"/>
+<rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity="0.08"/><g transform="translate(512 512) scale(0.9) translate(-512 -512)">
+<g fill="#1C2430">
+  <!-- crenellated top roll (merlons = Fortkeeps keep) -->
+  <path d="M300 250 h88 v56 h56 v-56 h136 v56 h56 v-56 h88 v130 h-424z"/>
+  <!-- sheet -->
+  <rect x="332" y="370" width="360" height="330"/>
+  <!-- bottom roll -->
+  <rect x="270" y="690" width="484" height="90" rx="45"/>
+</g>
+<g fill="#E8E0D4"><circle cx="315" cy="735" r="20"/><circle cx="709" cy="735" r="20"/></g>
+<g fill="#E8E0D4">
+  <!-- Markdown arrow: bold shaft + head -->
+  <rect x="457" y="405" width="110" height="140"/>
+  <path d="M392 530 h240 l-120 135z"/>
+</g></g></svg>

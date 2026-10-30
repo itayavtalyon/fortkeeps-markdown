@@ -12,7 +12,7 @@ When a step depends on a WAIT item that is not yet written into Design, stop. As
 | WAIT-1 | HTML native-support test result | The HTML part of 01 stage 1e |
 | WAIT-2 | Exact format-command cases (Interface) | 01 stage 1d steps 5–6 |
 | WAIT-3 | Final copy (Story Weaver) | Exact-string tests in 02 |
-| WAIT-4 | `FK Scroll` icon (Interface) | 02 stage 2d step 1 (asset only) |
+| WAIT-4 | `FK Scroll` icon (Interface) | Resolved: assets in `design/icon/` |
 | WAIT-5 | Roadmap V1-42 | Fortkeeps adoption only |
 | WAIT-6 | Roadmap V1-43 bundle ID prefix | Signing in 02 stages 2c and 2d |
 
@@ -24,6 +24,7 @@ Stages 1a, 1b, 1c, and 1f can start now. Stage 1d can start except steps 5–6. 
 |---|------|--------|
 | 01 | [Library](01-library.md) | In review (1a–1f; deep review of the whole plan) |
 | 02 | [Apps](02-apps.md) | After 01 |
+| 03 | [Scroll decisions (log 002)](03-scroll-decisions.md) | Built inside the 01 and 02 stages it names |
 
 ## Definition of done (every stage)
 

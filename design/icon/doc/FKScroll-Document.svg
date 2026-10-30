@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs><filter id="s"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-opacity="0.25"/></filter></defs>
+<path d="M190 60 h460 l184 184 v720 h-644z" fill="#FAFAF8" stroke="#B9B2A6" stroke-width="10" filter="url(#s)"/>
+<path d="M650 60 v184 h184z" fill="#E8E0D4" stroke="#B9B2A6" stroke-width="10" stroke-linejoin="round"/>
+<g transform="translate(512 430) scale(0.5) translate(-512 -512)">
+ <rect x="212" y="212" width="600" height="600" rx="135" fill="#E8E0D4"/>
+ <g transform="translate(512 512) scale(0.9) translate(-512 -512)">
+<g fill="#1C2430">
+  <!-- crenellated top roll (merlons = Fortkeeps keep) -->
+  <path d="M300 250 h88 v56 h56 v-56 h136 v56 h56 v-56 h88 v130 h-424z"/>
+  <!-- sheet -->
+  <rect x="332" y="370" width="360" height="330"/>
+  <!-- bottom roll -->
+  <rect x="270" y="690" width="484" height="90" rx="45"/>
+</g>
+<g fill="#E8E0D4"><circle cx="315" cy="735" r="20"/><circle cx="709" cy="735" r="20"/></g>
+<g fill="#E8E0D4">
+  <!-- Markdown arrow: bold shaft + head -->
+  <rect x="457" y="405" width="110" height="140"/>
+  <path d="M392 530 h240 l-120 135z"/>
+</g></g></g>
+<rect x="250" y="720" width="524" height="180" rx="36" fill="#1B3A5F"/>
+<text x="512" y="855" font-family="IBM Plex Sans" font-weight="700" font-size="150" fill="#FFFFFF" text-anchor="middle" letter-spacing="8">MD</text>
+</svg>

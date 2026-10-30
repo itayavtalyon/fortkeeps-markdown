@@ -328,7 +328,7 @@ The package has the targets `MarkdownCore`, `FortkeepsCards`, and `MarkdownViews
 The Mac app and the iOS app are targets in the repo.
 The Mac app target and the app display name are `Fortkeeps Scroll`.
 The iOS home-screen name (`CFBundleDisplayName`) is `FK Scroll`.
-The app has its own icon in the Fortkeeps theme. Interface designs it (WAIT-4).
+The app has its own icon in the Fortkeeps theme. Interface designed it (WAIT-4, resolved: assets in `design/icon/`).
 The Mac minimum is macOS 15.
 The iOS minimum is iOS 18 and iPadOS 18.
 remember-mac is not a dependency.
@@ -1054,7 +1054,7 @@ With `html` false, a 4.7 MB document of 100,000 HTML blocks parses in 0.85 s in 
 | WAIT-1 | The HTML result of the native-support test (native subset or sandboxed web view). | Itay, after the test | The HTML part of plan 01 stage 1e. |
 | WAIT-2 | The exact format-command cases. | Interface | Plan 01 stage 1d steps 5–6. |
 | WAIT-3 | The final on-screen copy. | Story Weaver | The exact-string tests in plan 02. |
-| WAIT-4 | The `FK Scroll` app icon in the Fortkeeps theme. | Interface | Plan 02 stage 2d step 1 (asset only). |
+| WAIT-4 | The `FK Scroll` app icon in the Fortkeeps theme. | Interface | Resolved: assets in `design/icon/`. |
 | WAIT-5 | Roadmap V1-42: where Fortkeeps' phone code lives. | Itay | Fortkeeps adoption (plan 18) only. No stage here. |
 | WAIT-6 | Roadmap V1-43: the bundle ID prefix. | Itay | The signing step of plan 02 stages 2c and 2d. |
 

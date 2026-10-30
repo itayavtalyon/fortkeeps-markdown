@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#000000"/>
+<g fill="#FFFFFF">
+  <!-- crenellated top roll (merlons = Fortkeeps keep) -->
+  <path d="M300 250 h88 v56 h56 v-56 h136 v56 h56 v-56 h88 v130 h-424z"/>
+  <!-- sheet -->
+  <rect x="332" y="370" width="360" height="330"/>
+  <!-- bottom roll -->
+  <rect x="270" y="690" width="484" height="90" rx="45"/>
+</g>
+<g fill="#000000"><circle cx="315" cy="735" r="20"/><circle cx="709" cy="735" r="20"/></g>
+<g fill="#000000">
+  <!-- Markdown arrow: bold shaft + head -->
+  <rect x="457" y="405" width="110" height="140"/>
+  <path d="M392 530 h240 l-120 135z"/>
+</g></svg>

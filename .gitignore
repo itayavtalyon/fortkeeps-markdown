@@ -13,6 +13,8 @@ xcuserdata/
 # Tooling / OS
 .DS_Store
 *.log
+*.profraw
+*.profdata
 
 # iCloud Drive duplicate copies ("Foo 2.swift") compile as a second type.
 * [0-9].swift

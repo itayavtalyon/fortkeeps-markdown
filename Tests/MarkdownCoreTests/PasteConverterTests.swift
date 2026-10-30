@@ -295,6 +295,42 @@ extension PasteConverterTests {
         MarkdownDocument(text: markdown(html), features: MarkdownFeatures(), presentation: MarkdownPresentation())
     }
 
+    @Test(arguments: [
+        #"<a href="https://ok.example">click](https://evil.example)</a>"#,
+        #"<a href="https://ok.example">click&#x5d;(https://evil.example)</a>"#,
+        #"<a href="https://ok.example"><b>x](https://evil.example)</b></a>"#,
+        #"<a href="https://ok.example">one<br>two](https://evil.example)</a>"#
+    ])
+    func `a closing bracket in link text cannot open another link`(html: String) {
+        let document = Self.pastedDocument(html)
+
+        #expect(document.rendered.links.map(\.destination) == ["https://ok.example"])
+        #expect(document.rendered.images.isEmpty)
+    }
+
+    @Test
+    func `a closing bracket in link text is drawn`() {
+        let document = Self.pastedDocument(#"<a href="https://ok.example">a]b</a>"#)
+
+        #expect(document.rendered.string == "a]b")
+        #expect(document.rendered.links.map(\.destination) == ["https://ok.example"])
+    }
+
+    @Test
+    func `a bracket inside a code span in a link stays in the code span`() {
+        #expect(Self.markdown(#"<a href="https://ok.example"><code>]</code></a>"#) == "[`]`](https://ok.example)")
+    }
+
+    @Test
+    func `a backslash before a closing bracket in link text cannot open another link`() {
+        let document = Self.pastedDocument(#"<a href="https://ok.example">click\](https://evil.example)</a>"#)
+
+        #expect(document.rendered.links.map(\.destination) == ["https://ok.example"])
+        #expect(document.rendered.images.isEmpty)
+        #expect(document.rendered.string.contains("\\"))
+        #expect(document.rendered.string.contains("]"))
+    }
+
     @Test
     func `a destination with angle brackets cannot close early and start new syntax`() {
         let href = "https://e.com/>)![x](https://t.example/p.png"

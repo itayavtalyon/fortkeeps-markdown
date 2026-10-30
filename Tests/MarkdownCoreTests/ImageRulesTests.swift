@@ -68,7 +68,8 @@ struct ImageRulesTests {
         "::127.0.0.1", "[::10.0.0.1]", "64:ff9b::a00:1", "64:ff9b::192.168.0.1", "2002:7f00:1::", "2002:a9fe:a9fe::1",
         "fe80::1%en0", "%31%32%37.0.0.1", "127.0.0.1%2E", "e%2Ecom",
         "2130706433", "0x7f.1", "0177.0.0.1", "127.1", "0x7f000001", "017700000001", "127.0.0.01", "1:2:3",
-        "0x8.8.8.8", "134744072", "8.8.010.8", "256.1.1.1", "8.8.8.256", "08.8.8.8", "0x.1.1.1", "1..1.1"
+        "0x8.8.8.8", "134744072", "8.8.010.8", "256.1.1.1", "8.8.8.256", "08.8.8.8", "0x.1.1.1", "1..1.1",
+        "127.0.0.1..", "localhost..", "printer.local..", "example..com", ".", ".."
     ])
     func `each blocklist form is refused`(host: String) {
         #expect(ImageRules.isBlockedHost(host))
@@ -85,7 +86,9 @@ struct ImageRulesTests {
         "2001:db8::1", "[2001:db8::1]",
         "::ffff:8.8.8.8", "::8.8.8.8", "64:ff9b::808:808", "2002:808:808::1", "2003:7f00:1::", "64:ff9c::a00:1",
         "local.example.com",
-        "1.example.com"
+        "1.example.com",
+        "example.com.",
+        "example.com.."
     ])
     func `a public host is allowed`(host: String) {
         #expect(!ImageRules.isBlockedHost(host))

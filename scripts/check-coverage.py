@@ -21,6 +21,10 @@ IGNORE = re.compile(r"// coverage:ignore - \S")
 UNCOVERED = re.compile(r"^\s*(\d+)\|\s*0\|(.*)$")
 
 
+class CoverageError(Exception):
+    """`llvm-cov show` failed. The message is the gate's line, not a traceback."""
+
+
 def uncovered_lines(products: Path, bundle: str, source: Path) -> list[str]:
     """Return the `llvm-cov show` lines with a zero count for one source file."""
     binary = products / f"{bundle}.xctest" / "Contents" / "MacOS" / bundle
@@ -35,9 +39,12 @@ def uncovered_lines(products: Path, bundle: str, source: Path) -> list[str]:
         ],
         capture_output=True,
         text=True,
-        check=True,
-    ).stdout
-    return [f"{m.group(1)}: {m.group(2).strip()}" for line in shown.splitlines() if (m := UNCOVERED.match(line))]
+        check=False,
+    )
+    if shown.returncode != 0:
+        detail = (shown.stderr or shown.stdout).strip() or f"exit {shown.returncode}"
+        raise CoverageError(detail)
+    return [f"{m.group(1)}: {m.group(2).strip()}" for line in shown.stdout.splitlines() if (m := UNCOVERED.match(line))]
 
 
 def check(report_path: Path) -> list[str]:
@@ -72,7 +79,11 @@ def check_files(sources: list[Path], summaries: dict, products: Path, bundle: st
             errors.append(f"{name}: {functions['count'] - functions['covered']} uncovered function(s)")
         if lines["covered"] == lines["count"]:
             continue
-        found = uncovered_lines(products, bundle, source)
+        try:
+            found = uncovered_lines(products, bundle, source)
+        except CoverageError as error:
+            errors.append(f"{name}: llvm-cov show failed: {error}")
+            continue
         if not found:
             missed = lines["count"] - lines["covered"]
             errors.append(f"{name}: report says {missed} uncovered, llvm-cov show found none")

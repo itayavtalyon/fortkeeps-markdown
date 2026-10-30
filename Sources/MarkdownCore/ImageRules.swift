@@ -26,15 +26,23 @@ public enum ImageRules {
     /// private, loopback, link-local, or multicast address, an IPv4 address
     /// written in any form other than dotted decimal, or a host with a percent
     /// escape (`%31%32%37.0.0.1` is 127.0.0.1 to a URL parser that decodes
-    /// it). The check reads the literal host only, before any DNS lookup.
+    /// it), or a host with an empty label (`127.0.0.1..`, `example..com`).
+    /// Trailing dots are the DNS root and do not change the host.
+    /// The check reads the literal host only, before any DNS lookup.
     public static func isBlockedHost(_ host: String) -> Bool {
         guard !host.contains("%") else { return true }
         var name = host.lowercased()
         if name.hasPrefix("["), name.hasSuffix("]") {
             name = String(name.dropFirst().dropLast())
         }
-        if name.hasSuffix(".") {
+        // One trailing dot is the DNS root (`localhost.`). Further dots are
+        // empty labels (`127.0.0.1..`); strip every trailing dot, then refuse
+        // a name that still has an empty label.
+        while name.hasSuffix(".") {
             name.removeLast()
+        }
+        if name.isEmpty || name.contains("..") {
+            return true
         }
         if name == "localhost" || name.hasSuffix(".local") {
             return true

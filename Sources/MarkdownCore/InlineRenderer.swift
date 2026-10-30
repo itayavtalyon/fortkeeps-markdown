@@ -63,11 +63,39 @@ struct InlineRenderer {
     }
 
     /// `[text](href)` for an https or mailto href; the text only for any other.
+    /// A `]` in the label is escaped, so pasted text cannot close the label
+    /// and open a link of its own.
     private func link(_ node: HTMLNode) -> [Atom] {
         let inner = node.children.flatMap(atoms)
         guard let href = node.attribute("href"), ["https", "mailto"].contains(URLScheme.of(href) ?? ""), !inner.isEmpty
         else { return inner }
-        return [.markup("[")] + inner + [.markup("](" + Self.destination(href) + ")")]
+        return [.markup("[")] + Self.protectClosingBrackets(inner) + [.markup("](" + Self.destination(href) + ")")]
+    }
+
+    /// Splits `]` out of text atoms as the markup `\]`. Markup stays markup,
+    /// so a code span can still contain a bracket, and the later escape pass
+    /// does not turn the backslash into a second one.
+    private static func protectClosingBrackets(_ atoms: [Atom]) -> [Atom] {
+        atoms.flatMap { atom -> [Atom] in
+            guard case let .text(text) = atom, text.contains("]") else { return [atom] }
+            var result: [Atom] = []
+            var current = ""
+            for character in text {
+                if character == "]" {
+                    if !current.isEmpty {
+                        result.append(.text(current))
+                        current = ""
+                    }
+                    result.append(.markup(#"\]"#))
+                } else {
+                    current.append(character)
+                }
+            }
+            if !current.isEmpty {
+                result.append(.text(current))
+            }
+            return result
+        }
     }
 
     /// `![alt](src)` when the image rules allow the source; the alt text otherwise.

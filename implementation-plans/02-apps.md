@@ -33,7 +33,7 @@ Test that policy in the plan 01 test target.
 
 | Stage | Name | Status | Blocked by |
 |---|---|---|---|
-| 2a | Document policy | Not started | — |
+| 2a | Document policy | Built, self-reviewed (step-wide review pending) | — |
 | 2b | Image loader and cache | Not started | — |
 | 2c | Mac app | Not started | WAIT-3 (string tests), WAIT-6 (signing) |
 | 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset), WAIT-6 (signing) |
@@ -182,3 +182,47 @@ When the stage definition of done holds except the second review, commit the sta
 Write `.claude/REVIEW_REQUEST` with the stage name, this plan path, and the commit.
 Stop.
 Do not start the next stage.
+
+Plan 02 flow (Itay, 2026-10-31, `decision:fortkeeps-markdown-plan02-flow-2026-10-31`): each stage is built, deep-reviewed in-session, and committed, and the next stage starts without `.claude/REVIEW_REQUEST`. After 2f the implementer writes `.claude/WHOLE_PLAN_REVIEW` and stops. This replaces the Handover above for plan 02.
+
+## Implementation Notes
+
+### 2a — Document policy
+
+Branch `stage/2a-document-policy` from `main` at 64a7708.
+
+**Decisions.** Itay answered four grill questions (`decision:fortkeeps-markdown-2a-save-policy-2026-10-31`), recorded in design log 004 Round 1:
+
+1. `TextChange` gains `groupReason`: for `undo` and `redo`, the reason of the undo group (`edit` or `checkbox`); for any other reason, the reason itself. The controller's `UndoGroup` keeps the reason of the change that opened it, and its inverse keeps the same reason, so a redo carries it too.
+2. Every save writes the normalized text (CRLF and lone CR to LF, a final newline).
+3. An empty or BOM-only text stays empty.
+4. `TextChange` moved from `MarkdownViews/MarkdownHost.swift` to `MarkdownCore/TextChange.swift`. `MarkdownViews` re-exports `MarkdownCore` (`@_exported import` in `MarkdownViews.swift`).
+
+**Files.** `Sources/MarkdownCore/DocumentFile.swift` (`acceptedExtensions`, `accepts(_:)`, `text(from:)`, `data(for:)`, `normalized(_:)`, `SaveAction`, `saveAction(for:)`), `Sources/MarkdownCore/TextChange.swift`. `LinkRules` now calls `DocumentFile.accepts(_:)`; `LinkRules.acceptedExtensions` moved to `DocumentFile` (no release tag exists, so no consumer breaks). `MarkdownTextController` passes `groupReason`. Tests: `Tests/MarkdownCoreTests/DocumentFileTests.swift` (16 tests), two tests in `MarkdownTextControllerCheckboxTests`, and two literal `TextChange` values updated in `MarkdownTextControllerTests`.
+
+**Consumers.** A host that builds a `TextChange` (a test double) passes `groupReason`. A host that imports only `MarkdownViews` still sees `TextChange` and `DocumentFile`. Proof: a probe test that imports only `MarkdownViews` and builds a `TextChange` compiled with the re-export and failed with `cannot find type 'TextChange' in scope` without it.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| Each accepted extension and its uppercase form are accepted. | `each accepted extension and its uppercase form are accepted` (11) |
+| Any other extension is refused. | `any other extension is refused` (7, with `a.md.zip`, `.md`, `a.mdx`) |
+| Invalid UTF-8 and a NUL byte are refused and produce no output bytes. | `invalid UTF-8 is refused and gives no text` (6: lone continuation, `FF`, truncated, overlong, surrogate, past U+10FFFF), `a NUL byte is refused and gives no text` (4). `text(from:)` throws `Refusal.notUTF8`, so no text exists. |
+| A CRLF, a lone-CR, and a mixed buffer become LF in memory and stay clean until an edit. | `CRLF, a lone CR, and mixed endings become LF in the buffer` (7); `a reload leaves the document clean`, `an edit marks the document dirty and leaves the save to autosave`. Opening makes no `TextChange`, so nothing marks the document dirty before the first change. The `NSDocument` check (`isDocumentEdited` false after open) belongs to 2c. |
+| The output of the first edit ends with a newline and contains no CR. | `the saved bytes end with a newline and contain no CR` (4), `the saved bytes keep the BOM and the text` |
+| A BOM remains. | `a leading BOM stays in the buffer`, `the saved bytes keep the BOM and the text` |
+| An empty file opens. | `an empty file opens and stays empty` (2: empty, BOM only), `an empty text saves as no bytes` |
+
+Also (steps 4–5): `a checkbox change saves immediately`, `undo or redo of a checkbox change saves immediately` (2), `undo or redo of an edit leaves the save to autosave` (2), `undo and redo of a checkbox click carry the checkbox group reason`, `undo and redo of a typed edit carry the edit group reason`.
+
+**Self-review (deep review, in session).**
+
+- Mutations: 21 one-clause mutants over `DocumentFile`, the `LinkRules` call, and the controller's group reason (runner in the session scratchpad: restores the file in `finally`, counts a mutant red only with a named failing test). M5 survived first: skipping a LF after a CR without resetting the flag ate the next LF, so `a\r\n\nb` lost its blank line. Tests now include `a\r\n\nb\n` and `a\r\r\n\r\nb\n`; M5 is red. Two mutants did not build (an unused constant) and were run again in a valid form (`byte == carriageReturn + 1`, `count > min(bomLength, 0)`); both red. One survivor is equivalent and stays: `groupReason == .edit ? .autosave : .saveNow` gives the same actions, because the controller reports only `edit` or `checkbox` as the group reason of an undo or redo (`undo and redo of ... carry the ... group reason`).
+- Probes: a BOM followed by U+0301 is one grapheme, so `hasPrefix` does not see the BOM; `normalized` still adds the newline (test argument added). The same grapheme rule makes `MarkdownDocument` and the controller treat that BOM as text; both use `hasPrefix`, so their offsets agree. Not changed (plan 01 code, a text that starts with a combining mark).
+- Timing (release, M1 Max, probe test removed after the run): open (`text(from:)`) 2 MB 15 ms, 20 MB 143 ms; save (`data(for:)`) 2 MB 5 ms, 20 MB 54 ms. Neither runs per keystroke; autosave calls `data(for:)` once per save.
+- Lint: SwiftLint `optional_data_string_conversion` refused `String(decoding: [UInt8], as: UTF8.self)`; `normalized` writes into `String(unsafeUninitializedCapacity:)` instead, which also drops the array copy.
+- Auto-fixed: `SaveAction.none` renamed `stayClean` (it shadowed `Optional.none` in a pattern). A pre-existing warning in `MarkdownDisplayTests` (a captured `var` mutated in a `@Sendable` observer) now uses `Mutex`; `just check` printed it on `main` too.
+- Simplify: (1) `data(for:)` is one line over `normalized`; kept, because both apps call it as the save entry point. (2) The extension set and test had two copies (`LinkRules` and the new rule); now one. (3) `apply`'s `groupReason` defaults to `reason`, so only `reverse` passes it; no other call site changed.
+- Gate infrastructure: during this stage a background CoreSimulator update (framework 1174.21, 20:44) unmounted the iOS 27.0 image ("Unusable - Cryptex Mount Preferred"), and a new iOS 27.1 runtime supports only an "iPhone Duo" device type that Xcode 27.2 does not list. The step passed once the 27.0 image remounted, on the unchanged tree.
+- Gate: `just check` passes on the committed tree: 122 MarkdownViews, 305 MarkdownCore, and 17 FortkeepsCards tests on macOS, coverage 100% for both pure modules, the module trace, the iOS build, the MarkdownViews tests on iPhone 18 Pro, lint, and format, with zero warnings.

@@ -98,4 +98,26 @@ struct MarkdownTextControllerCheckboxTests {
         #expect(controller.text == "- [x] task\n")
         #expect(host.changes.map(\.reason) == [.checkbox, .undo, .redo])
     }
+
+    @Test
+    func `undo and redo of a checkbox click carry the checkbox group reason`() {
+        let (controller, host) = MarkdownTextControllerTests.givenController("- [ ] task\n")
+
+        controller.toggleTask(0)
+        controller.undoManager.undo()
+        controller.undoManager.redo()
+
+        #expect(host.changes.map(\.groupReason) == [.checkbox, .checkbox, .checkbox])
+    }
+
+    @Test
+    func `undo and redo of a typed edit carry the edit group reason`() {
+        let (controller, host) = MarkdownTextControllerTests.givenController("- [ ] task\n")
+
+        controller.textViewDidReplace(3 ..< 4, with: "x", event: .typed("x"), at: 0)
+        controller.undoManager.undo()
+        controller.undoManager.redo()
+
+        #expect(host.changes.map(\.groupReason) == [.edit, .edit, .edit])
+    }
 }

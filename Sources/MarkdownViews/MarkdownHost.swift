@@ -68,24 +68,6 @@ public struct LinkActivation: Equatable, Sendable {
     public let source: Source
 }
 
-public struct TextChange: Equatable, Sendable {
-    public enum Reason: Sendable {
-        /// Typing, paste, a format command, list continuation, Replace All, Resolve Apply.
-        case edit
-        case checkbox
-        case undo
-        case redo
-        case reload
-    }
-
-    public let reason: Reason
-    /// The UTF-16 range before the change.
-    public let range: NSRange
-    public let replacement: String
-    /// The full text after the change.
-    public let text: String
-}
-
 public enum MarkdownMode: Sendable {
     /// The rendered text; no syntax shows; not editable.
     case rendered

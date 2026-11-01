@@ -34,7 +34,7 @@ Test that policy in the plan 01 test target.
 | Stage | Name | Status | Blocked by |
 |---|---|---|---|
 | 2a | Document policy | Built, self-reviewed (step-wide review pending) | — |
-| 2b | Image loader and cache | Not started | — |
+| 2b | Image loader and cache | Built, self-reviewed (step-wide review pending) | — |
 | 2c | Mac app | Not started | WAIT-3 (string tests), WAIT-6 (signing) |
 | 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset), WAIT-6 (signing) |
 | 2e | Outside changes and Resolve | Not started | — |
@@ -226,3 +226,70 @@ Also (steps 4–5): `a checkbox change saves immediately`, `undo or redo of a ch
 - Simplify: (1) `data(for:)` is one line over `normalized`; kept, because both apps call it as the save entry point. (2) The extension set and test had two copies (`LinkRules` and the new rule); now one. (3) `apply`'s `groupReason` defaults to `reason`, so only `reverse` passes it; no other call site changed.
 - Gate infrastructure: during this stage a background CoreSimulator update (framework 1174.21, 20:44) unmounted the iOS 27.0 image ("Unusable - Cryptex Mount Preferred"), and a new iOS 27.1 runtime supports only an "iPhone Duo" device type that Xcode 27.2 does not list. The step passed once the 27.0 image remounted, on the unchanged tree.
 - Gate: `just check` passes on the committed tree: 122 MarkdownViews, 305 MarkdownCore, and 17 FortkeepsCards tests on macOS, coverage 100% for both pure modules, the module trace, the iOS build, the MarkdownViews tests on iPhone 18 Pro, lint, and format, with zero warnings.
+
+### 2b — Image loader and cache
+
+Branch `stage/2b-image-loader` from the 2a tip (c02c16c).
+
+**Decisions.** Itay answered ten grill questions in three rounds (`decision:fortkeeps-markdown-2b-images-2026-10-31`, `decision:fortkeeps-markdown-2b-image-cards-2026-10-31`), recorded in design log 004 Round 2:
+
+1. Each plan 02 stage builds the plan 03 stage 3c items it needs. 2b builds `activateImage(_ activation: ImageActivation)` (replaces `imageActivated`), the final log 002 image strings, the refused reason line, and the reload status line.
+2. App code with I/O lives in the package target `ScrollSupport` (depends on `MarkdownViews`, not a product). The coverage gate covers it.
+3. Load failures: over 5,000,000 bytes → `.failed(tooLarge)`; a redirect to http or a blocked host → `.refused`; a 4th redirect, a status that is not 2xx, a DNS or connection error → `.failed(network)`; a timeout → `.failed(timedOut)`.
+4. `MarkdownHost` gains required `reloadImage(_:)` and `loadAllImages()`.
+5. An SVG gives `.failed(unsupported)`; the loader reads the bytes.
+6. Try Again only on the `timedOut` and `network` cards.
+7. A failed reload travels as `.image(Data, reloadFailure: ImageFailure?)`.
+8. A missing, folder, or unreadable local file gives `.refused`.
+9. "Shows the image from this file." is the hint of the folder-access card.
+10. `.refused(reason: String?)`; the app passes "Save the document to show local images." for a local image in an untitled document (`ImageSource.localInUntitled`, new in `ImageRules`).
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- A reload that ends `.refused` (a redirect to a blocked host) shows the refused card. `ImageFailure` has no refused case, so the old image cannot keep a status line for it.
+- A reload of a local image reads the file again through `image(for:)`. It does not keep the old copy on failure: the file on disk is the truth.
+- Granting folder access refreshes every destination that returned `.needsAccess` in this session, not only the clicked card.
+
+**Files.**
+
+- `MarkdownViews`: `MarkdownHost.swift` (the host methods, `ImageActivation`, public `ImageRequest.init`, the two result payloads), `ImageCardContent.swift` (strings, status line, labels), `MarkdownTextController+Links.swift` (activation, menu items, announcement), the card views and editor marks (status line under a kept image), `ImageMenu+AppKit.swift` (new: the Mac context-menu items, split out of `MarkdownView+AppKit.swift` for the file-length rule), the iOS edit menu in `MarkdownView+UIKit.swift`.
+- `MarkdownCore`: `ImageRules.swift` (`ImageSource.localInUntitled`, `FolderPath.decoded`).
+- `ScrollSupport` (new): `ImageCheck`, `RemoteLoader` (with the `ImageTransport` port), `URLSessionTransport`, `ImageCache`, `DocumentImages` (with the `FolderAccess` port).
+- Tests: `Tests/ScrollSupportTests` (61 tests, `FakeTransport`, a `URLProtocol` stub, a fake clock, a fake folder-access port), plus new and changed tests in `ImageCardContentTests`, `ImageRulesTests`, `MarkdownTextControllerImageMenuTests` (new file, split from the mode tests), `MarkdownViewMacLayoutTests`, and `MarkdownViewIOSTests`.
+- Gate: `scripts/check-coverage.py` gates `ScrollSupport` and reads the summary of a module that SwiftPM's report leaves out from that module's own test bundle (SwiftPM writes the report from one bundle only). `scripts/ios-test.sh` also runs `ScrollSupportTests` on the simulator.
+
+**Left to later stages.** Purge at launch and on entering the background (step 11) is wiring in the app delegates: 2c and 2d call `ImageCache.standard.purge()`. Clear Image Cache (step 12) is `ImageCache.clear()`; its Settings control is 2f. The real `FolderAccess` (security-scoped bookmarks and the folder picker) is 2c and 2d. The strings catalog entry `img.untitled` is added with the app's catalog in 2c.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| The loader tests use a fake transport for the size, the host list, the cookie ban, and the redirect cap. | `RemoteLoaderTests`: `a body over 5,000,000 bytes is too large` (5,000,000 passes, 5,000,001 fails), `the transport is asked for at most 5,000,000 bytes`, `a redirect to http or a blocked host is refused and not followed` (8 locations), `a request sends no cookies`, `three redirects are followed, each hop checked`, `a fourth redirect is a network failure`, plus status, transport-failure, and timeout tests. `URLSessionTransportTests`: `the session keeps no cookies and no cache`, `a redirect is returned, not followed`, `the body is read to one byte past the limit`. |
+| A symlink out of the directory is refused. | `a symlink out of the document folder is refused`; `a symlink inside the document folder is followed` |
+| An SVG and an undecodable byte stream give `.failed(unsupported)`. | `bytes that are not an allowed image are unsupported` (remote), `a local SVG or undecodable file is unsupported`, and the `ImageCheckTests` |
+| Opening a document with a remote image makes zero requests. | `opening a document makes zero requests` |
+| A loaded image is cached. A relaunch draws it with zero requests. | `activating a card fetches once and caches the image`, `a cached image shows on a later open with no request` (a new `DocumentImages` on the same cache folder), `a stored image is read back, also by a new cache on the same folder` |
+| With a fake clock, an entry expires after 3 days without a view. A view resets the clock. | `an entry expires 3 days after its last view`, `an entry is still shown exactly 3 days after its last view`, `purge removes only expired entries` |
+| Every cache file has `isExcludedFromBackup`. | `every cached file is excluded from backup` |
+| A failed Reload Image keeps the old copy. | `a failed reload keeps the old copy with the reason`, `a failed reload keeps the copy loaded in this session`, `a reload with no old copy shows the failed card` |
+| Clear Image Cache empties the cache. | `clear empties the cache and size counts the bytes` |
+
+Also: `activating a card fetches once and caches the image` activates twice and sees one request (`activateImage` gives exactly one fetch, `image(for:)` none). `load all fetches each remote image of the text once, and nothing else`, `load all skips an image loaded in this session`.
+
+**Self-review (deep review, in session).**
+
+- Mutations: 4 runs of 35, 14, 3, and 1 mutants with `scratchpad/mutate.py` (one clause each; a script restores the file). Every mutant of the final code is caught, except one harmless one and one caught by a hang (below).
+  - Run 1 (35): 24 caught. Survivors led to fixes: the session config (`the session keeps no cookies and no cache`), Load All's skip (`load all skips an image loaded in this session`), the FIFO and size reads (`a FIFO is refused without a read`, the bounded read). The 10-second timeout hung the process; the timeout test now has a 1-minute time limit. Accepted: the cleanup after a failed cache write (a failed `setResourceValues` cannot be caused in a test).
+  - Run 2 (14) caught 10. `old ?? cache` survived, so a new test covers a cache another document changed (`a failed reload keeps the shown copy when another document changed the cache`). `starts(with: base) → true` survived, because the symlink test's target had the same depth as the folder and the depth check refused it. The target is now deeper. The depth check (`count > base.count`) was redundant with the regular-file check and is deleted.
+  - Runs 3–4: both caught (`starts(with: base.prefix(1))` and `base.dropLast()` by `a symlink out of the document folder is refused`).
+  - Caught by a hang: `isRegularFile == true → != nil` blocks the FIFO test on a read that a time limit cannot cancel. The test never passes.
+  - Harmless: `needAccess = []` removed. A later grant refreshes cards that already refreshed.
+  - The first run 2 died with the session and left a mutant in the tree; it printed nothing because its output was buffered. The runner now caps each mutant at 7 minutes and prints each result when it ends.
+
+- Coverage: the gate first passed with `ScrollSupport` missing from the report, because SwiftPM's JSON comes from one test bundle (the same reason `MarkdownViews` is not gated). The script now asks `llvm-cov export` for that bundle. Then 4 uncovered functions were `??` fallbacks that cannot run (`url.host() ?? ""`, `fileSize ?? 0`); they are now guards. The line after the redirect loop was covered in one run and not in the next; the loop is now `while true` and returns from inside, and the unreachable function end has a `coverage:ignore`.
+- Bugs found and fixed: granting folder access refreshed only the clicked card, so the other cards of the folder kept "Needs folder access" (now every `.needsAccess` destination refreshes; test). A failed cache write was silent (now logged with `Logger`, and a half-written file is removed; test). Two tests checked `.loading` after the fake answered, which raced; the loading state has its own test against a request that never answers.
+- Local reads: `Data(contentsOf:)` read the whole file before the size check, and a FIFO would block it. Now the file must be a regular file and the read stops one byte past the limit (`FileHandle.read(upToCount:)`), so one check covers both a large file and a file that grows.
+- Lint fixes: `ImageCardContent.init` lost its `kind` switch to a helper; the Mac image menu moved to its own file; the mode tests and the document image tests were split into a second file each.
+- Performance: `URLSessionTransport` appends the async bytes one at a time. It runs off the main actor, at most 5,000,001 bytes per image. Not measured; measure in 2c with a real image if a load feels slow.
+- Gate: `just check` green with 0 warnings (2026-11-01): Swift Testing on macOS ran 306 + 132 + 62 + 17 tests; the coverage gate holds `MarkdownCore`, `FortkeepsCards`, and `ScrollSupport` at 100%; the iPhone 18 Pro simulator ran 120 `MarkdownViews` and 62 `ScrollSupport` tests; lint and format are clean. SwiftLint's `modifier_order` now puts isolation after access level, the order SwiftFormat writes (`private nonisolated`); the two tools disagreed before.
+

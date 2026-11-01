@@ -109,6 +109,14 @@
                 scroll(toOffset: visible)
                 updateBoxes()
             }
+            controller.onAnnouncement = { [weak self] message in
+                guard let self else { return }
+                // Polite: VoiceOver reads it without moving focus.
+                NSAccessibility.post(element: textView, notification: .announcementRequested, userInfo: [
+                    .announcement: message,
+                    .priority: NSAccessibilityPriorityLevel.medium.rawValue
+                ])
+            }
             observe()
             applyEditability()
             rebuild()
@@ -287,7 +295,9 @@
             perform(action)
             return true
         }
+    }
 
+    extension MarkdownView {
         static func formatAction(for event: NSEvent) -> FormatAction? {
             var modifiers: FormatShortcut.Modifiers = []
             let flags = event.modifierFlags

@@ -44,6 +44,10 @@ let package = Package(
             swiftSettings: strict
         ),
         .testTarget(name: "FortkeepsCardsTests", dependencies: ["FortkeepsCards"], swiftSettings: strict),
-        .testTarget(name: "MarkdownViewsTests", dependencies: ["MarkdownViews"], swiftSettings: strict)
+        .testTarget(name: "MarkdownViewsTests", dependencies: ["MarkdownViews"], swiftSettings: strict),
+        // The apps' shared code with file and network I/O. It has no product,
+        // so a package that depends on this one (Fortkeeps) never builds it.
+        .target(name: "ScrollSupport", dependencies: ["MarkdownViews"], swiftSettings: strict),
+        .testTarget(name: "ScrollSupportTests", dependencies: ["ScrollSupport"], swiftSettings: strict)
     ]
 )

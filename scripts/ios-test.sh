@@ -14,8 +14,8 @@ fi
 
 log=$(mktemp)
 if ! xcodebuild test -scheme FortkeepsMarkdown-Package -destination "platform=iOS Simulator,name=${name}" \
-    -derivedDataPath .build-xcode -only-testing:MarkdownViewsTests >"${log}" 2>&1; then
+    -derivedDataPath .build-xcode -only-testing:MarkdownViewsTests -only-testing:ScrollSupportTests >"${log}" 2>&1; then
     grep -E '^✘|Fatal error|error:' "${log}" >&2 || tail -40 "${log}" >&2
     exit 1
 fi
-echo "ok: MarkdownViews tests pass on ${name}"
+echo "ok: MarkdownViews and ScrollSupport tests pass on ${name}"

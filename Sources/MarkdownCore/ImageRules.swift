@@ -6,6 +6,9 @@ import Foundation
 public enum ImageSource: Equatable, Sendable {
     /// A file inside the document's folder.
     case local(URL)
+    /// A relative path in a document that has no folder yet: the app asks
+    /// the person to save it.
+    case localInUntitled
     /// An https URL whose literal host is not on the blocklist.
     case remote(URL)
     case refused
@@ -18,6 +21,7 @@ public enum ImageRules {
             else { return .refused }
             return .remote(url)
         }
+        guard documentURL != nil else { return FolderPath.decoded(destination) == nil ? .refused : .localInUntitled }
         guard let file = FolderPath.resolve(destination, in: documentURL) else { return .refused }
         return .local(file)
     }
@@ -64,13 +68,17 @@ enum URLScheme {
 
 /// A relative path resolved against a document's folder.
 enum FolderPath {
+    /// The percent-decoded path, or nil when it is empty, absolute, or has a bad escape.
+    static func decoded(_ path: String) -> String? {
+        guard !path.isEmpty, !path.hasPrefix("/") else { return nil }
+        return path.removingPercentEncoding
+    }
+
     /// The file URL of a percent-decoded relative path, when it stays inside
     /// the document's folder; nil for an untitled document, an absolute path,
     /// a bad escape, or a path that leaves the folder.
     static func resolve(_ path: String, in documentURL: URL?) -> URL? {
-        guard let documentURL, !path.isEmpty, !path.hasPrefix("/"), let decoded = path.removingPercentEncoding else {
-            return nil
-        }
+        guard let documentURL, let decoded = decoded(path) else { return nil }
         let folder = documentURL.deletingLastPathComponent().standardizedFileURL
         let file = URL(fileURLWithPath: decoded, relativeTo: folder).standardizedFileURL
         return file.path.hasPrefix(folder.path.hasSuffix("/") ? folder.path : folder.path + "/") ? file : nil

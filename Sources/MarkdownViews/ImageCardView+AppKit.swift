@@ -30,14 +30,14 @@
             nil
         }
 
-        private func pin(_ view: NSView) {
+        private func pin(_ view: NSView, bottom: CGFloat = 0) {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
             NSLayoutConstraint.activate([
                 view.leadingAnchor.constraint(equalTo: leadingAnchor),
                 view.trailingAnchor.constraint(equalTo: trailingAnchor),
                 view.topAnchor.constraint(equalTo: topAnchor),
-                view.bottomAnchor.constraint(equalTo: bottomAnchor)
+                view.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -bottom)
             ])
         }
 
@@ -46,7 +46,7 @@
             imageView.imageScaling = .scaleProportionallyUpOrDown
             imageView.animates = attachment.animating
             imageView.setAccessibilityElement(false)
-            pin(imageView)
+            pin(imageView, bottom: addStatusLine())
             self.imageView = imageView
             setAccessibilityRole(.image)
             setAccessibilityLabel(attachment.content.title)
@@ -65,6 +65,20 @@
                     return true
                 }])
             }
+        }
+
+        /// The line under a kept image after a failed reload; returns its height.
+        private func addStatusLine() -> CGFloat {
+            guard let status = attachment.content.statusLine else { return 0 }
+            let label = NSTextField(labelWithString: status)
+            label.textColor = MarkdownTheme.color(.text3)
+            label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            label.frame = CGRect(
+                x: 0, y: 0, width: frame.width, height: ImageCardContent.statusLineHeight
+            )
+            label.autoresizingMask = [.width, .maxYMargin]
+            addSubview(label)
+            return ImageCardContent.statusLineHeight
         }
 
         func play() {
@@ -125,6 +139,12 @@
             button.setAccessibilityRole(.link)
             pin(button)
             setAccessibilityElement(false)
+        }
+
+        override func menu(for _: NSEvent) -> NSMenu? {
+            let menu = NSMenu()
+            attachment.owner?.addImageItems(to: menu, destination: attachment.destination)
+            return menu.items.isEmpty ? nil : menu
         }
 
         override func mouseDown(with event: NSEvent) {

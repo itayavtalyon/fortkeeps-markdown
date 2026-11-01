@@ -258,6 +258,34 @@
             #expect(host.activated == ["https://e.com/a.png"])
         }
 
+        @Test
+        func `the edit menu on an image source offers Reload Image and Load All Images`() {
+            let view = Self.givenView("![a](https://e.com/a.png)\n\n![b](https://e.com/b.png)\n")
+            view.controller.setImageResult(.image(Data([1])), for: "https://e.com/a.png")
+
+            let menu = view.textView(
+                view.textView,
+                editMenuForTextIn: NSRange(location: 3, length: 0),
+                suggestedActions: []
+            )
+
+            #expect(menu?.children.prefix(2).map(\.title) == ["Reload Image", "Load All Images in This Document"])
+        }
+
+        @Test
+        func `the edit menu away from images keeps only the suggested actions`() {
+            let view = Self.givenView("plain\n")
+            let copy = UIAction(title: "Copy") { _ in }
+
+            let menu = view.textView(
+                view.textView,
+                editMenuForTextIn: NSRange(location: 1, length: 2),
+                suggestedActions: [copy]
+            )
+
+            #expect(menu?.children.map(\.title) == ["Copy"])
+        }
+
         // MARK: copy
 
         @Test

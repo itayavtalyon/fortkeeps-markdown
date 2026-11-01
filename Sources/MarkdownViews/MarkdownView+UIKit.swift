@@ -93,6 +93,9 @@
                 scroll(toOffset: visible)
                 updateBoxes()
             }
+            controller.onAnnouncement = { message in
+                UIAccessibility.post(notification: .announcement, argument: message)
+            }
             registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: MarkdownView, _) in
                 view.rebuild()
             }
@@ -284,6 +287,24 @@
             }
             pendingEdit = PendingEdit(range: edited, replacement: proposed, event: event)
             return true
+        }
+
+        /// Reload Image and Load All Images join the edit menu, before the suggested actions.
+        public func textView(
+            _: UITextView,
+            editMenuForTextIn range: NSRange,
+            suggestedActions: [UIMenuElement]
+        ) -> UIMenu? {
+            let destination = controller.mode == .rendered ? nil : controller
+                .imageDestination(atDisplayOffset: range.location)
+            return UIMenu(children: imageMenuElements(destination: destination) + suggestedActions)
+        }
+
+        /// The image items of the controller as menu actions.
+        func imageMenuElements(destination: String?) -> [UIMenuElement] {
+            controller.imageMenuItems(destination: destination).map { item in
+                UIAction(title: item.title) { [weak self] _ in self?.controller.perform(item) }
+            }
         }
 
         public func textViewDidChange(_ textView: UITextView) {

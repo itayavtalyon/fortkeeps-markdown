@@ -16,7 +16,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 # Each gated source folder, with the test bundle whose run covers it.
-GATED = {"MarkdownCore": "MarkdownCoreTests", "FortkeepsCards": "FortkeepsCardsTests"}
+GATED = {
+    "MarkdownCore": "MarkdownCoreTests",
+    "FortkeepsCards": "FortkeepsCardsTests",
+    "ScrollSupport": "ScrollSupportTests",
+}
 IGNORE = re.compile(r"// coverage:ignore - \S")
 UNCOVERED = re.compile(r"^\s*(\d+)\|\s*0\|(.*)$")
 
@@ -61,8 +65,36 @@ def check(report_path: Path) -> list[str]:
         sources = sorted(folder.rglob("*.swift"))
         if not sources:
             errors.append(f"no Swift files under {folder}")
+        # SwiftPM's report holds one test bundle; read any other module's summary from its own bundle.
+        if not any(source.resolve() in summaries for source in sources):
+            try:
+                summaries |= bundle_summaries(products, bundle)
+            except (CoverageError, ValueError, KeyError, IndexError, TypeError) as error:
+                errors.append(f"{module}: llvm-cov export failed: {error!r}")
+                continue
         errors += check_files(sources, summaries, products, bundle)
     return errors
+
+
+def bundle_summaries(products: Path, bundle: str) -> dict:
+    """Return the per-file summaries of one test bundle, by resolved path."""
+    exported = subprocess.run(  # noqa: S603 - fixed argv built from build paths
+        [  # noqa: S607 - xcrun is the toolchain entry point
+            "xcrun",
+            "llvm-cov",
+            "export",
+            "-summary-only",
+            str(products / f"{bundle}.xctest" / "Contents" / "MacOS" / bundle),
+            f"-instr-profile={products / 'codecov' / 'default.profdata'}",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if exported.returncode != 0:
+        raise CoverageError((exported.stderr or exported.stdout).strip() or f"exit {exported.returncode}")
+    files = json.loads(exported.stdout)["data"][0]["files"]
+    return {Path(f["filename"]).resolve(): f["summary"] for f in files}
 
 
 def check_files(sources: list[Path], summaries: dict, products: Path, bundle: str) -> list[str]:
@@ -99,7 +131,7 @@ def main() -> int:
     errors = check(Path(sys.argv[1]))
     for error in errors:
         sys.stderr.write(f"error: {error}\n")
-    passed = "coverage gate: OK (MarkdownCore and FortkeepsCards 100%)\n"
+    passed = "coverage gate: OK (MarkdownCore, FortkeepsCards, and ScrollSupport 100%)\n"
     sys.stdout.write("coverage gate: FAIL\n" if errors else passed)
     return 1 if errors else 0
 

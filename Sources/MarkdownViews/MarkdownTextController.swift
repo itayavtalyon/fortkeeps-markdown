@@ -28,6 +28,8 @@ final class MarkdownTextController {
     var onDisplayChange: (() -> Void)?
     /// Called when an image result arrives or changes.
     var onImageChange: ((String) -> Void)?
+    /// A message VoiceOver reads without moving focus.
+    var onAnnouncement: ((String) -> Void)?
 
     private var grouping = UndoGrouping()
     /// The open undo group: later edits of the same typed run join it.

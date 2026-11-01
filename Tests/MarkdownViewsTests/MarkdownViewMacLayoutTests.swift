@@ -94,6 +94,37 @@
         }
 
         @Test
+        func `the context menu of an editor thumbnail offers Reload Image and tells the host`() throws {
+            let host = RecordingHost()
+            let view = MarkdownView(text: "![Map](https://e.com/a.png)\n", host: host)
+            try view.controller.setImageResult(.image(Self.png(width: 200, height: 100)), for: "https://e.com/a.png")
+            let fragment = try Self.imageFragment(view, line: 0)
+            let box = try #require(fragment.editorImageBoxes.first)
+            let center = CGPoint(
+                x: box.rect.midX + fragment.layoutFragmentFrame.minX,
+                y: box.rect.midY + fragment.layoutFragmentFrame.minY
+            )
+            let menu = NSMenu()
+
+            view.addImageItems(to: menu, destination: view.textView.imageDestination(at: center))
+            let item = try #require(menu.items.first)
+            _ = item.target?.perform(item.action, with: item)
+
+            #expect(menu.items.map(\.title) == ["Reload Image", ""])
+            #expect(host.reloaded.map(\.destination) == ["https://e.com/a.png"])
+        }
+
+        @Test
+        func `the context menu of plain text has no image items`() {
+            let view = MarkdownViewMacTests.givenView("plain\n")
+            let menu = NSMenu()
+
+            view.addImageItems(to: menu, destination: view.textView.imageDestination(at: CGPoint(x: 4, y: 4)))
+
+            #expect(menu.items.isEmpty)
+        }
+
+        @Test
         func `a click away from an editor card is left to the text`() {
             let view = MarkdownViewMacTests.givenView("intro\n![Map](https://e.com/a.png)\n")
             view.controller.setImageResult(.remoteNotLoaded(host: "e.com"), for: "https://e.com/a.png")

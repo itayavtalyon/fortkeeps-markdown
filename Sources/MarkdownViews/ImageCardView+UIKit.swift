@@ -25,6 +25,7 @@
             }
             isAccessibilityElement = content.isAccessibilityElement && content.kind != .link
             accessibilityHint = content.accessibilityHint
+            addInteraction(UIContextMenuInteraction(delegate: self))
         }
 
         @available(*, unavailable)
@@ -32,14 +33,14 @@
             nil
         }
 
-        private func pin(_ view: UIView) {
+        private func pin(_ view: UIView, bottom: CGFloat = 0) {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
             NSLayoutConstraint.activate([
                 view.leadingAnchor.constraint(equalTo: leadingAnchor),
                 view.trailingAnchor.constraint(equalTo: trailingAnchor),
                 view.topAnchor.constraint(equalTo: topAnchor),
-                view.bottomAnchor.constraint(equalTo: bottomAnchor)
+                view.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -bottom)
             ])
         }
 
@@ -53,11 +54,30 @@
             return UIImage.animatedImage(with: frames, duration: Double(count) / 10)
         }
 
+        /// The line under a kept image after a failed reload; returns its height.
+        private func addStatusLine() -> CGFloat {
+            guard let status = attachment.content.statusLine else { return 0 }
+            let label = UILabel()
+            label.text = status
+            label.textColor = MarkdownTheme.color(.text3)
+            label.font = .preferredFont(forTextStyle: .caption1)
+            label.adjustsFontForContentSizeCategory = true
+            label.frame = CGRect(
+                x: 0,
+                y: frame.height - ImageCardContent.statusLineHeight,
+                width: frame.width,
+                height: ImageCardContent.statusLineHeight
+            )
+            label.autoresizingMask = [.flexibleWidth, .flexibleTopMargin]
+            addSubview(label)
+            return ImageCardContent.statusLineHeight
+        }
+
         private func buildImage(_ data: Data) {
             self.data = data
             let imageView = UIImageView(image: Self.image(data, animating: attachment.animating))
             imageView.contentMode = .scaleAspectFit
-            pin(imageView)
+            pin(imageView, bottom: addStatusLine())
             self.imageView = imageView
             accessibilityTraits = .image
             accessibilityLabel = attachment.content.title
@@ -167,6 +187,19 @@
             if flags.contains(.control) {
                 insert(.control)
             }
+        }
+    }
+
+    extension ImageCardView: UIContextMenuInteractionDelegate {
+        /// Reload Image and Load All Images on a long press.
+        func contextMenuInteraction(
+            _: UIContextMenuInteraction,
+            configurationForMenuAtLocation _: CGPoint
+        ) -> UIContextMenuConfiguration? {
+            guard let elements = attachment.owner?.imageMenuElements(destination: attachment.destination),
+                  !elements.isEmpty
+            else { return nil }
+            return UIContextMenuConfiguration(actionProvider: { _ in UIMenu(children: elements) })
         }
     }
 #endif

@@ -105,8 +105,8 @@ struct MarkdownTextControllerModeTests {
             maxUTF8Bytes: nil,
             documentURL: nil
         )
-        plain.setImageResult(.refused, for: "x.png")
-        linked.setImageResult(.refused, for: "x.png")
+        plain.setImageResult(.refused(reason: nil), for: "x.png")
+        linked.setImageResult(.refused(reason: nil), for: "x.png")
 
         #expect(plain.copyText(0 ..< 5) == "a  b")
         #expect(linked.copyText(0 ..< 5) == "a Image: m b")
@@ -203,6 +203,25 @@ struct MarkdownTextControllerModeTests {
     }
 
     @Test
+    func `an activation carries the card the person clicked and the document`() async {
+        let (controller, host) = MarkdownTextControllerTests.givenController(
+            "![a](https://e.com/a.png)\n",
+            mode: .rendered
+        )
+        host.results["https://e.com/a.png"] = .failed(reason: .timedOut)
+        controller.viewportChanged(0 ..< 1)
+        await settle { controller.imageResult(for: 0) != nil }
+
+        controller.activateImage(destination: "https://e.com/a.png")
+
+        #expect(host.activations == [ImageActivation(
+            destination: "https://e.com/a.png",
+            documentURL: controller.documentURL,
+            card: .failed(reason: .timedOut)
+        )])
+    }
+
+    @Test
     func `refreshImage asks the host again`() async {
         let (controller, host) = MarkdownTextControllerTests.givenController(
             "![a](https://e.com/a.png)\n",
@@ -240,7 +259,7 @@ struct MarkdownTextControllerModeTests {
     @Test
     func `the image request carries the destination and the document`() async {
         let (controller, host) = MarkdownTextControllerTests.givenController("![a](pics/a.png)\n", mode: .rendered)
-        host.results["pics/a.png"] = .refused
+        host.results["pics/a.png"] = .refused(reason: nil)
 
         controller.viewportChanged(0 ..< 1)
         await settle { controller.imageResult(for: 0) != nil }

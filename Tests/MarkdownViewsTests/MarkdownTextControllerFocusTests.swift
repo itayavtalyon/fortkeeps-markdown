@@ -47,7 +47,7 @@ struct MarkdownTextControllerFocusTests {
     @Test
     func `return on a refused image with the link fallback opens its destination`() {
         let (controller, host) = Self.givenController("![m](x.png)\n", fallback: .link)
-        controller.setImageResult(.refused, for: "x.png")
+        controller.setImageResult(.refused(reason: nil), for: "x.png")
 
         #expect(controller.activate(controller.focusTargets()[0], key: .returnKey))
         #expect(host.opened.map(\.destination) == ["x.png"])

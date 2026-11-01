@@ -33,9 +33,14 @@ struct ImageRulesTests {
         #expect(ImageRules.classify(destination, documentURL: Self.document) == .refused)
     }
 
-    @Test
-    func `an untitled document refuses a local path`() {
-        #expect(ImageRules.classify("pic.png", documentURL: nil) == .refused)
+    @Test(arguments: ["pic.png", "sub/pic.png", "../pic.png", "my%20pic.png"])
+    func `an untitled document marks a relative path as local in an untitled document`(destination: String) {
+        #expect(ImageRules.classify(destination, documentURL: nil) == .localInUntitled)
+    }
+
+    @Test(arguments: ["/abs/pic.png", "", "%zz.png", "http://e.com/a.png", "data:image/png;base64,AA"])
+    func `an untitled document refuses what is not a local path`(destination: String) {
+        #expect(ImageRules.classify(destination, documentURL: nil) == .refused)
     }
 
     @Test

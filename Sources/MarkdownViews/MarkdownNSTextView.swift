@@ -24,6 +24,27 @@
             return controller.click(textLayoutManager?.editorImage(at: point))
         }
 
+        /// The image under a point in container coordinates, in the editor: a
+        /// thumbnail or card under a line, or the image source text.
+        func imageDestination(at point: CGPoint) -> String? {
+            guard let controller, controller.mode != .rendered else { return nil }
+            if let mark = textLayoutManager?.editorImage(at: point) {
+                return mark.destination
+            }
+            let offset = characterIndexForInsertion(at: CGPoint(
+                x: point.x + textContainerOrigin.x,
+                y: point.y + textContainerOrigin.y
+            ))
+            return controller.imageDestination(atDisplayOffset: offset)
+        }
+
+        /// Reload Image and Load All Images join the text view's own menu.
+        override func menu(for event: NSEvent) -> NSMenu? {
+            let menu = super.menu(for: event) ?? NSMenu()
+            owner?.addImageItems(to: menu, destination: imageDestination(at: containerPoint(event)))
+            return menu
+        }
+
         /// Toggles the checkbox at a point in container coordinates; false when there is none.
         func clickCheckbox(at point: CGPoint) -> Bool {
             guard let controller, let hit = textLayoutManager?.marker(at: point), case .checkbox = hit.marker.kind

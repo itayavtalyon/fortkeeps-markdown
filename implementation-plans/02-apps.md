@@ -36,7 +36,7 @@ Test that policy in the plan 01 test target.
 | 2a | Document policy | Built, self-reviewed (step-wide review pending) | — |
 | 2b | Image loader and cache | Built, self-reviewed (step-wide review pending) | — |
 | 2c | Mac app | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending) |
-| 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset), WAIT-6 (signing) |
+| 2d | iOS and iPadOS app | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending), WAIT-6 (simulator only: no team ID) |
 | 2e | Outside changes and Resolve | Not started | — |
 | 2f | Sidebar, export, settings, relaunch | Not started | — |
 
@@ -358,3 +358,71 @@ Manual check (CRLF, checkbox, Undo): now a UI test, `testACRLFFileKeepsItsBytesA
 - Known flake: `testTabMovesToALinkAndReturnOpensIt` failed once in about 6 runs ("Failed to … application"), then passed 4 times, including alone. Not explained; rerun `mac-app-test` once and look if it repeats.
 - Gate: `just check` green with 0 warnings (2026-11-02): Swift Testing on macOS ran 128 ScrollSupport, 136 MarkdownViews, 310 MarkdownCore, and 17 FortkeepsCards tests; coverage 100% for the three gated modules; the iPhone 18 Pro run; 7 Mac UI tests; lint and format clean.
 
+
+### 2d — iOS and iPadOS app
+
+Branch `stage/2d-ios-app` from the 2c tip (fafc43e).
+
+**Decisions.** Itay answered six grill questions (design log 004 Round 4; the remember writes are held, see Handover):
+
+1. UIKit, like the AppKit Mac app and the UIKit `MarkdownView`.
+2. Settings: the ⋯ menu entry and an empty sheet with Done. 2f fills it on both platforms.
+3. New File on iPhone writes `Untitled.md` (then `Untitled 2.md`) into the app's own folder (On My iPhone › FK Scroll) and opens it with the keyboard up, with no picker. On iPad, New is the document browser's create button, which writes into the browser's current folder.
+4. The iPhone home screen's title is `Open Files`, the same as the document screen's back button.
+5. 2d builds the iOS strips (save failed, read-only, deleted) with the screens §3 copy, as on the Mac. Asked during the deep review: a failed save on iOS showed nothing, and the title said "Saving…" for good.
+6. The read-only strip's Duplicate writes `{name} copy` (then `{name} copy 2`), keeping the extension, into the app's folder and opens it. Save as uses the Files export sheet.
+
+Fallback: WAIT-6 (signing) is open, so the iOS app has no team ID and the shared ad-hoc settings of `project.yml`; it builds and runs on the simulator only.
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- iPhone launches into `Open Files` (log 002 › iPhone home screen), not the document browser; plan step 3's browser is the iPad launch screen and the iPhone Browse button.
+- The app has one scene; Stage Manager multiwindow (screens §3.19) is not built.
+- Close on the deleted strip, after its confirmation, pops the iPhone screen without animation (the alert's dismissal is the transition).
+- Save as exports a copy and opens it; the old screen stays open until the person closes it (iOS has no Save As that moves a `UIDocument`).
+- A deleted document stays deleted until it closes: iOS has no plain Save that writes it back, as the Mac's does.
+- The tab strip has no drag to reorder, and the iPhone and iPad screens have no Find, Outline, Share, or Export (2f).
+- The folder-access strip is not built on iOS: a sibling link with no access opens the Files folder picker at once.
+- The UI-test hooks live in the app shell: `FK_SCROLL_UI_TEST` clears the lists and the app folder at launch, and on iPad writes `UI test.md` and reveals it, so the browser starts in the app's folder (Recents has no folder to create in).
+
+**Files.** App: `project.yml` (targets `Fortkeeps Scroll iOS` and `Fortkeeps Scroll iOS UI Tests`, iOS 18, bundle `app.fortkeeps.scroll`, display name `FK Scroll`), `Apps/iOS` (`AppDelegate`, `SceneDelegate`, `LiveEnvironment`, `Info.plist`, the icon from `design/icon`), `Apps/iOSUITests/FortkeepsScrollIOSUITests.swift`. `MarkdownCore`: `FileLists.swift` (`FileLists`, `DocumentFile.untitledName(taken:)`, `copyName(of:taken:)`). `ScrollSupport`: `OpenRefusal` (shared by both apps), `FileListStore` (bookmarks in `UserDefaults`), `FolderBookmarks` (was `+AppKit`, now both platforms), `ScrollDocument+UIKit`, `DocumentSession+UIKit`, `DocumentViewController+UIKit` (also the iOS `ScrollEnvironment`), `HomeViewController+UIKit`, `TabsViewController+UIKit` (also `TabView` and `BrowserViewController`), `StripView+UIKit`, `ScrollStrings+UIKit`. `MarkdownViews`: `MarkdownView` hands first responder and its accessibility label to its text view; two fixes in `MarkdownUITextView` (below). Gate: `scripts/check-document-types.py`, `scripts/check-ios-coverage.py`, `scripts/ios-app-test.sh`, `just ios-app-test`; `ios-test.sh` now runs the `ScrollSupport` tests with coverage on the simulator; `check-coverage.py` leaves `*+UIKit.swift` to the iOS gate.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| The iOS document types match the Mac types. | `scripts/check-document-types.py` in `ios-app-test`: `CFBundleDocumentTypes` (without `NSDocumentClass`) and `UTImportedTypeDeclarations` of both plists are equal. |
+| The iPad tab shows the file name and the close control. | UI test `testIPadNewOpensATabWithItsCloseControl` (iPad Air 11-inch (M4)); `each tab shows the file name and a close control named for it`, `a renamed file renames its tab` |
+| The iPhone back button shows `Open Files`. | UI test `testIPhoneNewFileOpensUntitledAndGoesBackToOpenFiles` (iPhone 18 Pro); `the title and the back button say Open Files` |
+| New creates `Untitled.md` in the current folder. | iPhone: `a new file is Untitled, then Untitled 2, in the app's folder` and the iPhone UI test. iPad: `the browser's New makes an empty Untitled.md for it to move` and the iPad UI test (the browser's current folder). |
+| The iOS checkbox path saves immediately. | `a checkbox change saves at once, and a reload stays clean`; `an edit marks the document dirty and does not save` |
+| `performAccessibilityAudit()` passes on the document screen. | UI test `testTheDocumentScreenPassesTheAccessibilityAudit` on iPhone and iPad, with a heading, a link, and a checkbox. It ignores "Label not human-readable" only on an element whose label ends in `.md`: the title is the person's file name. |
+
+Also: the strips (`a deleted file shows its strip, and Close asks first`, `a failed save shows its strip, and Save As exports the text and opens the copy`, `a read-only file shows its strip, and Duplicate opens a copy in the app's folder`, and the document tests `a deleted file pauses the checkbox save and autosave, and keeps the text`, `a failed save marks the document failed and keeps the text`); the lists across a relaunch (`the lists come back after a relaunch`, `a file that is gone comes back missing at its old path`); the iPad shortcuts (`the tab shortcuts: Command-W, Shift-Command-brackets, Command-1 to 9`). The format bar docks above the keyboard through `MarkdownView`'s `inputAccessoryView` (plan 01).
+
+**Self-review (deep review, in session).**
+
+- Library bugs found by the accessibility audit, both from one cause: `UITextView(usingTextLayoutManager:)` does not run a Swift subclass's stored-property initializers, so `MarkdownUITextView`'s stored properties start as zero bits.
+  - Copy wrote to a null pasteboard: the stored `UIPasteboard` was a zero pointer, so Copy on iOS did nothing. The view now keeps an optional test pasteboard and falls back to `.general` (`copy with no test pasteboard writes the general pasteboard`).
+  - The checkbox accessibility elements were made new on each read, and accessibility holds elements weakly, so the audit found elements with no description. The view now keeps them in an optional dictionary (a non-optional one crashed on its zero storage).
+- Other bugs found by running the app: the empty text view had no accessibility label (now the file name); `MarkdownView` did not pass first responder to its text view, so New File had no keyboard; bookmarks resolve to `/private/var/…` where the picker gives `/var/…`, so the lists kept two rows for one file (`FileListStore.key`); a checkbox save through `autosave` hung once, so it now calls `save(to:for:)`.
+- Deep-review fixes, each with a test that failed first:
+  - Two quick taps on a row opened the file twice: both calls passed the screen check before the first `await`, and one `UIDocument` leaked. Opens of one file now share one task (`two quick opens of a file give one screen`).
+  - A row's swipe, VoiceOver, and menu action kept the index path, so after the list changed it acted on another file. It now keeps the file (`a row's action acts on its own file after the list changes`).
+  - A rename did not rename the iPad tab or its "Close {name}" label (screens §3.12). Each tab's screen now reports its updates to the tabs (`a renamed file renames its tab`).
+  - `DocumentSession.close` stopped the security scope on the URL it was given, not the one that started it; the session now keeps that URL (a file outside the sandbox cannot be picked in a unit test).
+  - A failed save showed nothing, a deleted file was written back by the next autosave or by Close, and a read-only file had no strip: the three strips (decision 5).
+  - The iOS-only strings sat in the shared `ScrollStrings` and failed the Mac coverage gate; they moved to `ScrollStrings+UIKit.swift`, which the iOS gate covers.
+- Saves pause while deleted at `save(to:for:completionHandler:)`, the one call every save passes through: `close()` writes without calling `autosave(completionHandler:)`, found by a test that saw the file come back after Close.
+- Concurrency: `UIDocument` is not main-actor isolated, so the file-presenter calls hop to main through `onMain(_:)` with a `nonisolated(unsafe)` local; an `@unchecked Sendable` conformance did not satisfy region isolation.
+- Mutations: one-clause mutants with `scratchpad/mutate.py` (macOS, `swift test`) and its iOS twin `ios-mutate.py` (`xcodebuild test` on iPhone 18 Pro, `-only-testing` per suite). Every mutant of the final code is caught.
+  - macOS run (12, `FileListStore`, `FileLists`, `copyName`): 10 caught. `missing.remove` in `removeRecent` survived and is deleted: the row is gone, and `remember` clears the flag on any later open. `missing.remove` in `remember` survived; a test now covers it (`a missing file that is back and opens is no longer missing`).
+  - iOS run 1 (32, the session, document, screens, tabs, browser, and the two `MarkdownViews` fixes): 23 caught (2 by a crash), 2 skipped (ambiguous pattern), 3 did not build (an unused value; warnings are errors), 4 survived:
+    - `show` re-pushed the screen on top: same stack, so a counting navigation controller now sees it (`showing the file on screen again keeps one screen of it`).
+    - Closing the selected tab always selected the first tab: `closing the selected tab selects the one after it, or else the last`.
+    - The `isDeleted` guard in `noteDeleted` and `finding = nil` after Find File did nothing a person sees; both are deleted.
+  - iOS run 2 (10: the skipped and non-building ones in valid forms, the survivors again, the tab rename, the open task): 7 caught, 1 did not build, 2 survived. Without `defer { opening[key] = nil }` a file reopened after Close got its closed screen back: `a closed file opens again on a new screen`. The selected-tab check before `showTitle()` was redundant and is deleted.
+  - iOS run 3 (2): both caught.
+- Known gaps (not 2d scope): the Open and Recent rows and the session's screen key still use the old path after a rename (2e owns outside changes); the checkbox VoiceOver value says "checked/unchecked" only from plan 03; the home screen's search field has a text-clipped audit issue (the home screen audit is not a 2d test); the format bar's `.tabBar` trait makes unlabeled container elements (the audit passes).
+- Lint fixes: 17 test names that began with a capital now begin lowercase; three test types over 250 lines lost tests to extension files (the strips, a missing Recent file, the hosted view); the browser's delegate conformance moved to an extension, because SwiftFormat wrapped its 122-column declaration and SwiftLint refused the brace on its own line; `check-document-types.py` writes to the streams instead of calling `print`.
+- Gate (2026-11-02): every step of `just check` but the two UI-test steps passed on the committed tree with 0 warnings: Swift Testing on macOS ran 318 MarkdownCore, 136 MarkdownViews, 135 ScrollSupport, and 17 FortkeepsCards tests; coverage 100% for the three gated modules and for the iOS-only `ScrollSupport` files; the iPhone 18 Pro simulator ran 263 MarkdownViews and ScrollSupport tests (1 skipped: the timing test, which runs only with `FORTKEEPS_TIMING`); lint and format clean. `mac-app-test` and `ios-app-test` did not run on this tree: the screen was locked, and Itay chose to commit without them. Their last run passed before the strips, the deep-review fixes, and the lint fixes (all 3 iOS UI tests on iPhone 18 Pro and iPad Air 11-inch (M4), 7 Mac UI tests). Run `just mac-app-test ios-app-test` first in 2e.

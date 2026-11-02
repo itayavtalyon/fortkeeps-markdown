@@ -4,8 +4,9 @@
 Usage: check-coverage.py <codecov json from `swift test --show-codecov-path`>
 
 An uncovered line passes only when it ends with `// coverage:ignore - <reason>`.
-The gated modules are MarkdownCore and FortkeepsCards. A gated file that is missing
-from the report fails, so a new file cannot skip the gate.
+The gated modules are MarkdownCore, FortkeepsCards, and ScrollSupport. A gated file that
+is missing from the report fails, so a new file cannot skip the gate. ScrollSupport's
+`*+UIKit.swift` files are gated on the simulator by check-ios-coverage.py.
 """
 
 import json
@@ -62,7 +63,8 @@ def check(report_path: Path) -> list[str]:
     errors = []
     for module, bundle in GATED.items():
         folder = ROOT / "Sources" / module
-        sources = sorted(folder.rglob("*.swift"))
+        # The iOS-only files compile empty here; check-ios-coverage.py gates them.
+        sources = sorted(s for s in folder.rglob("*.swift") if not s.name.endswith("+UIKit.swift"))
         if not sources:
             errors.append(f"no Swift files under {folder}")
         # SwiftPM's report holds one test bundle; read any other module's summary from its own bundle.

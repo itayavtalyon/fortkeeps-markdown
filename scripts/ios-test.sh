@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Runs the MarkdownViews tests on an iOS simulator: the first available
-# iPhone, or the one named in FORTKEEPS_IOS_SIMULATOR.
+# Runs the MarkdownViews and ScrollSupport tests on an iOS simulator: the first
+# available iPhone, or the one named in FORTKEEPS_IOS_SIMULATOR. Then gates the
+# coverage of ScrollSupport's iOS-only files.
 set -euo pipefail
 
 name="${FORTKEEPS_IOS_SIMULATOR:-}"
@@ -13,9 +14,13 @@ if [[ -z "${name}" ]]; then
 fi
 
 log=$(mktemp)
+result=.build-xcode/ios-test.xcresult
+rm -rf "${result}"
 if ! xcodebuild test -workspace . -scheme FortkeepsMarkdown-Package -destination "platform=iOS Simulator,name=${name}" \
-    -derivedDataPath .build-xcode -only-testing:MarkdownViewsTests -only-testing:ScrollSupportTests >"${log}" 2>&1; then
+    -derivedDataPath .build-xcode -only-testing:MarkdownViewsTests -only-testing:ScrollSupportTests \
+    -enableCodeCoverage YES -resultBundlePath "${result}" >"${log}" 2>&1; then
     grep -E '^✘|Fatal error|error:' "${log}" >&2 || tail -40 "${log}" >&2
     exit 1
 fi
 echo "ok: MarkdownViews and ScrollSupport tests pass on ${name}"
+scripts/check-ios-coverage.py "${result}"

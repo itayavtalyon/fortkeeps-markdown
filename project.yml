@@ -5,6 +5,7 @@ options:
   bundleIdPrefix: app.fortkeeps
   deploymentTarget:
     macOS: "15.0"
+    iOS: "18.0"
   createIntermediateGroups: true
 packages:
   FortkeepsMarkdown:
@@ -58,7 +59,47 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         # An ad-hoc runner under the hardened runtime refuses the ad-hoc test bundle.
         ENABLE_HARDENED_RUNTIME: NO
+  # The iOS and iPadOS app (plan 02, stage 2d). FK Scroll on the home screen.
+  Fortkeeps Scroll iOS:
+    type: application
+    platform: iOS
+    sources:
+      - Apps/iOS
+      - Sources/ScrollSupport
+    dependencies:
+      - package: FortkeepsMarkdown
+        product: MarkdownViews
+    settings:
+      base:
+        PRODUCT_NAME: Fortkeeps Scroll
+        PRODUCT_BUNDLE_IDENTIFIER: app.fortkeeps.scroll
+        PRODUCT_MODULE_NAME: FortkeepsScroll
+        INFOPLIST_FILE: Apps/iOS/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+  Fortkeeps Scroll iOS UI Tests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Apps/iOSUITests
+    dependencies:
+      - target: Fortkeeps Scroll iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.fortkeeps.scroll.ios.uitests
+        TEST_TARGET_NAME: Fortkeeps Scroll iOS
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
 schemes:
+  Fortkeeps Scroll iOS:
+    build:
+      targets:
+        Fortkeeps Scroll iOS: all
+    test:
+      targets:
+        - Fortkeeps Scroll iOS UI Tests
   Fortkeeps Scroll:
     build:
       targets:

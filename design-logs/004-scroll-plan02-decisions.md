@@ -63,6 +63,21 @@ Stage 2b loads images. Logs 001 and 002 differ on the card of an SVG, on which f
 - **Q: What does the create button of the empty window read?**
   A: `New File`, as the File menu and the sidebar (log 002).
 
+### Round 4 (2026-11-02: Itay, stage 2d)
+
+- **Q: Which UI framework does the iOS app use?**
+  A: UIKit, like the AppKit Mac app and the UIKit `MarkdownView`.
+- **Q: What Settings does 2d build?**
+  A: The ⋯ menu entry and an empty Settings sheet with Done. 2f fills Settings on iOS and Mac together.
+- **Q: Where does New File on the iPhone home screen create `Untitled.md`?**
+  A: In the app's own folder, shown in Files as On My iPhone › FK Scroll (`Untitled.md`, then `Untitled 2.md`). It opens with the keyboard up, with no picker.
+- **Q: What is the iPhone home screen's title?**
+  A: `Open Files`, the same as the document screen's back button.
+- **Q: Does 2d build the iOS strips (save failed, read-only, deleted)?**
+  A: Yes, all three, with the copy and buttons of screens §3, as on the Mac. Without them a failed save on iOS is silent.
+- **Q: Where does the read-only strip's Duplicate put the copy on iOS?**
+  A: In the app's own folder, as `{name} copy`, then `{name} copy 2`, with the file's extension. It opens at once, with no sheet, as New File does. Save As… uses the Files export sheet.
+
 ## Design
 
 ### Host interface (amends log 001 › Host interface)

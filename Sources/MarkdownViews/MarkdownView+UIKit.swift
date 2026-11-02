@@ -139,6 +139,11 @@
             }
         }
 
+        /// The caret goes into the text: a new file opens with the keyboard up.
+        override public func becomeFirstResponder() -> Bool {
+            textView.becomeFirstResponder()
+        }
+
         /// A format command, as the format bar and the shortcuts give it.
         public func perform(_ action: FormatAction) {
             perform(action.command(clipboard: UIPasteboard.general.string))
@@ -346,6 +351,13 @@
         }
 
         // MARK: accessibility
+
+        /// The name VoiceOver reads for the text, such as the file name. An
+        /// empty text has no value to read, so the host names it.
+        override public var accessibilityLabel: String? {
+            get { textView.accessibilityLabel }
+            set { textView.accessibilityLabel = newValue }
+        }
 
         /// The text, then each checkbox of the laid-out text.
         override public var accessibilityElements: [Any]? {

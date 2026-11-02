@@ -12,9 +12,13 @@ enum ScrollStrings {
         String(localized: "empty.open", defaultValue: "Open…")
     }
 
-    /// The create command (log 002, Round 3).
+    /// The create command (log 002, Round 3), in sentence case on iOS.
     static var newFile: String {
-        String(localized: "empty.new", defaultValue: "New File")
+        #if os(macOS)
+            String(localized: "empty.new", defaultValue: "New File")
+        #else
+            String(localized: "empty.new", defaultValue: "New file")
+        #endif
     }
 
     static var recent: String {
@@ -71,8 +75,13 @@ enum ScrollStrings {
         String(localized: "gone.deleted", defaultValue: "“\(name)” was deleted. Your text is still here.")
     }
 
+    /// Sentence case on iOS (screens §3.12).
     static var saveAs: String {
-        String(localized: "gone.saveAs", defaultValue: "Save As…")
+        #if os(macOS)
+            String(localized: "gone.saveAs", defaultValue: "Save As…")
+        #else
+            String(localized: "gone.saveAs", defaultValue: "Save as")
+        #endif
     }
 
     static var close: String {

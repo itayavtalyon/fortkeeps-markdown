@@ -2,14 +2,6 @@
     import AppKit
     import MarkdownViews
 
-    /// Why the app does not open a file (design log 001 › Files).
-    public enum OpenRefusal: Error, Equatable {
-        /// Not one of the accepted extensions.
-        case wrongExtension
-        /// Not valid UTF-8, or a NUL byte.
-        case notUTF8
-    }
-
     /// One Markdown file (design log 001 › Files). The view holds the
     /// working text and its Undo; the document follows each change.
     public final class ScrollDocument: NSDocument {

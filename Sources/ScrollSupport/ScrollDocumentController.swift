@@ -69,10 +69,7 @@
         static func alert(for refusal: OpenRefusal, name: String) -> NSAlert {
             let alert = NSAlert()
             alert.messageText = ScrollStrings.cannotOpen(name)
-            alert.informativeText = switch refusal {
-            case .wrongExtension: ScrollStrings.wrongExtension
-            case .notUTF8: ScrollStrings.notUTF8
-            }
+            alert.informativeText = refusal.message
             alert.addButton(withTitle: ScrollStrings.ok)
             return alert
         }

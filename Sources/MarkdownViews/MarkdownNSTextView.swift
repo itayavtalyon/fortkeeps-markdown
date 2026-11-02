@@ -12,6 +12,25 @@
             owner?.controller
         }
 
+        /// Undo and Redo reach the controller's undo groups. The window would
+        /// answer them with its own manager, which is empty.
+        @objc func undo(_: Any?) {
+            controller?.undoManager.undo()
+        }
+
+        @objc func redo(_: Any?) {
+            controller?.undoManager.redo()
+        }
+
+        override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+            guard let undoManager = controller?.undoManager else { return super.validateUserInterfaceItem(item) }
+            switch item.action {
+            case #selector(undo(_:)): return undoManager.canUndo
+            case #selector(redo(_:)): return undoManager.canRedo
+            default: return super.validateUserInterfaceItem(item)
+            }
+        }
+
         private func containerPoint(_ event: NSEvent) -> CGPoint {
             let point = convert(event.locationInWindow, from: nil)
             return CGPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)

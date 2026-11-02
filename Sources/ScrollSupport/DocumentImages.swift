@@ -51,12 +51,7 @@ public final class DocumentImages {
             if let result = await results[request.destination] {
                 return result
             }
-            if let data = cache.image(for: url) {
-                return .image(data)
-            }
-            // classify gives .remote only with a host.
-            guard let host = url.host() else { return .refused(reason: nil) }
-            return .remoteNotLoaded(host: host)
+            return cached(url)
         case let (.local(file), document?):
             let result = local(file, in: document.deletingLastPathComponent())
             if result == .needsAccess {
@@ -78,17 +73,35 @@ public final class DocumentImages {
             fetch(activation.destination, url, old: nil)
         case .local where activation.card == .needsAccess:
             guard let folder = activation.documentURL?.deletingLastPathComponent() else { return }
-            Task {
-                guard await access.request(folder) else { return }
-                // Every card of the folder can show now, not only the one clicked.
-                for destination in needAccess.union([activation.destination]) {
-                    onRefresh?(destination)
-                }
-                needAccess = []
-            }
+            needAccess.insert(activation.destination)
+            Task { await requestAccess(folder) }
         default:
             break
         }
+    }
+
+    /// Asks for the document's folder. When granted, every card that needed
+    /// it refreshes, not only the one clicked.
+    @discardableResult
+    public func requestAccess(_ folder: URL) async -> Bool {
+        guard await access.request(folder) else { return false }
+        for destination in needAccess {
+            onRefresh?(destination)
+        }
+        needAccess = []
+        return true
+    }
+
+    /// A remote image not fetched in this session: the cached copy, or the card.
+    /// Synchronous: these lines, after an `await` in `image(for:)`, went uncounted
+    /// in 2 of 5 coverage runs (2026-11-02).
+    private nonisolated func cached(_ url: URL) -> ImageResult {
+        if let data = cache.image(for: url) {
+            return .image(data)
+        }
+        // classify gives .remote only with a host.
+        guard let host = url.host() else { return .refused(reason: nil) }
+        return .remoteNotLoaded(host: host)
     }
 
     /// Fetches a fresh copy. On failure the old copy stays, with the reason.

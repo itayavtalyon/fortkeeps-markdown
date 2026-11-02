@@ -139,7 +139,8 @@
             }
         }
 
-        func perform(_ action: FormatAction) {
+        /// A format command, as the format bar and the shortcuts give it.
+        public func perform(_ action: FormatAction) {
             perform(action.command(clipboard: UIPasteboard.general.string))
         }
 
@@ -203,6 +204,10 @@
         func scroll(toOffset offset: Int) {
             guard let frame = textView.textLayoutManager?.fragmentFrame(at: offset) else { return }
             textView.setContentOffset(CGPoint(x: 0, y: frame.minY + textView.textContainerInset.top), animated: false)
+        }
+
+        func moveAccessibilityFocusToSelection() {
+            UIAccessibility.post(notification: .layoutChanged, argument: textView)
         }
 
         /// A gif shows frame 1 under Reduce Motion or with Auto-Play Animated Images off.

@@ -79,6 +79,7 @@ extension MarkdownTextController {
     /// Requests the images within one viewport above and below the visible
     /// range, and cancels the requests of images that left it.
     func viewportChanged(_ visible: Range<Int>) {
+        self.visible = visible
         let near = visible.lowerBound - visible.count ... visible.upperBound + visible.count
         let wanted: Set<String>
         if mode == .rendered {

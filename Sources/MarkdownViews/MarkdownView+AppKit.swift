@@ -71,6 +71,15 @@
             nil
         }
 
+        /// The window's first responder is the text.
+        override public var acceptsFirstResponder: Bool {
+            true
+        }
+
+        override public func becomeFirstResponder() -> Bool {
+            window?.makeFirstResponder(textView) ?? false
+        }
+
         private func configure() {
             textView.owner = self
             textView.delegate = self
@@ -88,6 +97,8 @@
             textView.textContainer?.widthTracksTextView = true
             scrollView.documentView = textView
             scrollView.hasVerticalScroller = true
+            scrollView.minMagnification = 0.8
+            scrollView.maxMagnification = 2
             scrollView.frame = bounds
             scrollView.autoresizingMask = [.width, .height]
             textView.frame = CGRect(origin: .zero, size: scrollView.contentSize)
@@ -164,10 +175,6 @@
             }
         }
 
-        func perform(_ action: FormatAction) {
-            perform(action.command(clipboard: NSPasteboard.general.string(forType: .string)))
-        }
-
         // MARK: display
 
         private func applyEditability() {
@@ -219,9 +226,13 @@
             textView.scroll(CGPoint(x: 0, y: frame.minY + textView.textContainerOrigin.y))
         }
 
-        private func announceAnchor() {
+        func moveAccessibilityFocusToSelection() {
             NSAccessibility.post(element: textView, notification: .selectedTextChanged)
             NSAccessibility.post(element: textView, notification: .focusedUIElementChanged)
+        }
+
+        private func announceAnchor() {
+            moveAccessibilityFocusToSelection()
             if let message = modeSwitchAnnouncement {
                 NSAccessibility.post(element: textView, notification: .announcementRequested, userInfo: [
                     .announcement: message,
@@ -297,22 +308,16 @@
         }
     }
 
-    extension MarkdownView {
-        static func formatAction(for event: NSEvent) -> FormatAction? {
-            var modifiers: FormatShortcut.Modifiers = []
-            let flags = event.modifierFlags
-            if flags.contains(.command) {
-                modifiers.insert(.command)
-            }
-            if flags.contains(.shift) {
-                modifiers.insert(.shift)
-            }
-            if flags.contains(.option) {
-                modifiers.insert(.option)
-            }
-            // Shift-Command-8 arrives as `*`; the key without modifiers is `8`.
-            let keys = [event.charactersIgnoringModifiers, event.characters(byApplyingModifiers: [])].compactMap(\.self)
-            return keys.lazy.compactMap { FormatAction.matching(key: $0, modifiers: modifiers) }.first
+    public extension MarkdownView {
+        /// Command-+, −, and 0 (log 001 › Windows and chrome): 0.8 to 2; the host keeps it per document.
+        var zoom: CGFloat {
+            get { scrollView.magnification }
+            set { scrollView.magnification = newValue }
+        }
+
+        /// A format command, as the format bar and the shortcuts give it.
+        func perform(_ action: FormatAction) {
+            perform(action.command(clipboard: NSPasteboard.general.string(forType: .string)))
         }
     }
 

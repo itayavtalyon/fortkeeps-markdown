@@ -35,7 +35,7 @@ Test that policy in the plan 01 test target.
 |---|---|---|---|
 | 2a | Document policy | Built, self-reviewed (step-wide review pending) | — |
 | 2b | Image loader and cache | Built, self-reviewed (step-wide review pending) | — |
-| 2c | Mac app | Not started | WAIT-3 (string tests), WAIT-6 (signing) |
+| 2c | Mac app | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending) |
 | 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset), WAIT-6 (signing) |
 | 2e | Outside changes and Resolve | Not started | — |
 | 2f | Sidebar, export, settings, relaunch | Not started | — |
@@ -292,4 +292,69 @@ Also: `activating a card fetches once and caches the image` activates twice and 
 - Lint fixes: `ImageCardContent.init` lost its `kind` switch to a helper; the Mac image menu moved to its own file; the mode tests and the document image tests were split into a second file each.
 - Performance: `URLSessionTransport` appends the async bytes one at a time. It runs off the main actor, at most 5,000,001 bytes per image. Not measured; measure in 2c with a real image if a load feels slow.
 - Gate: `just check` green with 0 warnings (2026-11-01): Swift Testing on macOS ran 306 + 132 + 62 + 17 tests; the coverage gate holds `MarkdownCore`, `FortkeepsCards`, and `ScrollSupport` at 100%; the iPhone 18 Pro simulator ran 120 `MarkdownViews` and 62 `ScrollSupport` tests; lint and format are clean. SwiftLint's `modifier_order` now puts isolation after access level, the order SwiftFormat writes (`private nonisolated`); the two tools disagreed before.
+
+
+### 2c — Mac app
+
+Branch `stage/2c-mac-app` from the 2b tip (a9143d9).
+
+**Decisions.** Itay answered five grill questions (design log 004 Round 3; the remember writes are held, see Handover):
+
+1. XcodeGen: `project.yml` is checked in; `just project` generates `FortkeepsScroll.xcodeproj`, which git ignores.
+2. An ad-hoc signature (`CODE_SIGN_IDENTITY` `-`), no team ID, sandbox on. This is the WAIT-6 fallback: it runs on this Mac only.
+3. 2c builds the menu commands whose features exist in 2c, plus per-document zoom and `#fragment` links. Export, Print, Open Folder, the sidebar, the Outline, Settings, and Copy as Rich Text come with 2f.
+4. `just check` runs the keyboard and accessibility-audit UI tests (`mac-app-test`).
+5. The empty window's create button reads `New File`.
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- `LSHandlerRank` is `Default`, and the role is `Editor`.
+- The image cache purges at launch and when the app resigns active (the Mac has no background state).
+- The word count counts the whole text on each change (`ponytail:` comment in `update()`); move it off the main thread if a large file lags.
+- `MarkdownView.documentURL` is fixed when the view is made. A rename updates the title (`presentedItemDidMove`) but not the base of relative links; 2e owns outside changes.
+- The Help menu is empty (2f has no help book in the plan).
+- On Mac the format bar shows on a non-empty selection (log 001), not always.
+- Spell check underlines words inside link syntax; the system checker sees the raw text.
+- The strip buttons use target/action: Save As and Duplicate go to `NSDocument.saveAs(_:)` and `duplicate(_:)`.
+
+**Files.** App: `project.yml`, `Apps/Mac` (`main.swift`, `LiveEnvironment.swift`, `Info.plist`, entitlements, assets), `Apps/MacUITests/FortkeepsScrollUITests.swift`. `ScrollSupport`: `ScrollDocument`, `ScrollDocumentController`, `ScrollAppDelegate`, `DocumentWindow+AppKit` (also `ScrollEnvironment`), `DocumentHost+AppKit` (the `MarkdownHost` side), `EmptyWindow+AppKit`, `StripView+AppKit`, `MainMenu+AppKit`, `FolderBookmarks+AppKit`, `Acknowledgements+AppKit`, `ScrollStrings`. `MarkdownCore`: `DocumentWindowRules.swift` (`WordCount`, `Zoom`, `MarkdownDocument.needsFolder`). `MarkdownViews`: public `zoom` and `perform(_:)`, the view hands first responder to its text view, a host set late gets the near images, Bold over Select All leaves the last line break outside. Gate: `scripts/mac-app-test.sh` and `just mac-app-test`; the iOS steps pass `-workspace .` so a generated project in the root does not hide the package.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| The document type list equals the accepted extensions. | `the document type list equals the accepted extensions`, `the Markdown type declares every accepted extension but txt` (Info.plist) |
+| A second open of the same path selects the open document. | `a second open of the same path gives the open document` |
+| The refusal strings equal the final strings. | **Pending (WAIT-3).** `another extension is refused with its alert and not opened` and `a file that is not UTF-8 is refused with its alert` check the DRAFT strings of screens §3; swap in the final strings when Story Weaver delivers them. |
+| A checkbox path calls save immediately. An `edit` change does not call save directly. | `a checkbox change saves at once`, `an edit marks the document dirty and does not save` |
+| A failed save shows the strip and keeps the text. | `a failed save shows the strip and keeps the text` (read-only folder and file; the strip's Save As goes to the document; the system error sheet is suppressed) |
+| Option-Command-L toggles Lock, and Lock disables the checkboxes. | `the Lock item, Option-Command-L, toggles Lock and Lock disables the checkboxes`; UI test `testOptionCommandLLocksAndUnlocksTheText` |
+| `performAccessibilityAudit()` passes on the document window and the empty window. | UI tests `testTheDocumentWindowPassesTheAccessibilityAudit`, `testTheEmptyWindowPassesTheAccessibilityAudit`. The empty-window audit ignores "Label not human-readable" only on a recent-file button whose title ends in `.md`: the title is the person's file name. |
+
+Manual check (CRLF, checkbox, Undo): now a UI test, `testACRLFFileKeepsItsBytesAndACheckboxAndItsUndoSaveAtOnce`. It opens `- [ ] one\r\n- [ ] two\r\n`, quits with Command-Q and reads the same bytes, clicks the first checkbox and reads `- [x] one\n- [ ] two\n`, then presses Command-Z and reads `- [ ] one\n- [ ] two\n`. Mutant: with `undo(_:)` emptied it fails at the Undo read.
+
+**Self-review (deep review, in session).**
+
+- Test harness: under `swift test` an AppKit call that stops the main run loop (`performClose` on a document window, ending a Save panel sheet) ends the whole run with exit 0 and no summary, so later suites never ran. Found by checking for the `Test run with` line of `ScrollSupportTests`, then bisecting with `--skip`. Close Window is tested with a window subclass that counts `performClose`; the strip buttons became target/action, so the tests check the target and selector instead of opening the Save panel. File-presenter calls go on `presentedItemOperationQueue` (on main they hang). Each tab test sets its own `tabbingIdentifier`, because AppKit tabs a new window into another test's group.
+- Bugs found by running the app: an image card stuck on "Loading…" (the host was set after the first viewport pass); a second Open Recent menu (AppKit adds one); the empty window had no title (a blank Window menu row, a contrast-audit failure) and grew to 853 pt with a long folder; Bold over Select All wrapped the final line break.
+- Lint fixes: `MarkdownView+AppKit.swift` over 400 lines (`formatAction(for:)` moved to `FormatBar+AppKit.swift`, `zoom` and `perform(_:)` to an extension); the Find submenu moved out of `editMenu()`; `unowned` captures became `weak`.
+- Mutations: 3 runs of 39, 6, and 1 one-clause mutants with `scratchpad/mutate.py` over `ScrollDocument`, `DocumentWindowController`, `ScrollAppDelegate`, `ScrollDocumentController`, `FolderBookmarks`, `EmptyWindowController`, `DocumentWindowRules`, the Select All fix, and the late-host fix.
+  - Run 1 (39): 31 caught, 1 skipped (its pattern had changed), 7 survived. The survivors led to these changes:
+    - The deleted-file test now waits for an autosave and sees no file. It then saves, and sees the file back with no deleted strip (`a deleted file shows its strip and pauses autosave until a save`).
+    - The read-only test now calls Lock and sees it stay on.
+    - The Lock test checks the toolbar label.
+    - The Remove from Recent test checks that the empty window no longer lists the file.
+  - Removed, not tested:
+    - `saveOperation != .autosaveElsewhereOperation`: an autosave elsewhere of a deleted document fails with Cocoa error 512 (probe run in the test), so the clause could not matter.
+    - `tabGroup?.selectedWindow =` in Command-number: a menu key equivalent reaches only an active app, where `makeKeyAndOrderFront` selects the tab.
+  - Accepted: the `!isStale` check in `FolderBookmarks.restore()`; a test cannot make a stale bookmark. The test is now named `a broken bookmark is dropped`.
+  - Runs 2–3 (7): every mutant caught, including the late-host re-request and `isDeleted = false` after a save.
+- Gate: `just test` now fails unless every bundle under `Tests` reports a passed run. Proof: an empty `Tests/ZZProbe` folder made it fail with `4 of 5 test bundles reported a passed run`.
+- Undo was broken on Mac: Edit › Undo stayed disabled and Command-Z did nothing, after typing or a checkbox click. The text view turns `allowsUndo` off, and the window answered `undo:` with its own, empty manager. `MarkdownNSTextView` now handles `undo:` and `redo:` and validates them against the controller's manager (`the window's Undo and Redo reach the view's undo groups`, red before the fix). An `undoManager` override alone did not help; the window does not ask the first responder. `MainMenu` builds the two selectors with `NSSelectorFromString`, because `#selector` cannot see the internal methods and `Selector(("undo:"))` now warns.
+- UI test harness: `XCUIApplication.open(_:)` starts its own copy of the app. After `launch()` it started a second copy, and the first copy's empty window stayed on screen. XCUITest reported it as an interrupting 560×412 window, and every test after the first failed. Found with `CGWindowListCopyWindowInfo` and an `NSLog` of the app's windows in the test run, both since removed. The tests now open files without `launch()`, and `tearDown` quits the app, which XCUITest leaves running after `open`. `mac-app-test.sh` ignores XCTest's `[Internal]` priority-inversion warnings about its own threads; app build warnings still fail it.
+- Gate fixes:
+  - The iOS steps pass `-workspace .`. With `FortkeepsScroll.xcodeproj` in the root, `xcodebuild` picked the project and could not find the package scheme.
+  - Coverage of `DocumentImages.image(for:)` dropped the three lines after an `await` in 2 of 5 runs. The test that runs those lines passed each time. The lines moved to a synchronous helper; 5 runs since, all at 100%.
+- Known flake: `testTabMovesToALinkAndReturnOpensIt` failed once in about 6 runs ("Failed to … application"), then passed 4 times, including alone. Not explained; rerun `mac-app-test` once and look if it repeats.
+- Gate: `just check` green with 0 warnings (2026-11-02): Swift Testing on macOS ran 128 ScrollSupport, 136 MarkdownViews, 310 MarkdownCore, and 17 FortkeepsCards tests; coverage 100% for the three gated modules; the iPhone 18 Pro run; 7 Mac UI tests; lint and format clean.
 

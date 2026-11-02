@@ -12,7 +12,7 @@ spm_build := env_var_or_default("FORTKEEPS_MARKDOWN_BUILD", env_var("HOME") / "L
 
 default: check
 
-check: build test coverage-check core-modules ios-build ios-test lint format-check
+check: build test coverage-check core-modules ios-build ios-test mac-app-test lint format-check
 
 # iCloud Drive conflict copies ("Foo 2.swift") compile as a second type.
 icloud-clean:
@@ -22,8 +22,19 @@ icloud-clean:
 build: icloud-clean
     swift build --build-path '{{spm_build}}'
 
+# AppKit can stop the test run loop, which ends a bundle with exit 0 and no
+# summary: every bundle under Tests must report its passed run.
 test: icloud-clean
-    swift test --enable-code-coverage --build-path '{{spm_build}}'
+    #!/usr/bin/env bash
+    set -euo pipefail
+    log=$(mktemp)
+    swift test --enable-code-coverage --build-path '{{spm_build}}' 2>&1 | tee "${log}"
+    runs=$(grep -c 'Test run with .* passed' "${log}" || true)
+    bundles=$(find Tests -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+    if [ "${runs}" != "${bundles}" ]; then
+        echo "error: ${runs} of ${bundles} test bundles reported a passed run" >&2
+        exit 1
+    fi
 
 # Reads the coverage of the last `just test`.
 coverage-check:
@@ -36,12 +47,20 @@ ios-build:
     #!/usr/bin/env bash
     set -euo pipefail
     log=$(mktemp)
-    if ! xcodebuild -quiet build -scheme FortkeepsMarkdown-Package -destination 'generic/platform=iOS' \
+    if ! xcodebuild -quiet build -workspace . -scheme FortkeepsMarkdown-Package -destination 'generic/platform=iOS' \
         -derivedDataPath .build-xcode >"${log}" 2>&1; then
         cat "${log}" >&2
         exit 1
     fi
     echo "ok: package builds for iOS"
+
+# Generates FortkeepsScroll.xcodeproj from project.yml; the iOS steps pass `-workspace .` to build the package.
+project:
+    xcodegen generate
+
+# The Mac app build and its keyboard and accessibility-audit UI tests.
+mac-app-test:
+    scripts/mac-app-test.sh
 
 # The view tests on an iOS simulator.
 ios-test:

@@ -7,7 +7,17 @@ import MarkdownCore
 /// to it. Offsets are UTF-16 offsets in `displayString` unless named otherwise.
 @MainActor
 final class MarkdownTextController {
-    weak var host: MarkdownHost?
+    /// A host set after the first viewport pass gets the images near it.
+    weak var host: MarkdownHost? {
+        didSet {
+            if let visible {
+                viewportChanged(visible)
+            }
+        }
+    }
+
+    /// The last visible range, in display offsets.
+    var visible: Range<Int>?
     let features: MarkdownFeatures
     let presentation: MarkdownPresentation
     let documentURL: URL?

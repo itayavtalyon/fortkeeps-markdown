@@ -4,6 +4,13 @@ import MarkdownCore
 /// The host interface both platform views share (design log 001 › Host
 /// interface). One `MarkdownView` compiles per platform.
 public extension MarkdownView {
+    /// The host; the view holds it weakly. The host may set itself after
+    /// creating the view.
+    var host: MarkdownHost? {
+        get { controller.host }
+        set { controller.host = newValue }
+    }
+
     var text: String {
         controller.text
     }
@@ -35,6 +42,18 @@ public extension MarkdownView {
     /// The host has a new result for a destination.
     func refreshImage(destination: String) {
         controller.refreshImage(destination: destination)
+    }
+
+    /// The heading of a `#fragment` link (design log 001 › Links): the caret
+    /// goes to its start, the view scrolls there, and VoiceOver focus moves
+    /// there. False, with no change, when no heading has that GFM slug.
+    @discardableResult
+    func showHeading(fragment: String) -> Bool {
+        guard let block = controller.document.headingBlock(forFragment: fragment) else { return false }
+        let start = block.sourceRange.lowerBound
+        anchor = MarkdownAnchor(block: start, offsetInBlock: 0, selection: start ..< start)
+        moveAccessibilityFocusToSelection()
+        return true
     }
 
     /// Performs a format command, as the format bar and the shortcuts do.

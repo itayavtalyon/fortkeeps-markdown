@@ -1,6 +1,6 @@
 # 004 - Fortkeeps Scroll plan 02 decisions
 
-Revision 2, 2026-11-01 (Round 2 added for stage 2b). Revision 1, 2026-10-31. Written by the plan 02 implementer from Itay's answers to the plan 02 grill questions. Status: Design.
+Revision 3, 2026-11-01 (Round 3 added for stage 2c). Revision 2, 2026-11-01 (Round 2 added for stage 2b). Revision 1, 2026-10-31. Written by the plan 02 implementer from Itay's answers to the plan 02 grill questions. Status: Design.
 Logs 001, 002, and 003 stay as written. This log amends them. Each decision names the section it amends. Where this log and an earlier log differ, this log wins.
 Each stage of plan 02 (`implementation-plans/02-apps.md`) adds its answers here as a new round.
 
@@ -49,6 +49,19 @@ Stage 2b loads images. Logs 001 and 002 differ on the card of an SVG, on which f
   A: On the folder-access card. A remote card keeps "Loads the image from {host}."
 - **Q: How does the card of an untitled document say why a local image does not show?**
   A: `.refused` carries an optional reason from the host: `.refused(reason: String?)`. The app passes "Save the document to show local images."
+
+### Round 3 (2026-11-01: Itay, stage 2c)
+
+- **Q: How is the app project set up?**
+  A: With XcodeGen. `project.yml` is checked in. `just` generates the `.xcodeproj`, and git ignores it.
+- **Q: Plan 03 says to build unsigned. The sandbox and the UI tests need a code signature. Which build?**
+  A: An ad-hoc signature (`CODE_SIGN_IDENTITY` `-`), with no team ID and no provisioning profile. The sandbox entitlements apply. The build runs on this Mac only.
+- **Q: Which menu commands does 2c build?**
+  A: Every command whose feature exists in 2c, plus per-document zoom and `#fragment` links. Export, Print, Open Folder, the sidebar, the Outline, Settings, and Copy as Rich Text come with 2f.
+- **Q: Do the UI tests run in the gate?**
+  A: Yes. `just check` runs the keyboard and accessibility-audit UI tests.
+- **Q: What does the create button of the empty window read?**
+  A: `New File`, as the File menu and the sidebar (log 002).
 
 ## Design
 

@@ -27,6 +27,53 @@
             return resolved.map { [$0.redComponent, $0.greenComponent, $0.blueComponent] } ?? []
         }
 
+        @Test
+        func `the window's Undo and Redo reach the view's undo groups`() {
+            let view = Self.givenView("- [ ] a\n")
+            let window = NSWindow(
+                contentRect: CGRect(x: 0, y: 0, width: 400, height: 300),
+                styleMask: [.titled],
+                backing: .buffered,
+                defer: true
+            )
+            window.contentView = view
+            window.makeFirstResponder(view.textView)
+            let undo = NSMenuItem(title: "Undo", action: #selector(MarkdownNSTextView.undo(_:)), keyEquivalent: "")
+            #expect(!view.textView.validateUserInterfaceItem(undo))
+            view.controller.toggleTask(0)
+            #expect(view.textView.validateUserInterfaceItem(undo))
+
+            #expect(view.textView.tryToPerform(#selector(MarkdownNSTextView.undo(_:)), with: nil))
+            #expect(view.controller.text == "- [ ] a\n")
+            #expect(view.textView.tryToPerform(#selector(MarkdownNSTextView.redo(_:)), with: nil))
+            #expect(view.controller.text == "- [x] a\n")
+            #expect(!view.textView.validateUserInterfaceItem(NSMenuItem(
+                title: "Redo", action: #selector(MarkdownNSTextView.redo(_:)), keyEquivalent: ""
+            )))
+        }
+
+        @Test
+        func `a fragment puts the caret at its heading, and an unknown slug does nothing`() {
+            let view = Self.givenView("# A\n\ntext\n\n## Big Title\n")
+
+            #expect(view.showHeading(fragment: "big-title"))
+            #expect(view.anchor.selection == 11 ..< 11)
+            #expect(!view.showHeading(fragment: "nope"))
+            #expect(view.anchor.selection == 11 ..< 11)
+        }
+
+        @Test
+        func `zoom scales the text from 80 to 200 percent`() {
+            let view = Self.givenView("a\n")
+
+            view.zoom = 1.5
+            #expect(view.scrollView.magnification == 1.5)
+            view.zoom = 3
+            #expect(view.zoom == 2)
+            view.zoom = 0.5
+            #expect(view.zoom == 0.8)
+        }
+
         static func components(_ color: SRGBColor) -> [CGFloat] {
             [CGFloat(color.red) / 255, CGFloat(color.green) / 255, CGFloat(color.blue) / 255]
         }

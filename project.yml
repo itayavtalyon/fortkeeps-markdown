@@ -1,0 +1,68 @@
+# The app project (design log 004, Round 3). `just project` generates
+# FortkeepsScroll.xcodeproj from this file; git ignores the generated project.
+name: FortkeepsScroll
+options:
+  bundleIdPrefix: app.fortkeeps
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+packages:
+  FortkeepsMarkdown:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    # Ad-hoc signature: no team ID and no profile until roadmap V1-43 (plan 03 3d).
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: YES
+targets:
+  Fortkeeps Scroll:
+    type: application
+    platform: macOS
+    sources:
+      - Apps/Mac
+      # ScrollSupport has no package product (design log 004, Round 2), so
+      # the app compiles its sources.
+      - Sources/ScrollSupport
+      - path: Acknowledgements
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: FortkeepsMarkdown
+        product: MarkdownViews
+    settings:
+      base:
+        PRODUCT_NAME: Fortkeeps Scroll
+        PRODUCT_BUNDLE_IDENTIFIER: app.fortkeeps.scroll
+        PRODUCT_MODULE_NAME: FortkeepsScroll
+        INFOPLIST_FILE: Apps/Mac/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Apps/Mac/FortkeepsScroll.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+  Fortkeeps Scroll UI Tests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - Apps/MacUITests
+    dependencies:
+      - target: Fortkeeps Scroll
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.fortkeeps.scroll.uitests
+        TEST_TARGET_NAME: Fortkeeps Scroll
+        GENERATE_INFOPLIST_FILE: YES
+        # An ad-hoc runner under the hardened runtime refuses the ad-hoc test bundle.
+        ENABLE_HARDENED_RUNTIME: NO
+schemes:
+  Fortkeeps Scroll:
+    build:
+      targets:
+        Fortkeeps Scroll: all
+    test:
+      targets:
+        - Fortkeeps Scroll UI Tests

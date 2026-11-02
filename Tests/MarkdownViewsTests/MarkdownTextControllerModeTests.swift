@@ -133,6 +133,18 @@ struct MarkdownTextControllerModeTests {
     }
 
     @Test
+    func `a host set after the first viewport pass gets the images near it`() async {
+        let (controller, host) = MarkdownTextControllerTests.givenController("![a](a.png)\n", mode: .rendered)
+        controller.host = nil
+        controller.viewportChanged(0 ..< 1)
+
+        controller.host = host
+        await settle { !host.requested.isEmpty }
+
+        #expect(host.requested == ["a.png"])
+    }
+
+    @Test
     func `an image near the viewport is requested and a discarded one is cancelled`() async {
         let text = "![a](https://e.com/a.png)\n\n" + String(repeating: "line\n\n", count: 400) + "![b](https://e.com/b.png)\n"
         let (controller, host) = MarkdownTextControllerTests.givenController(text, mode: .rendered)

@@ -18,6 +18,7 @@
         var startsTyping = false
         /// The iPad tabs show this screen's title and menu in their bar.
         var onUpdate: (() -> Void)?
+        var outside = OutsideChange()
 
         init(document: ScrollDocument, environment: ScrollEnvironment) {
             self.document = document
@@ -34,6 +35,7 @@
             markdownView.host = self
             images.onRefresh = { [weak self] in self?.markdownView.refreshImage(destination: $0) }
             document.onStateChange = { [weak self] in self?.update() }
+            document.onOutsideChange = { [weak self] in self?.outsideChange($0) }
             navigationItem.largeTitleDisplayMode = .always
             navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"))
             update()
@@ -80,14 +82,16 @@
 
         /// The folder and the save state, under the file name.
         var statusText: String {
+            let saved = outside.keptMine ? ScrollStrings.savedOver : ScrollStrings.saved
             let state = markdownView.mode == .editorLocked ? ScrollStrings.locked
-                : document.hasUnsavedChanges ? ScrollStrings.saving : ScrollStrings.saved
+                : document.hasUnsavedChanges ? ScrollStrings.saving : saved
             return document.fileURL.deletingLastPathComponent().lastPathComponent + " · " + state
         }
 
         func update() {
             title = document.fileName
             markdownView.accessibilityLabel = document.fileName
+            markdownView.documentURL = document.fileURL
             navigationItem.showStatus(statusText)
             let locked = markdownView.mode == .editorLocked
             var items: [UIMenuElement] = []
@@ -106,6 +110,9 @@
             let name = document.fileName
             let saveAs: (title: String, run: () -> Void) = (ScrollStrings.saveAs, { [weak self] in self?.saveAs() })
             var shown: [StripView] = []
+            if let note = noteStrip() {
+                shown.append(note)
+            }
             if document.isDeleted {
                 shown.append(StripView(kind: .deleted, text: ScrollStrings.deleted(name), buttons: [
                     saveAs, (ScrollStrings.close, { [weak self] in self?.confirmClose() })
@@ -219,6 +226,9 @@
         }
 
         func textDidChange(_ change: TextChange) {
+            // A reload clears them too; a quiet reload shows its note after.
+            outside.showsNote = false
+            outside.keptMine = false
             document.apply(change)
             update()
         }

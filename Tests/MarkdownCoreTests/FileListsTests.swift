@@ -65,12 +65,24 @@ struct FileListsTests {
     }
 
     @Test
+    func `a renamed open file keeps its place in Open`() {
+        var lists = FileLists()
+        lists.opened(Self.file("a.md"), at: start)
+        lists.opened(Self.file("b.md"), at: start + 60)
+
+        lists.replace(Self.file("a.md"), with: Self.file("c.md"))
+
+        #expect(lists.open.map(\.url) == [Self.file("c.md"), Self.file("b.md")])
+        #expect(lists.open.first?.lastOpened == start)
+    }
+
+    @Test
     func `a found file keeps its place in Recent`() {
         var lists = FileLists()
         lists.closed(Self.file("a.md"), at: start)
         lists.closed(Self.file("b.md"), at: start + 60)
 
-        lists.replaceRecent(Self.file("a.md"), with: Self.file("a.md", in: "Moved"))
+        lists.replace(Self.file("a.md"), with: Self.file("a.md", in: "Moved"))
 
         #expect(lists.recent.map(\.url) == [Self.file("b.md"), Self.file("a.md", in: "Moved")])
         #expect(lists.recent.last?.lastOpened == start)

@@ -109,4 +109,18 @@ struct FileListStoreTests {
 
         #expect(changes == 1)
     }
+
+    @Test
+    func `a renamed file keeps its row, under the new path, after a relaunch`() throws {
+        let store = FileListStore(defaults: defaults)
+        let first = try file("a.md")
+        store.opened(first, at: start)
+        let moved = folder.appending(path: "b.md").resolvingSymlinksInPath()
+        try FileManager.default.moveItem(at: first, to: moved)
+
+        store.moved(first, to: moved)
+
+        #expect(store.lists.open.map(\.url) == [moved])
+        #expect(FileListStore(defaults: defaults).lists.open.map(\.url) == [moved])
+    }
 }

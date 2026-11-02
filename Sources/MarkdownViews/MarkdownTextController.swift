@@ -20,7 +20,7 @@ final class MarkdownTextController {
     var visible: Range<Int>?
     let features: MarkdownFeatures
     let presentation: MarkdownPresentation
-    let documentURL: URL?
+    var documentURL: URL?
     let maxUTF8Bytes: Int?
 
     private(set) var text: String
@@ -187,12 +187,13 @@ final class MarkdownTextController {
     }
 
     /// `groupReason` is the reason of the undo group an undo or redo replays.
-    private func apply(
+    func apply(
         _ edit: TextEdit,
         reason: TextChange.Reason,
         groupReason: TextChange.Reason? = nil,
         event: UndoGrouping.Event?,
-        time: Double
+        time: Double,
+        actionName: String? = nil
     ) {
         let lower = text.utf16.index(text.utf16.startIndex, offsetBy: edit.range.lowerBound)
         let upper = text.utf16.index(lower, offsetBy: edit.range.count)
@@ -201,7 +202,7 @@ final class MarkdownTextController {
         cachedDocument = nil
         let change = Change(location: edit.range.lowerBound, removed: removed, inserted: edit.replacement)
         if let event {
-            record(change, reason: reason, decision: grouping.register(event, at: time))
+            record(change, reason: reason, decision: grouping.register(event, at: time), actionName: actionName)
         }
         host?.textDidChange(TextChange(
             reason: reason,
@@ -231,19 +232,27 @@ final class MarkdownTextController {
         /// The reason of the change that opened the group.
         let reason: TextChange.Reason
         var changes: [Change]
+        /// The name in the Undo and Redo menu items, as `Undo Reload`; nil keeps the system's.
+        let actionName: String?
 
-        init(_ reason: TextChange.Reason, _ changes: [Change]) {
+        init(_ reason: TextChange.Reason, _ changes: [Change], actionName: String? = nil) {
             self.reason = reason
             self.changes = changes
+            self.actionName = actionName
         }
     }
 
-    private func record(_ change: Change, reason: TextChange.Reason, decision: UndoGrouping.Decision) {
+    private func record(
+        _ change: Change,
+        reason: TextChange.Reason,
+        decision: UndoGrouping.Decision,
+        actionName: String?
+    ) {
         if decision == .continueGroup, let openGroup {
             openGroup.changes.append(change)
             return
         }
-        let group = UndoGroup(reason, [change])
+        let group = UndoGroup(reason, [change], actionName: actionName)
         register(group)
         // After an own group UndoGrouping opens a new one, so the group can stay open.
         openGroup = group
@@ -258,6 +267,7 @@ final class MarkdownTextController {
                 controller.reverse(group)
             }
         }
+        group.actionName.map { undoManager.setActionName($0) }
         undoManager.endUndoGrouping()
     }
 
@@ -265,6 +275,7 @@ final class MarkdownTextController {
         let reason: TextChange.Reason = undoManager.isUndoing ? .undo : .redo
         openGroup = nil
         _ = grouping.register(.caretJump, at: 0)
+        // The undo manager keeps the action name for Redo and the next Undo.
         let inverse = UndoGroup(group.reason, group.changes.reversed().map(\.inverse))
         for change in inverse.changes {
             let range = change.location ..< change.location + change.removed.utf16.count

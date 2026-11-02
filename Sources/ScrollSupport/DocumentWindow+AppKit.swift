@@ -14,12 +14,13 @@
         let images: DocumentImages
         /// No write permission: Lock stays on (screens §3.13).
         let isReadOnly: Bool
-        private let strips = NSStackView()
+        let strips = NSStackView()
         private let status = NSTextField(labelWithString: "")
         private let statusBar: NSStackView
         let lockItem = NSToolbarItem(itemIdentifier: .lock)
         /// The folder-access strip shows once per document per session.
         private var showsFolderStrip = false
+        var outside = OutsideChange()
 
         var scrollDocument: ScrollDocument? {
             document as? ScrollDocument
@@ -59,6 +60,7 @@
             }
             layOut(window)
             document.onStateChange = { [weak self] in self?.update() }
+            document.onOutsideChange = { [weak self] in self?.outsideChange($0) }
             NotificationCenter.default.addObserver(
                 self, selector: #selector(preferencesChanged), name: UserDefaults.didChangeNotification, object: nil
             )
@@ -95,8 +97,10 @@
 
         // MARK: title (design log 001 › Windows and chrome)
 
+        /// The compare view's title while it shows (screens §3.11).
         override func windowTitle(forDocumentDisplayName displayName: String) -> String {
-            scrollDocument?.fileName ?? displayName
+            let name = scrollDocument?.fileName ?? displayName
+            return outside.resolveView == nil ? name : ScrollStrings.compareTitle(name)
         }
 
         override func synchronizeWindowTitleWithDocumentName() {
@@ -111,8 +115,13 @@
         /// The status bar, the strips, and the Lock button follow the document.
         func update() {
             guard let document = scrollDocument else { return }
+            if outside.keepsMine, document.saveState == .saving {
+                outside.keepsMine = false
+                outside.keptMine = true
+            }
+            let saved = outside.keptMine ? ScrollStrings.savedOver : ScrollStrings.saved
             let state = markdownView.mode == .editorLocked ? ScrollStrings.locked
-                : document.saveState == .saved ? ScrollStrings.saved : ScrollStrings.saving
+                : document.saveState == .saved ? saved : ScrollStrings.saving
             // ponytail: counts the whole text per change; count off the main thread if large files lag.
             status.stringValue = state + " · " + ScrollStrings.words(WordCount.count(document.text))
             statusBar.isHidden = !UserDefaults.standard.bool(forKey: Self.showsStatusBarKey, default: true)
@@ -121,12 +130,18 @@
             lockItem.label = locked ? ScrollStrings.unlock : ScrollStrings.lock
             lockItem.image = NSImage(systemSymbolName: locked ? "lock" : "lock.open", accessibilityDescription: nil)
             synchronizeWindowTitleWithDocumentName()
+            markdownView.documentURL = document.fileURL
             strips.setViews(currentStrips(document), in: .top)
         }
 
         private func currentStrips(_ document: ScrollDocument) -> [StripView] {
             let name = document.fileName
             var views: [StripView] = []
+            if outside.showsNote {
+                views.append(StripView(kind: .reloaded, text: ScrollStrings.reloadNote, buttons: [
+                    .init(title: ScrollStrings.undo, target: self, action: #selector(undoReload))
+                ]))
+            }
             if showsFolderStrip, let folder = document.fileURL?.deletingLastPathComponent() {
                 views.append(StripView(
                     kind: .folderAccess,

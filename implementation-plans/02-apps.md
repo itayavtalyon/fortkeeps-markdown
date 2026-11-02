@@ -37,7 +37,7 @@ Test that policy in the plan 01 test target.
 | 2b | Image loader and cache | Built, self-reviewed (step-wide review pending) | — |
 | 2c | Mac app | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending) |
 | 2d | iOS and iPadOS app | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending), WAIT-6 (simulator only: no team ID) |
-| 2e | Outside changes and Resolve | Not started | — |
+| 2e | Outside changes and Resolve | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending) |
 | 2f | Sidebar, export, settings, relaunch | Not started | — |
 
 ### 2a — Document policy
@@ -426,3 +426,73 @@ Also: the strips (`a deleted file shows its strip, and Close asks first`, `a fai
 - Known gaps (not 2d scope): the Open and Recent rows and the session's screen key still use the old path after a rename (2e owns outside changes); the checkbox VoiceOver value says "checked/unchecked" only from plan 03; the home screen's search field has a text-clipped audit issue (the home screen audit is not a 2d test); the format bar's `.tabBar` trait makes unlabeled container elements (the audit passes).
 - Lint fixes: 17 test names that began with a capital now begin lowercase; three test types over 250 lines lost tests to extension files (the strips, a missing Recent file, the hosted view); the browser's delegate conformance moved to an extension, because SwiftFormat wrapped its 122-column declaration and SwiftLint refused the brace on its own line; `check-document-types.py` writes to the streams instead of calling `print`.
 - Gate (2026-11-02): every step of `just check` but the two UI-test steps passed on the committed tree with 0 warnings: Swift Testing on macOS ran 318 MarkdownCore, 136 MarkdownViews, 135 ScrollSupport, and 17 FortkeepsCards tests; coverage 100% for the three gated modules and for the iOS-only `ScrollSupport` files; the iPhone 18 Pro simulator ran 263 MarkdownViews and ScrollSupport tests (1 skipped: the timing test, which runs only with `FORTKEEPS_TIMING`); lint and format clean. `mac-app-test` and `ios-app-test` did not run on this tree: the screen was locked, and Itay chose to commit without them. Their last run passed before the strips, the deep-review fixes, and the lint fixes (all 3 iOS UI tests on iPhone 18 Pro and iPad Air 11-inch (M4), 7 Mac UI tests). Run `just mac-app-test ios-app-test` first in 2e.
+
+
+### 2e — Outside changes and Resolve
+
+Branch `stage/2e-outside-changes` from the 2d tip (f01a6d6).
+
+**Decisions.** Itay answered five grill questions and gave one direction (design log 004 Round 5; the remember writes are held, see Handover):
+
+1. An outside change with no unsaved edits follows log 003: an undoable reload, `Reload` in the Undo menu, and the note `Updated with changes from another app.` with Undo. This replaces log 001's silent reload that clears Undo, so the first must-pass test changes (table below).
+2. The dialog and the compare view use log 003's copy. Log 001's Reload, Keep Mine, and Resolve… keep their behavior as Use Version on Disk, Keep My Changes, and Compare….
+3. 2e builds the core of the compare view (screens §3.11) with its keys and VoiceOver. Edit in a hunk, Use Both Theirs First, Use … for the Rest, the Changes rotor, the changed-again banner, and the ⌥⌘I toggle wait.
+4. Undo Reload and Redo Reload save by autosave, like a typed edit.
+5. The library adds `MarkdownView.reload(text:undoActionName:)` and `MarkdownView.replaceText(_:)`. Plan 01's `reload(text:)` still clears Undo.
+6. Direction (Itay, mid-stage): the compare view lives in the library so Fortkeeps can use it for its own conflicts: `ResolveModel` in `MarkdownCore`, and `ResolveView` (Mac and iOS, its keys, VoiceOver, and strings) in `MarkdownViews`. The host passes the column titles.
+7. Asked during the deep review: `MarkdownView.documentURL` is settable, and both apps set it when the file moves (the rename gap the 2c and 2d notes left to 2e).
+8. Asked during the deep review: `replaceText(_:undoActionName:)` takes an optional name; Scroll passes `Resolve`, so the menu reads Undo Resolve (screens §3.11).
+9. Asked during the deep review: DRAFT VoiceOver hints on the dialog's buttons (screens §3.10) until WAIT-3.
+10. Asked during the deep review: the screen was locked; Itay unlocks it, and 2e runs `just mac-app-test ios-app-test` before its commit.
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- `MarkdownView.undoManager` now returns the view's own undo manager on both platforms, so a host's own Undo button (the note's) reaches the view's groups. Additive public behavior; Fortkeeps gets it too.
+- A second outside change while the dialog is up updates the disk text the dialog acts on and does not ask again. While the compare view is up it does not refresh the view (the changed-again banner waits, decision 3), so Apply merges with the version the view showed.
+- The file presenter ignores bytes on disk that are the bytes it last read or wrote, and bytes whose text equals the open text (another app's CRLF rewrite). Bytes that are not UTF-8 are ignored; the next save writes over them.
+- The Mac status bar reads `Saved your changes over the other version.` from the save that follows Keep My Changes until the next edit; on iOS the title block's state line reads it once the document has no unsaved changes.
+- On the Mac the compare view takes the window's content in place of the text, under a `Compare versions of “name”` title; on iOS it is a full-screen navigation screen with that title.
+- The note stays while the pointer is over it: the Mac checks the pointer at each 4-second mark; iPad uses a hover recognizer.
+- The Mac dialog starts with focus on no button: NSAlert's panel gives its first button for a nil initial responder, so the content view is the initial responder. Without Full Keyboard Access macOS focuses no button anyway; with it on, this is not checked by a test.
+- iOS has no VoiceOver hints on the dialog: `UIAlertAction` has no hint API.
+- ⌘Z in the compare view takes back the last choice and the move that came with it (screens §3.11 keys): Edit › Undo on the Mac, a key command on iOS.
+- On iOS the compare view takes the keys when it joins a window, so the host does nothing for them; on the Mac the host makes it first responder.
+- Compare's counter sits in the bottom bar on both platforms, not in the toolbar (screens §3.11).
+
+**Files.** `MarkdownCore`: `ResolveModel.swift` (new: rows, choices, current change, ⌘Z), `LineDiff` (`mineLines` and `theirsLines` public), `Editing` (`UndoGrouping.Event.reload`), `FileLists.replace(_:with:)` (was `replaceRecent`; both lists). `MarkdownViews`: `MarkdownTextController+Reload.swift` (new: `reload(text:undoActionName:)`, `replaceText(_:undoActionName:)`, the changed span), `MarkdownTextController` (undo action names; `documentURL` settable), `MarkdownView+Shared` (the public methods, `documentURL`, `undoManager`), `ResolveController.swift` (new: behavior, keys, VoiceOver, `ResolveStrings`), `ResolveView+AppKit.swift` and `ResolveView+UIKit.swift` (new). `ScrollSupport`: `OutsideChange+AppKit.swift` and `OutsideChange+UIKit.swift` (new: the note, the dialog, the compare view), `ScrollDocument` and `ScrollDocument+UIKit` (the presenter, the disk bytes, paused saves; Mac `fileURL` follows a move; iOS `onMove`), `DocumentWindow+AppKit`, `DocumentHost+AppKit`, `DocumentViewController+UIKit`, `DocumentSession+UIKit` (a rename keeps the screen), `FileListStore.moved(_:to:)`, `StripView` (`.reloaded`), `ScrollStrings` (log 003 copy, the hints, `Resolve`). Log 004 Round 5 and its Outside changes section.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| An outside change with no edits reloads silently and clears Undo. Changed by Round 5 (log 003): one undo group named Reload, the note, and its Undo. | `an outside change with no edits reloads with the note, and its Undo restores the text` (Mac and iOS); `an undoable reload replaces only the changed span, keeps the caret, and reports reload`; `undo and redo of an undoable reload carry the reload group reason`; `the note goes after its time, but not while the pointer is over it` |
+| An outside change with edits shows the dialog. Esc and Return change nothing. | Mac `an outside change with edits shows the dialog; Return and Esc do nothing` (no key equivalents; the panel's `performKeyEquivalent` is false for Return and Esc; no button has the initial focus); iOS `an outside change with edits shows the dialog with no default and no cancel` |
+| Reload loads the disk text and clears Undo. (Use Version on Disk.) | `using the version on disk loads its text and clears Undo` (Mac and iOS) |
+| Keep Mine writes the local text on the next autosave. (Keep My Changes.) | `keeping my changes writes them on the next autosave, and the status says so` (Mac and iOS) |
+| Resolve Apply writes once. Undo restores the pre-resolve text. (Compare's Apply.) | `the compare view's Apply writes once, and its Undo restores the text from before` (Mac and iOS): one undo group named Resolve |
+| Resolve Cancel writes nothing and shows the dialog again. | `the compare view's Cancel writes nothing and shows the dialog again` (Mac and iOS) |
+| A checkbox click while the dialog is visible changes no byte. | `a checkbox click while the dialog is visible changes no byte` (Mac and iOS): the checkboxes are disabled, and a checkbox change that still reaches the document is not saved |
+
+Also: the compare view (`ResolveModelTests`, `ResolveControllerTests`, `ResolveViewMacTests`, `ResolveViewIOSTests`: rows, choices, the counter, collapsed runs, side by side or stacked, keys, ⌘Z, VoiceOver groups and announcements), renames (`a moved file moves the text's base`, `a renamed file keeps its screen and its row under the new name`, `a renamed file keeps its row, under the new path, after a relaunch`).
+
+**Self-review (deep review, in session).**
+
+- Bugs found and fixed, each with a test that failed first:
+  - The changed span cut surrogate pairs: `a😀b` reloaded as `a😁b` replaced one code unit and left a lone surrogate (`the changed span keeps whole characters`).
+  - New bytes with the same text (another app's CRLF rewrite) showed the note, and its Undo undid the person's last edit; with edits it asked for nothing (`new bytes with the same text show nothing…`).
+  - iOS: a save recorded its bytes as on disk before UIDocument wrote them, so a presenter call in between read the old file and asked again. The bytes now count once the save is done.
+  - iOS: the compare view asked for first responder before it was in a window, so its keys never worked.
+  - The Mac kept the URL resource values' cached modification date, so the autosave after Keep failed with "changed by another application".
+  - The Mac status for Keep read `isDocumentEdited`, which NSDocument clears after the save's completion; it now follows the save state.
+  - The Mac window copied `fileURL` before NSDocument set it on a move; the document now reports the change when `fileURL` is set.
+- Design items found by re-reading screens §3.10–3.11 and built: focus on no button, ⌘Z for a choice, the Mac compare title in the window title, Undo Resolve, the VoiceOver hints.
+- Dead code deleted after mutation: the undo action name copied to the inverse group (the undo manager keeps it), `|| outside.disk != nil` (the document stays edited while the dialog is up), the `showsNote` guard in the pointer check, the `reason != .reload` condition (a reload now also clears the Keep status), `openGroup = nil` before a reload (a reload is its own group), and the fallback index when inserting the compare view.
+- Mutation checks (one clause each, the suites that own the code):
+  - Mac run 1 (46): 29 caught, 17 survived. New tests caught most (the note's pointer check, Keep's status, the undo names, the Cancel title); the rest was dead code, deleted (above).
+  - Mac run 2 (27): 26 caught. The title refresh on Cancel survived; the Cancel test now checks the window title.
+  - Mac run 3 (11: the title, the hints, Undo Resolve, `documentURL`, the moves, the lists): 9 caught. The `fileURL` setter and the `onStateChange` in `noteMoved` each covered for the other; the `noteMoved` one is deleted (NSDocument sets `fileURL` after the presenter call), and the setter's mutant is then caught.
+  - iOS run 1 (32): 28 caught, 4 survived. New tests: the file as read is no change even with edits, the pointer hold with a 600 ms wait, the full key-modifier list, and Saved after Keep and an edit.
+  - iOS run 2 (7): 5 caught. The bytes recorded on read survived because the real file presenter sometimes called in before the edit and recorded them (a flaky catch); a document loaded without `open()` now checks it. The `saved` check in the save completion had no failed-save case; the failed-save test now checks it. Run again: 7 of 7 caught.
+- Lint and gate fixes: a `MarkdownTextController` body over 250 lines moved the reload into `+Reload`; the two `ResolveView` inits split out their lists; test names start lowercase; the compare view's ⌘Z history is a small struct, not a three-member tuple; the Mac `fileURL` setter hops to the main actor (NSDocument's setter is nonisolated: a Swift 6 warning); the iPad hover test waits 2 s, because the whole suite shares the main actor and 600 ms sometimes left the hold loop unrun (an iOS coverage miss).
+- Known gaps (not 2e scope, or waiting): the changed-again banner, Edit in a hunk, Theirs First, … for the Rest, the Changes rotor, and ⌥⌘I wait (Round 5); a change while the compare view is up updates the text the dialog acts on but not the view; Quit while the dialog is up keeps the disk version and loses the unsaved text (autosave is paused), not decided by the Design; iOS dialog hints (no API).
+- Gate (2026-11-02): every step of `just check` passed with 0 warnings: Swift Testing on macOS ran 327 MarkdownCore, 154 MarkdownViews, 162 ScrollSupport, and 17 FortkeepsCards tests; coverage 100% for the three gated modules and for the iOS-only `ScrollSupport` files; the iPhone 18 Pro simulator ran 303 MarkdownViews and ScrollSupport tests (1 skipped: the timing test, which runs only with `FORTKEEPS_TIMING`); lint and format clean; `mac-app-test` ran the 7 Mac UI tests and `ios-app-test` the 3 iOS UI tests on iPhone 18 Pro and iPad Air 11-inch (M4), all passing, the first UI-test run since 2c and 2d.

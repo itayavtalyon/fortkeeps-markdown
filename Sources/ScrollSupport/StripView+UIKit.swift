@@ -9,6 +9,7 @@
             case deleted
             case readOnly
             case saveFailed
+            case reloaded
         }
 
         let kind: Kind

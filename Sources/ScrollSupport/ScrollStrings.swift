@@ -138,4 +138,91 @@ enum ScrollStrings {
     static var unlock: String {
         String(localized: "lock.unlock", defaultValue: "Unlock")
     }
+
+    // MARK: outside changes (design log 004 › Outside changes, log 003)
+
+    /// The undo action name of a reload: Undo Reload.
+    static var reloadAction: String {
+        String(localized: "outside.reload", defaultValue: "Reload")
+    }
+
+    static var reloadNote: String {
+        String(localized: "outside.note", defaultValue: "Updated with changes from another app.")
+    }
+
+    static var undo: String {
+        String(localized: "outside.undo", defaultValue: "Undo")
+    }
+
+    static func changedOutside(_ name: String) -> String {
+        String(localized: "outside.title", defaultValue: "“\(name)” changed outside Scroll")
+    }
+
+    static var changedOutsideBody: String {
+        String(
+            localized: "outside.body",
+            defaultValue: "Another app edited this file while you had unsaved changes. Choose which version to keep."
+        )
+    }
+
+    /// Sentence case on iOS.
+    static var useDisk: String {
+        #if os(macOS)
+            String(localized: "outside.disk", defaultValue: "Use Version on Disk")
+        #else
+            String(localized: "outside.disk", defaultValue: "Use version on disk")
+        #endif
+    }
+
+    static var keepMine: String {
+        #if os(macOS)
+            String(localized: "outside.keep", defaultValue: "Keep My Changes")
+        #else
+            String(localized: "outside.keep", defaultValue: "Keep my changes")
+        #endif
+    }
+
+    static var compare: String {
+        #if os(macOS)
+            String(localized: "outside.compare", defaultValue: "Compare…")
+        #else
+            String(localized: "outside.compare", defaultValue: "Compare")
+        #endif
+    }
+
+    static func compareTitle(_ name: String) -> String {
+        String(localized: "compare.title", defaultValue: "Compare versions of “\(name)”")
+    }
+
+    static var yourChanges: String {
+        String(localized: "compare.mine", defaultValue: "Your Changes")
+    }
+
+    static var onDisk: String {
+        String(localized: "compare.disk", defaultValue: "On Disk")
+    }
+
+    static var savedOver: String {
+        String(localized: "outside.saved", defaultValue: "Saved your changes over the other version.")
+    }
+
+    /// The undo action name of Compare's Apply: Undo Resolve (screens §3.11).
+    static var resolveAction: String {
+        String(localized: "compare.undo", defaultValue: "Resolve")
+    }
+
+    /// VoiceOver hints on the dialog's buttons (screens §3.10; DRAFT, log 004 Round 5).
+    static var outsideHints: [String] {
+        [
+            String(
+                localized: "outside.disk.hint",
+                defaultValue: "Replaces your changes with the other app's version and clears Undo."
+            ),
+            String(localized: "outside.keep.hint", defaultValue: "Saves your version over the other app's."),
+            String(
+                localized: "outside.compare.hint",
+                defaultValue: "Shows both versions so you can choose each change."
+            )
+        ]
+    }
 }

@@ -21,6 +21,12 @@
         private(set) var isDeleted = false
         /// The window follows the save state and the deletion.
         var onStateChange: (() -> Void)?
+        /// Another app changed the file; the window gets the disk text.
+        var onOutsideChange: ((String) -> Void)?
+        /// The outside-change dialog is up: saves pause, so no byte changes.
+        var pausesSaves = false
+        /// The bytes last read or written; other bytes on disk are another app's.
+        private var diskData = Data()
 
         override public nonisolated static var autosavesInPlace: Bool {
             true
@@ -40,11 +46,22 @@
                 throw OpenRefusal.notUTF8
             }
             // NSDocument reads on the main thread: concurrent reading is off.
-            MainActor.assumeIsolated { text = decoded }
+            MainActor.assumeIsolated {
+                text = decoded
+                diskData = data
+            }
         }
 
         override public func data(ofType _: String) throws -> Data {
-            DocumentFile.data(for: text)
+            let data = DocumentFile.data(for: text)
+            diskData = data
+            return data
+        }
+
+        /// A rename sets it after `presentedItemDidMove(to:)`: the window
+        /// follows here, its title and the base of links and images.
+        override public var fileURL: URL? {
+            didSet { Task { @MainActor in onStateChange?() } }
         }
 
         /// The window title: the file name with its extension, or Untitled.
@@ -103,7 +120,7 @@
             if let fileURL, !FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) {
                 noteDeleted()
             }
-            guard !isDeleted else {
+            guard !isDeleted, !pausesSaves else {
                 completionHandler(nil)
                 return
             }
@@ -132,6 +149,28 @@
             onStateChange?()
         }
 
+        // MARK: outside changes (design log 004 › Outside changes)
+
+        /// Not `super`: NSDocument would revert on its own.
+        override public nonisolated func presentedItemDidChange() {
+            Task { @MainActor in noteChangeOnDisk() }
+        }
+
+        /// New bytes on disk go to the window. The modification date follows,
+        /// so the next save does not ask about the other app.
+        func noteChangeOnDisk() {
+            // ponytail: bytes that are not UTF-8 are ignored; the next save writes over them.
+            guard let fileURL, let data = try? Data(contentsOf: fileURL), data != diskData,
+                  let disk = try? DocumentFile.text(from: data) else { return }
+            diskData = data
+            // Not the URL's resource values: they cache the date from the open.
+            fileModificationDate = try? FileManager.default
+                .attributesOfItem(atPath: fileURL.path(percentEncoded: false))[.modificationDate] as? Date
+            // Another app's CRLF rewrite of the same text is no change.
+            guard disk != text else { return }
+            onOutsideChange?(disk)
+        }
+
         // MARK: deletion (screens §3.12)
 
         override public nonisolated func accommodatePresentedItemDeletion(
@@ -146,12 +185,11 @@
             Task { @MainActor in noteMoved(to: newURL) }
         }
 
-        /// A move to the Trash is a deletion; any other move renames the window.
+        /// A move to the Trash is a deletion; any other move renames the
+        /// window through `fileURL`.
         func noteMoved(to url: URL) {
             if url.pathComponents.contains(".Trash") {
                 noteDeleted()
-            } else {
-                onStateChange?()
             }
         }
 

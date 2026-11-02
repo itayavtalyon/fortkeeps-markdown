@@ -78,6 +78,29 @@ Stage 2b loads images. Logs 001 and 002 differ on the card of an SVG, on which f
 - **Q: Where does the read-only strip's Duplicate put the copy on iOS?**
   A: In the app's own folder, as `{name} copy`, then `{name} copy 2`, with the file's extension. It opens at once, with no sheet, as New File does. Save As… uses the Files export sheet.
 
+### Round 5 (2026-11-02: Itay, stage 2e)
+
+- **Q: Logs 001 and 003 differ on an outside change with no unsaved edits. Which rule does 2e build?**
+  A: Log 003: an undoable reload with the note `Updated with changes from another app.` It replaces log 001's silent reload that clears Undo, and the plan's must-pass test changes with it.
+- **Q: Which copy do the outside-change dialog and the compare view use?**
+  A: Log 003's copy. Log 001's Reload, Keep Mine, and Resolve… keep their behavior under log 003's names.
+- **Q: How much of the Resolve view (screens §3.11) does 2e build?**
+  A: The core with keyboard and VoiceOver: hunk choices, state labels, collapsed unchanged runs, the counter, Apply and Cancel, side by side or inline, the keys, and VoiceOver hunk containers. Edit in a hunk, Use Both Theirs First, Use … for the Rest, the Changes rotor, the changed-again banner, and the ⌥⌘I toggle wait.
+- **Q: When is the text saved after Undo Reload?**
+  A: By autosave, like a typed edit. Redo Reload is the same.
+- **Q: What library API does 2e add?**
+  A: `MarkdownView.reload(text:undoActionName:)` and `MarkdownView.replaceText(_:)`. Plan 01's `reload(text:)` still clears Undo.
+- **Q (Itay's direction, 2026-11-02): where does the compare view live?**
+  A: In the library, so Fortkeeps can use it for its own conflicts: `ResolveModel` (the state) in `MarkdownCore`, `ResolveView` (the view, its keys, VoiceOver, and its strings) in `MarkdownViews`. The host gives the column titles; Scroll passes log 003's `Your Changes` and `On Disk`.
+- **Q: After a rename, `MarkdownView.documentURL` keeps the old folder. Add a public setter?**
+  A: Yes. `MarkdownView.documentURL` is settable; both apps set it when the file moves, so relative links and images resolve against the new folder.
+- **Q: Screens §3.11 names Apply's undo group "Undo Resolve", but `replaceText(_:)` takes no name. Add one?**
+  A: Yes: `replaceText(_:undoActionName:)`, with the name optional (default nil). Scroll passes `Resolve`.
+- **Q: Screens §3.10 asks for a VoiceOver hint on each dialog button; log 003 has no hint copy. What does 2e build?**
+  A: DRAFT hints until WAIT-3: `Replaces your changes with the other app's version and clears Undo.`, `Saves your version over the other app's.`, `Shows both versions so you can choose each change.`
+- **Q: The screen is locked, so the UI tests cannot run. What then?**
+  A: Itay unlocks the screen; 2e runs `just mac-app-test ios-app-test` before its commit.
+
 ## Design
 
 ### Host interface (amends log 001 › Host interface)
@@ -134,6 +157,19 @@ The app code is in the package target `ScrollSupport`:
 A local image needs a regular file inside the document's folder after symlinks resolve.
 A folder without sandbox access gives `.needsAccess`. When the person grants it, every card that showed `.needsAccess` refreshes.
 A refused reload (a redirect to a blocked host) shows the refused card. It does not keep the old image.
+
+### Outside changes (amends log 001 › Outside changes; follows log 003)
+
+The app watches each document with a file presenter.
+When the file on disk changes and the document has no unsaved edits, the app calls `reload(text:undoActionName:)` with the action name `Reload`.
+That reload is one undo group. It replaces only the changed span, so the caret and the anchor stay. It reports `reload`; its undo and redo report `groupReason` `reload`, and autosave saves them.
+The note `Updated with changes from another app.` shows at the top of the document for about 4 seconds, with an `Undo` button that undoes the reload. It stays while the pointer is over it. VoiceOver announces it politely. With Reduce Motion on, it does not fade.
+When the document has unsaved edits, the app sets `isEditable` false and shows the dialog of log 003: title `"<name>" changed outside Scroll`, body `Another app edited this file while you had unsaved changes. Choose which version to keep.`, buttons `Use Version on Disk`, `Keep My Changes`, and `Compare…` (iOS: `Use version on disk`, `Keep my changes`, `Compare`).
+No button is the default. Return and Esc do nothing. On iOS, `Use version on disk` is destructive and no button has the cancel role.
+`Use Version on Disk` calls plan 01's `reload(text:)`, which clears Undo.
+`Keep My Changes` closes the dialog; the next autosave writes the local text, and the status then reads `Saved your changes over the other version.`
+`Compare…` opens the compare view, titled `Compare versions of "<name>"`, with the columns `Your Changes` and `On Disk`.
+Apply calls `replaceText(_:)` with the merged text: one undo group with reason `edit`. Cancel returns to the dialog and writes nothing.
 
 ## Trade-offs
 

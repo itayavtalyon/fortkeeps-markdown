@@ -10,6 +10,10 @@
         }
 
         func textDidChange(_ change: TextChange) {
+            // A reload clears them too; a quiet reload shows its note after.
+            outside.showsNote = false
+            outside.keepsMine = false
+            outside.keptMine = false
             scrollDocument?.apply(change)
             update()
         }

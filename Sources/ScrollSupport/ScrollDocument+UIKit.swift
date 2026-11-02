@@ -12,6 +12,16 @@
         private(set) var isDeleted = false
         /// The title block follows the save state.
         var onStateChange: (() -> Void)?
+        /// The session and the lists follow a rename: the old and the new URL.
+        var onMove: ((URL, URL) -> Void)?
+        /// Another app changed the file; the screen gets the disk text.
+        var onOutsideChange: ((String) -> Void)?
+        /// The outside-change dialog is up: saves pause, so no byte changes.
+        var pausesSaves = false
+        /// The bytes last read or written; other bytes on disk are another app's.
+        private var diskData = Data()
+        /// The bytes a save is writing: they are on disk once the save is done.
+        private var savingData: Data?
 
         override public init(fileURL url: URL) {
             super.init(fileURL: url)
@@ -25,7 +35,9 @@
         }
 
         override public func contents(forType _: String) throws -> Any {
-            DocumentFile.data(for: text)
+            let data = DocumentFile.data(for: text)
+            savingData = data
+            return data
         }
 
         override public func load(fromContents contents: Any, ofType _: String?) throws {
@@ -33,6 +45,7 @@
                 throw OpenRefusal.notUTF8
             }
             text = decoded
+            diskData = data
         }
 
         /// A change the view applied (`MarkdownHost.textDidChange(_:)`).
@@ -69,6 +82,24 @@
             onStateChange?()
         }
 
+        // MARK: outside changes (design log 004 › Outside changes)
+
+        /// Not `super`: UIDocument would revert on its own.
+        override public nonisolated func presentedItemDidChange() {
+            onMain { $0.noteChangeOnDisk() }
+        }
+
+        /// New bytes on disk go to the screen.
+        func noteChangeOnDisk() {
+            // ponytail: bytes that are not UTF-8 are ignored; the next save writes over them.
+            guard let data = try? Data(contentsOf: fileURL), data != diskData,
+                  let disk = try? DocumentFile.text(from: data) else { return }
+            diskData = data
+            // Another app's CRLF rewrite of the same text is no change.
+            guard disk != text else { return }
+            onOutsideChange?(disk)
+        }
+
         // MARK: deletion (screens §3.12)
 
         /// Saves pause while the file is deleted (autosave, a checkbox, closing);
@@ -81,11 +112,20 @@
             if !FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) {
                 noteDeleted()
             }
-            guard !isDeleted else {
+            guard !isDeleted, !pausesSaves else {
                 completionHandler?(false)
                 return
             }
-            super.save(to: url, for: saveOperation, completionHandler: completionHandler)
+            // A presenter call before the write is done still reads the old bytes.
+            nonisolated(unsafe) let document = self
+            super.save(to: url, for: saveOperation) { saved in
+                MainActor.assumeIsolated {
+                    if saved, let data = document.savingData {
+                        document.diskData = data
+                    }
+                }
+                completionHandler?(saved)
+            }
         }
 
         override public nonisolated func accommodatePresentedItemDeletion(
@@ -96,8 +136,9 @@
         }
 
         override public nonisolated func presentedItemDidMove(to newURL: URL) {
+            let old = fileURL
             super.presentedItemDidMove(to: newURL)
-            onMain { $0.noteMoved(to: newURL) }
+            onMain { $0.noteMoved(from: old, to: newURL) }
         }
 
         /// The file presenter calls come on the document's queue; its state changes on main.
@@ -107,10 +148,11 @@
         }
 
         /// A move to the Trash is a deletion; any other move renames the screen.
-        func noteMoved(to url: URL) {
+        func noteMoved(from old: URL, to url: URL) {
             if url.pathComponents.contains(".Trash") {
                 noteDeleted()
             } else {
+                onMove?(old, url)
                 onStateChange?()
             }
         }

@@ -278,6 +278,9 @@
         var files: [URL] = []
         var beeps = 0
         var alerts: [String] = []
+        /// The last alert and its handler, to answer it later.
+        var alert: NSAlert?
+        var answer: ((NSApplication.ModalResponse) -> Void)?
         var popovers: [String] = []
         /// The button an alert answers with; nil leaves it open.
         var response: NSApplication.ModalResponse?
@@ -295,6 +298,8 @@
                 beep: { [weak self] in self?.beeps += 1 },
                 presentAlert: { [weak self] alert, _, handler in
                     self?.alerts.append(alert.messageText)
+                    self?.alert = alert
+                    self?.answer = handler
                     if let response = self?.response {
                         handler(response)
                     }

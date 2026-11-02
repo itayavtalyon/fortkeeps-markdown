@@ -112,7 +112,7 @@
             var states = 0
             document.onStateChange = { states += 1 }
 
-            document.noteMoved(to: folder.appending(path: "b.md"))
+            document.noteMoved(from: document.fileURL, to: folder.appending(path: "b.md"))
             #expect(!document.isDeleted)
             #expect(states == 1)
             document.presentedItemDidMove(to: folder.appending(path: ".Trash/b.md"))
@@ -138,6 +138,8 @@
                 try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path())
             }
             #expect(!document.saveFailed)
+            var outsideChanges: [String] = []
+            document.onOutsideChange = { outsideChanges.append($0) }
 
             document.apply(Self.change(.edit, "ab\n"))
 
@@ -147,6 +149,23 @@
             }
             #expect(document.text == "ab\n")
             #expect(try Data(contentsOf: url) == Data("a\n".utf8))
+            // The bytes it did not write are not on disk: the file is still its own.
+            document.noteChangeOnDisk()
+            #expect(outsideChanges.isEmpty)
+        }
+
+        /// Not opened, so no file presenter calls in on its own.
+        @Test
+        func `the bytes it read are no outside change, even with edits`() throws {
+            let document = try ScrollDocument(fileURL: given("a.md", "a\n"))
+            try document.load(fromContents: Data("a\n".utf8), ofType: nil)
+            var outsideChanges: [String] = []
+            document.onOutsideChange = { outsideChanges.append($0) }
+            document.apply(Self.change(.edit, "b\n"))
+
+            document.noteChangeOnDisk()
+
+            #expect(outsideChanges.isEmpty)
         }
     }
 #endif

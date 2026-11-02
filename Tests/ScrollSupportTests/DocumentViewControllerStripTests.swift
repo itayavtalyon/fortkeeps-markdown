@@ -86,7 +86,7 @@
             #expect(opened == [moved])
 
             // A deletion replaces the failed strip.
-            controller.document.noteMoved(to: folder.appending(path: ".Trash/a.md"))
+            controller.document.noteMoved(from: controller.document.fileURL, to: folder.appending(path: ".Trash/a.md"))
             #expect(strips(controller).map(\.kind) == [.deleted])
         }
 

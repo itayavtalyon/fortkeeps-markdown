@@ -50,5 +50,13 @@
 
             #expect(pointer == unsafeBitCast(UIPasteboard.general, to: UInt.self))
         }
+
+        /// A host's own Undo button, such as the reload note's, undoes the view's groups.
+        @Test
+        func `the view's undo manager is its own`() {
+            let view = Self.givenView("a\n")
+
+            #expect(view.undoManager === view.controller.undoManager)
+        }
     }
 #endif

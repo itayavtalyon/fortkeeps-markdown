@@ -149,5 +149,23 @@
             #expect(await session.newFile() == nil)
             #expect(presented.count == 1)
         }
+
+        @Test(.timeLimit(.minutes(1)))
+        func `a renamed file keeps its screen and its row under the new name`() async throws {
+            let url = try given("a.md")
+            let screen = try #require(await session.open(url))
+            let moved = folder.appending(path: "b.md")
+            try FileManager.default.moveItem(at: url, to: moved)
+
+            screen.document.presentedItemDidMove(to: moved)
+            while session.screen(for: moved) == nil {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+
+            #expect(session.screen(for: url) == nil)
+            #expect(session.store.lists.open.map(\.url) == [FileListStore.key(moved)])
+            #expect(screen.markdownView.documentURL == moved)
+            #expect(await session.open(moved) === screen)
+        }
     }
 #endif

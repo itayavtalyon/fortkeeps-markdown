@@ -80,7 +80,13 @@ final class FileListStore {
     /// Find File… chose the file again.
     func found(_ url: URL, at newURL: URL) {
         missing.remove(url)
-        lists.replaceRecent(url, with: remember(newURL))
+        lists.replace(url, with: remember(newURL))
+        save()
+    }
+
+    /// A rename or a move: the row keeps its place under the new path.
+    func moved(_ url: URL, to newURL: URL) {
+        lists.replace(Self.key(url), with: remember(newURL))
         save()
     }
 

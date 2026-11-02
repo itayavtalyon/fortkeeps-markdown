@@ -49,10 +49,11 @@ public struct FileLists: Equatable, Sendable {
         recent.removeAll { $0.url == url }
     }
 
-    /// Find File… points a missing entry at the file again; it keeps its place.
-    public mutating func replaceRecent(_ url: URL, with newURL: URL) {
-        guard let index = recent.firstIndex(where: { $0.url == url }) else { return }
-        recent[index] = Entry(url: newURL, lastOpened: recent[index].lastOpened)
+    /// Find File… or a rename points an entry at its new path; it keeps its place in its list.
+    public mutating func replace(_ url: URL, with newURL: URL) {
+        let moved = { (entry: Entry) in entry.url == url ? Entry(url: newURL, lastOpened: entry.lastOpened) : entry }
+        open = open.map(moved)
+        recent = recent.map(moved)
     }
 
     /// The entries whose file name contains the query, ignoring case and

@@ -57,12 +57,22 @@
                 return nil
             }
             let screen = DocumentViewController(document: document, environment: environment)
+            document.onMove = { [weak self] in self?.moved($0, to: $1) }
             screens[key] = screen
             if accessing {
                 scoped[key] = url // coverage:ignore - a picked file outside the sandbox
             }
             store.opened(url, at: .now)
             return screen
+        }
+
+        /// A rename keeps the screen and the row, under the new path.
+        private func moved(_ url: URL, to newURL: URL) {
+            let key = FileListStore.key(url)
+            let newKey = FileListStore.key(newURL)
+            screens[newKey] = screens.removeValue(forKey: key)
+            scoped[newKey] = scoped.removeValue(forKey: key)
+            store.moved(url, to: newURL)
         }
 
         /// An Open file from before a relaunch has no screen yet.

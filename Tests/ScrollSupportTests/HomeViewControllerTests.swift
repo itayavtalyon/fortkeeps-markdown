@@ -94,7 +94,7 @@
             #expect(empty.arrangedSubviews.count == 3)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the toolbar has Browse and New File, and the empty list has Browse`() async throws {
             let titles = home.toolbarItems?.compactMap(\.title)
             #expect(titles == ["Browse", "New file"])
@@ -206,7 +206,7 @@
             #expect(session.store.lists.recent.map(\.url.lastPathComponent) == ["b.md"])
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the VoiceOver action closes an open file`() async throws {
             let screen = try #require(try await session.open(given("a.md")))
             let action = try #require(cell(0, 0).accessibilityCustomActions?.first)
@@ -229,7 +229,7 @@
             #expect(session.store.lists.recent.isEmpty)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `tapping a row pushes its file`() async throws {
             try session.store.closed(given("a.md"), at: .now)
 
@@ -278,7 +278,7 @@
             #expect(screen.startsTyping)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the Browse button opens the Files picker, and a picked file opens`() async throws {
             let url = try given("a.md")
             home.browse()

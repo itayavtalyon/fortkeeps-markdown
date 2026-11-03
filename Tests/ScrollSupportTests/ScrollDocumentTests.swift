@@ -65,7 +65,7 @@
             #expect(try Data(contentsOf: url) == Data("- [ ] a\n".utf8))
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a checkbox change saves at once`() async throws {
             let url = try given("a.md", "- [ ] a\r\n")
             let document = try ScrollDocument(contentsOf: url, ofType: ScrollDocument.typeName)

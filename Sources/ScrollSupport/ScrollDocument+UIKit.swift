@@ -5,8 +5,6 @@
     /// One Markdown file on iOS (design log 001 › Files). The view holds the
     /// working text and its Undo; the document follows each change.
     public final class ScrollDocument: UIDocument {
-        /// Above this, the screen shows before the text (screens §3.14).
-        nonisolated static let largeFileBytes = 5_000_000
         public private(set) var text = ""
         /// Why the last open or save failed.
         private(set) var lastError: (any Error)?
@@ -17,11 +15,10 @@
         /// The session and the lists follow a rename: the old and the new URL.
         var onMove: ((URL, URL) -> Void)?
         /// Another app changed the file; the screen gets the disk text.
-        var onOutsideChange: ((String) -> Void)?
+        var onOutsideChange: ((DiskWatch.Change) -> Void)?
         /// The outside-change dialog is up: saves pause, so no byte changes.
         var pausesSaves = false
-        /// The bytes last read or written; other bytes on disk are another app's.
-        private var diskData = Data()
+        private var disk = DiskWatch()
         /// The bytes a save is writing: they are on disk once the save is done.
         private var savingData: Data?
 
@@ -47,7 +44,7 @@
                 throw OpenRefusal.notUTF8
             }
             text = decoded
-            diskData = data
+            disk.data = data
         }
 
         /// A change the view applied (`MarkdownHost.textDidChange(_:)`).
@@ -98,13 +95,9 @@
 
         /// New bytes on disk go to the screen.
         func noteChangeOnDisk() {
-            // ponytail: bytes that are not UTF-8 are ignored; the next save writes over them.
-            guard let data = try? Data(contentsOf: fileURL), data != diskData,
-                  let disk = try? DocumentFile.text(from: data) else { return }
-            diskData = data
-            // Another app's CRLF rewrite of the same text is no change.
-            guard disk != text else { return }
-            onOutsideChange?(disk)
+            guard let data = try? Data(contentsOf: fileURL), data != disk.data,
+                  let change = disk.change(to: data, text: text) else { return }
+            onOutsideChange?(change)
         }
 
         // MARK: deletion (screens §3.12)
@@ -128,7 +121,7 @@
             super.save(to: url, for: saveOperation) { saved in
                 MainActor.assumeIsolated {
                     if saved, let data = document.savingData {
-                        document.diskData = data
+                        document.disk.data = data
                     }
                 }
                 completionHandler?(saved)
@@ -156,7 +149,7 @@
 
         /// A move to the Trash is a deletion; any other move renames the screen.
         func noteMoved(from old: URL, to url: URL) {
-            if url.pathComponents.contains(".Trash") {
+            if DiskWatch.isTrash(url) {
                 noteDeleted()
             } else {
                 onMove?(old, url)

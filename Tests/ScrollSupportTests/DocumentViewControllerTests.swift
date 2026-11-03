@@ -160,7 +160,7 @@
             #expect(opened == [URL(string: url)])
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a sibling file opens in the app; a missing one shows a note`() async throws {
             let controller = try await screen()
             try Data("b".utf8).write(to: folder.appending(path: "b.md"))

@@ -303,6 +303,12 @@
             let saveAs = StripView.Button(
                 title: ScrollStrings.saveAs, target: document, action: #selector(NSDocument.saveAs(_:))
             )
+            if outside.isUnreadable {
+                views.append(StripView(kind: .unreadable, text: ScrollStrings.unreadable(name), buttons: [
+                    .init(title: ScrollStrings.keepMine, target: self, action: #selector(keepMineOverUnreadableAction)),
+                    .init(title: ScrollStrings.close, target: self, action: #selector(confirmClose))
+                ]))
+            }
             if document.isDeleted {
                 views.append(StripView(kind: .deleted, text: ScrollStrings.deleted(name), buttons: [
                     saveAs, .init(title: ScrollStrings.close, target: self, action: #selector(confirmClose))

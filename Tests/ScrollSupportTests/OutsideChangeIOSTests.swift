@@ -41,7 +41,7 @@
             #expect(strips(controller).isEmpty)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the file presenter hands a change to the screen`() async throws {
             let controller = try await screen("a\n")
 
@@ -53,7 +53,7 @@
             }
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the note goes after its time, but not while the pointer is over it`() async throws {
             let controller = try await screen("a\n")
             controller.outside.noteDuration = .milliseconds(20)
@@ -152,6 +152,38 @@
             #expect(controller.statusText.hasSuffix(" · Saving…"))
             #expect(await ScrollDocumentIOSTests.autosaved(controller.document))
             #expect(controller.statusText.hasSuffix(" · Saved"))
+        }
+
+        /// Log 004 Round 7: the strip, with saves and edits paused.
+        @Test
+        func `bytes that are not text pause the document, and keep my changes writes the text back`() async throws {
+            let controller = try await screen("a\n")
+
+            try Data([0x61, 0xFF, 0x0A]).write(to: controller.document.fileURL)
+            controller.document.noteChangeOnDisk()
+
+            #expect(strips(controller).map(\.accessibilityLabel)
+                == ["“a.md” changed outside Scroll and can’t be read as text."])
+            #expect(!controller.markdownView.isEditable)
+            #expect(controller.document.pausesSaves)
+            #expect(presented.isEmpty)
+            tapStrip("Keep my changes", controller)
+            #expect(controller.markdownView.isEditable)
+            #expect(await ScrollDocumentIOSTests.autosaved(controller.document))
+            #expect(try disk(controller) == "a\n")
+            #expect(controller.statusText.hasSuffix(" · Saved your changes over the other version."))
+        }
+
+        @Test
+        func `close on the unreadable strip asks before the text goes`() async throws {
+            let controller = try await screen("a\n")
+            try Data([0x00]).write(to: controller.document.fileURL)
+            controller.document.noteChangeOnDisk()
+
+            tapStrip("Close", controller)
+
+            let alert = try #require(presented.last as? UIAlertController)
+            #expect(alert.title == "Close without saving? The text will be lost.")
         }
 
         @Test

@@ -71,6 +71,14 @@ enum ScrollStrings {
         String(localized: "access.dismiss", defaultValue: "Dismiss")
     }
 
+    /// DRAFT until WAIT-3 (log 004 Round 7).
+    static func unreadable(_ name: String) -> String {
+        String(
+            localized: "strip.unreadable",
+            defaultValue: "“\(name)” changed outside Scroll and can’t be read as text."
+        )
+    }
+
     static func deleted(_ name: String) -> String {
         String(localized: "gone.deleted", defaultValue: "“\(name)” was deleted. Your text is still here.")
     }
@@ -128,7 +136,10 @@ enum ScrollStrings {
     }
 
     static func words(_ count: Int) -> String {
-        String(localized: "status.words", defaultValue: "\(count) words")
+        // ponytail: English plurals; a catalog with plural variants comes with WAIT-3.
+        count == 1
+            ? String(localized: "status.word", defaultValue: "1 word")
+            : String(localized: "status.words", defaultValue: "\(count) words")
     }
 
     static var lock: String {

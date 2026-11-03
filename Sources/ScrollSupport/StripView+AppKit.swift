@@ -11,6 +11,7 @@
             case readOnly
             case saveFailed
             case reloaded
+            case unreadable
         }
 
         /// A button sends its action to its target, as an AppKit control does.

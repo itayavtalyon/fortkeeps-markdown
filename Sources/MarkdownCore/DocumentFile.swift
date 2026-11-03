@@ -25,6 +25,10 @@ public enum DocumentFile {
         }
     }
 
+    /// Above this many bytes, a window or screen opens first and shows the
+    /// file's progress (screens §3.14).
+    public static let largeFileBytes = 5_000_000
+
     /// The accepted file extensions, compared without case.
     public static let acceptedExtensions: Set = ["md", "markdown", "txt", "mdown", "mkd"]
 

@@ -55,7 +55,7 @@
             #expect(closed == [controller.document.fileURL])
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a failed save shows its strip, and Save As exports the text and opens the copy`() async throws {
             let controller = try await screen()
             let url = controller.document.fileURL

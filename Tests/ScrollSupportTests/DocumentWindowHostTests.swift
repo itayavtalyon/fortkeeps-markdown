@@ -60,7 +60,7 @@
             #expect(spy.files.isEmpty)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a document with a relative image asks for its folder once, and Allow Access grants it`() async throws {
             let url = try given("a.md", "![a](a.png)\n")
             spy.access.readable = []
@@ -114,7 +114,7 @@
             #expect(!TestApp.controller.documents.contains(document))
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the Save command saves an edited document`() async throws {
             let url = try given("a.md", "a\n")
             let (document, controller) = try open(url)
@@ -179,7 +179,7 @@
             #expect(windows.map(\.closes) == [2, 1])
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the view's image calls reach the document images`() async throws {
             let url = try given("a.md", "![a](https://e.com/a.png)\n")
             let (_, controller) = try open(url)

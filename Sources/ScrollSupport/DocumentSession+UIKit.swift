@@ -49,7 +49,7 @@
             let accessing = url.startAccessingSecurityScopedResource()
             let document = ScrollDocument(fileURL: url)
             let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
-            if let size, size > ScrollDocument.largeFileBytes {
+            if let size, size > DocumentFile.largeFileBytes {
                 let screen = add(document, key: key, accessing: accessing)
                 screen.onLargeRefusal = { [weak self] in
                     self?.refuse(url, ScrollStrings.notUTF8)

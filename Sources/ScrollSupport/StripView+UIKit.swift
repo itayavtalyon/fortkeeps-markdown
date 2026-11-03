@@ -10,6 +10,7 @@
             case readOnly
             case saveFailed
             case reloaded
+            case unreadable
         }
 
         let kind: Kind

@@ -2,71 +2,35 @@
     import AppKit
     import MarkdownViews
 
-    /// What the window shows about another app's change (design log 004 ›
-    /// Outside changes).
-    @MainActor
-    struct OutsideChange {
-        /// The disk text the dialog or the compare view is about.
-        var disk: String?
-        var showsNote = false
-        var noteDuration = Duration.seconds(4)
-        var noteTask: Task<Void, Never>?
-        var isPointerOver: (NSView) -> Bool = { view in
-            guard let window = view.window else { return false }
-            return view.bounds.contains(view.convert(window.mouseLocationOutsideOfEventStream, from: nil))
+    /// The Mac half of the outside-change flow (design log 004 › Outside changes).
+    extension DocumentWindowController: OutsideChangeHost {
+        var hasUnsavedEdits: Bool {
+            scrollDocument?.isDocumentEdited == true
         }
 
-        /// Keep My Changes: the next save is the kept one, and the status says so.
-        var keepsMine = false
-        var keptMine = false
-        /// The compare view, in place of the text.
-        var resolveView: ResolveView?
-    }
-
-    extension DocumentWindowController {
-        /// No unsaved edits: an undoable reload and the note. Unsaved edits:
-        /// the dialog, with the text paused.
-        func outsideChange(_ disk: String) {
-            guard let document = scrollDocument else { return } // coverage:ignore - the document sets this hook
-            guard document.isDocumentEdited else {
-                reloadQuietly(disk)
-                return
-            }
-            let asking = outside.disk != nil
-            // ponytail: a second change while asking updates the disk text; the changed-again banner waits (Round 5).
-            outside.disk = disk
-            if !asking {
-                askAboutOutsideChange()
-            }
+        func pauseSaves(_ paused: Bool) {
+            scrollDocument?.pausesSaves = paused
         }
 
-        private func reloadQuietly(_ disk: String) {
-            markdownView.reload(text: disk, undoActionName: ScrollStrings.reloadAction)
-            outside.showsNote = true
-            update()
-            if let window {
-                NSAccessibility.post(element: window, notification: .announcementRequested, userInfo: [
-                    .announcement: ScrollStrings.reloadNote,
-                    .priority: NSAccessibilityPriorityLevel.medium.rawValue
-                ])
-            }
-            outside.noteTask?.cancel()
-            outside.noteTask = Task { [weak self] in await self?.hideNoteLater() }
+        func markClean() {
+            scrollDocument?.updateChangeCount(.changeCleared)
         }
 
-        /// The note stays while the pointer is over it, then fades, unless Reduce Motion is on.
-        private func hideNoteLater() async {
-            var waits = true
-            while waits {
-                try? await Task.sleep(for: outside.noteDuration)
-                waits = !Task.isCancelled && isPointerOverNote()
-            }
-            guard !Task.isCancelled else { return } // coverage:ignore - a newer note replaced this one
-            if let note = strips.arrangedSubviews.first, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-                await NSAnimationContext.runAnimationGroup { _ in note.animator().alphaValue = 0 }
-            }
-            outside.showsNote = false
-            update()
+        func markEdited() {
+            scrollDocument?.updateChangeCount(.changeDone)
+        }
+
+        /// The status says so once the next save starts.
+        func noteKeptMine() {
+            outside.keepsMine = true
+        }
+
+        func announce(_ text: String) {
+            guard let window else { return } // coverage:ignore - a document window always has one
+            NSAccessibility.post(element: window, notification: .announcementRequested, userInfo: [
+                .announcement: text,
+                .priority: NSAccessibilityPriorityLevel.medium.rawValue
+            ])
         }
 
         func isPointerOverNote() -> Bool {
@@ -74,16 +38,24 @@
             return outside.isPointerOver(note)
         }
 
+        func fadeNote() async {
+            if let note = strips.arrangedSubviews.first, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                await NSAnimationContext.runAnimationGroup { _ in note.animator().alphaValue = 0 }
+            }
+        }
+
         @objc func undoReload() {
             markdownView.undoManager?.undo()
         }
 
+        @objc func keepMineOverUnreadableAction() {
+            keepMineOverUnreadable()
+        }
+
         // MARK: the dialog (log 003)
 
-        private func askAboutOutsideChange() {
+        func askAboutOutsideChange() {
             guard let document = scrollDocument else { return } // coverage:ignore - asked only with a document
-            markdownView.isEditable = false
-            document.pausesSaves = true
             let alert = NSAlert()
             alert.messageText = ScrollStrings.changedOutside(document.fileName)
             alert.informativeText = ScrollStrings.changedOutsideBody
@@ -107,28 +79,6 @@
             }
         }
 
-        private func endOutsideChange() {
-            outside.disk = nil
-            markdownView.isEditable = true
-            scrollDocument?.pausesSaves = false
-        }
-
-        /// Plan 01's `reload(text:)`: the disk text, and Undo cleared.
-        private func useDisk() {
-            guard let disk = outside.disk else { return } // coverage:ignore - the dialog is up only with a disk text
-            endOutsideChange()
-            markdownView.reload(text: disk)
-            scrollDocument?.updateChangeCount(.changeCleared)
-            update()
-        }
-
-        /// The document stays edited, so the next autosave writes the local text.
-        private func keepMine() {
-            endOutsideChange()
-            outside.keepsMine = true
-            update()
-        }
-
         // MARK: the compare view
 
         private func compare() {
@@ -138,8 +88,14 @@
                 mine: document.text, theirs: disk,
                 mineTitle: ScrollStrings.yourChanges, theirsTitle: ScrollStrings.onDisk
             )
-            resolve.onApply = { [weak self] in self?.applyResolved($0) }
-            resolve.onCancel = { [weak self] in self?.cancelCompare() }
+            resolve.onApply = { [weak self] merged in
+                self?.closeCompare()
+                self?.applyResolved(merged)
+            }
+            resolve.onCancel = { [weak self] in
+                self?.closeCompare()
+                self?.askAboutOutsideChange()
+            }
             markdownView.isHidden = true
             // The window's stack is the strips, the text, and the status bar.
             stack.insertArrangedSubview(resolve, at: 1)
@@ -155,18 +111,6 @@
             synchronizeWindowTitleWithDocumentName()
             markdownView.isHidden = false
             window?.makeFirstResponder(markdownView)
-        }
-
-        /// One undo group with reason `edit`; autosave writes it once.
-        private func applyResolved(_ merged: String) {
-            closeCompare()
-            endOutsideChange()
-            markdownView.replaceText(merged, undoActionName: ScrollStrings.resolveAction)
-        }
-
-        private func cancelCompare() {
-            closeCompare()
-            askAboutOutsideChange()
         }
     }
 #endif

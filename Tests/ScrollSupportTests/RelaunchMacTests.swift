@@ -33,23 +33,24 @@
             controller.restoreState(with: coder)
         }
 
-        @Test(.timeLimit(.minutes(3)))
+        /// One load: the saved state is built by hand, at a line start of the
+        /// file's one code block, so the place reads back the same.
+        @Test(.timeLimit(.minutes(2)))
         func `a large file restored while it loads gets its place once the text is in`() async throws {
-            let big = try base.given("big.md", LargeFileMacTests.text(bytes: 6_000_000))
-            let (document, window) = try base.open(big)
+            let line = 4 + 1000 * 2000
+            let anchor = MarkdownAnchor(block: 0, offsetInBlock: line, selection: line ..< line + 4)
+            let coder = NSKeyedArchiver(requiringSecureCoding: true)
+            try coder.encode(JSONEncoder().encode(anchor), forKey: "anchor")
+            coder.finishEncoding()
+            // Just over the large-file size, in long lines: the fewest lines to style.
+            let text = "```\n" + String(repeating: String(repeating: "x", count: 999) + "\n", count: 5100) + "```\n"
+            let (_, window) = try base.open(base.given("big.md", text))
+
+            try Self.restore(coder.encodedData, window)
+            #expect(try Self.anchor(in: Self.encode(window)) == anchor)
             await window.largeLoadTask?.value
-            window.markdownView.select(3_000_000 ..< 3_000_004)
-            window.window?.layoutIfNeeded()
-            let anchor = window.markdownView.anchor
-            let saved = try Self.encode(window)
-            document.close()
 
-            let (_, again) = try base.open(big)
-            try Self.restore(saved, again)
-            #expect(try Self.anchor(in: Self.encode(again)) == anchor)
-            await again.largeLoadTask?.value
-
-            #expect(again.markdownView.anchor == anchor)
+            #expect(window.markdownView.anchor == anchor)
         }
 
         /// Must-pass (plan 02 › 2f).

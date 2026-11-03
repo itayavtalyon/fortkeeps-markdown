@@ -2,65 +2,45 @@
     import MarkdownViews
     import UIKit
 
-    /// What the screen shows about another app's change (design log 004 ›
-    /// Outside changes).
-    @MainActor
-    struct OutsideChange {
-        /// The disk text the dialog or the compare view is about.
-        var disk: String?
-        var showsNote = false
-        var noteDuration = Duration.seconds(4)
-        var noteTask: Task<Void, Never>?
-        /// The iPad pointer is over the note: it stays.
-        var isPointerOver = false
-        /// Keep my changes: the status says so once the next save is done.
-        var keptMine = false
-        var compare: UIViewController?
-        var resolveView: ResolveView?
-    }
-
-    extension DocumentViewController {
-        /// No unsaved edits: an undoable reload and the note. Unsaved edits:
-        /// the dialog, with the text paused.
-        func outsideChange(_ disk: String) {
-            guard document.hasUnsavedChanges else {
-                reloadQuietly(disk)
-                return
-            }
-            let asking = outside.disk != nil
-            // ponytail: a second change while asking updates the disk text; the changed-again banner waits (Round 5).
-            outside.disk = disk
-            if !asking {
-                askAboutOutsideChange()
-            }
+    /// The iOS half of the outside-change flow (design log 004 › Outside changes).
+    extension DocumentViewController: OutsideChangeHost {
+        var hasUnsavedEdits: Bool {
+            document.hasUnsavedChanges
         }
 
-        private func reloadQuietly(_ disk: String) {
-            markdownView.reload(text: disk, undoActionName: ScrollStrings.reloadAction)
-            outside.showsNote = true
-            update()
+        func pauseSaves(_ paused: Bool) {
+            document.pausesSaves = paused
+        }
+
+        func markClean() {
+            document.updateChangeCount(.cleared)
+        }
+
+        func markEdited() {
+            document.updateChangeCount(.done)
+        }
+
+        /// The status says so once the next save is done.
+        func noteKeptMine() {
+            outside.keptMine = true
+        }
+
+        func announce(_ text: String) {
             UIAccessibility.post(notification: .announcement, argument: NSAttributedString(
-                string: ScrollStrings.reloadNote, attributes: [.accessibilitySpeechQueueAnnouncement: true]
+                string: text, attributes: [.accessibilitySpeechQueueAnnouncement: true]
             ))
-            outside.noteTask?.cancel()
-            outside.noteTask = Task { [weak self] in await self?.hideNoteLater() }
         }
 
-        /// The note stays while the pointer is over it, then fades, unless Reduce Motion is on.
-        private func hideNoteLater() async {
-            var waits = true
-            while waits {
-                try? await Task.sleep(for: outside.noteDuration)
-                waits = !Task.isCancelled && outside.isPointerOver
-            }
-            guard !Task.isCancelled else { return } // coverage:ignore - a newer note replaced this one
+        func isPointerOverNote() -> Bool {
+            outside.isPointerOver
+        }
+
+        func fadeNote() async {
             if let note = strips.arrangedSubviews.first, !UIAccessibility.isReduceMotionEnabled {
                 await withCheckedContinuation { done in
                     UIView.animate(withDuration: 0.3) { note.alpha = 0 } completion: { _ in done.resume() }
                 }
             }
-            outside.showsNote = false
-            update()
         }
 
         func noteStrip() -> StripView? {
@@ -78,9 +58,7 @@
 
         // MARK: the dialog (log 003)
 
-        private func askAboutOutsideChange() {
-            markdownView.isEditable = false
-            document.pausesSaves = true
+        func askAboutOutsideChange() {
             let alert = UIAlertController(
                 title: ScrollStrings.changedOutside(document.fileName),
                 message: ScrollStrings.changedOutsideBody,
@@ -99,32 +77,10 @@
             environment.present(alert, self)
         }
 
-        private func endOutsideChange() {
-            outside.disk = nil
-            markdownView.isEditable = true
-            document.pausesSaves = false
-        }
-
-        /// Plan 01's `reload(text:)`: the disk text, and Undo cleared.
-        private func useDisk() {
-            guard let disk = outside.disk else { return } // coverage:ignore - the dialog is up only with a disk text
-            endOutsideChange()
-            markdownView.reload(text: disk)
-            document.updateChangeCount(.cleared)
-            update()
-        }
-
-        /// The document keeps its unsaved changes, so the next autosave writes the local text.
-        private func keepMine() {
-            endOutsideChange()
-            outside.keptMine = true
-            update()
-        }
-
         // MARK: the compare view
 
         private func compare() {
-            guard let disk = outside.disk else { return } // coverage:ignore - as above
+            guard let disk = outside.disk else { return } // coverage:ignore - the dialog is up only with a disk text
             let resolve = ResolveView(
                 mine: document.text, theirs: disk,
                 mineTitle: ScrollStrings.yourChanges, theirsTitle: ScrollStrings.onDisk
@@ -152,11 +108,5 @@
             guard let presenting else { return next() }
             presenting.dismiss(animated: true, completion: next) // coverage:ignore - presented only in the app
         } // coverage:ignore - the closing line of the line above
-
-        /// One undo group with reason `edit`; autosave writes it once.
-        private func applyResolved(_ merged: String) {
-            endOutsideChange()
-            markdownView.replaceText(merged, undoActionName: ScrollStrings.resolveAction)
-        }
     }
 #endif

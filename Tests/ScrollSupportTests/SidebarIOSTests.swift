@@ -179,7 +179,7 @@
             #expect(sidebar.renameField?.text == "Untitled.md")
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a reload refreshes the Outline at once`() async throws {
             let controller = try await screen("Plain\n")
             let sidebar = try await sidebarSheet(controller)

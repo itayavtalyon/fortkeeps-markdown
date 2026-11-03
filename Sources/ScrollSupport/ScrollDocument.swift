@@ -22,13 +22,10 @@
         /// The window follows the save state and the deletion.
         var onStateChange: (() -> Void)?
         /// Another app changed the file; the window gets the disk text.
-        var onOutsideChange: ((String) -> Void)?
+        var onOutsideChange: ((DiskWatch.Change) -> Void)?
         /// The outside-change dialog is up: saves pause, so no byte changes.
         var pausesSaves = false
-        /// The bytes last read or written; other bytes on disk are another app's.
-        private var diskData = Data()
-        /// Above this, the window opens first and shows its progress (screens §3.14).
-        nonisolated static let largeFileBytes = 5_000_000
+        private var disk = DiskWatch()
         /// A large file the window has not loaded yet; it cannot be saved meanwhile.
         private(set) var largeFileURL: URL?
 
@@ -44,7 +41,8 @@
 
         /// A large file waits for its window, which reads it with progress.
         override public func read(from url: URL, ofType typeName: String) throws {
-            let isLarge = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { $0 > Self.largeFileBytes }
+            let isLarge = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+                .map { $0 > DocumentFile.largeFileBytes }
             let defers = MainActor.assumeIsolated { windowControllers.isEmpty } && isLarge == true
             guard defers else { return try super.read(from: url, ofType: typeName) }
             MainActor.assumeIsolated { largeFileURL = url }
@@ -79,14 +77,14 @@
             // NSDocument reads on the main thread: concurrent reading is off.
             MainActor.assumeIsolated {
                 text = decoded
-                diskData = data
+                disk.data = data
             }
         }
 
         override public func data(ofType _: String) throws -> Data {
             guard MainActor.assumeIsolated({ largeFileURL == nil }) else { throw CocoaError(.fileWriteUnknown) }
             let data = DocumentFile.data(for: text)
-            diskData = data
+            disk.data = data
             return data
         }
 
@@ -191,17 +189,15 @@
         /// New bytes on disk go to the window. The modification date follows,
         /// so the next save does not ask about the other app.
         func noteChangeOnDisk() {
-            // ponytail: bytes that are not UTF-8 are ignored; the next save writes over them.
             // A large file still loading has no text to compare yet.
-            guard largeFileURL == nil, let fileURL, let data = try? Data(contentsOf: fileURL), data != diskData,
-                  let disk = try? DocumentFile.text(from: data) else { return }
-            diskData = data
+            guard largeFileURL == nil, let fileURL, let data = try? Data(contentsOf: fileURL), data != disk.data
+            else { return }
             // Not the URL's resource values: they cache the date from the open.
             fileModificationDate = try? FileManager.default
                 .attributesOfItem(atPath: fileURL.path(percentEncoded: false))[.modificationDate] as? Date
-            // Another app's CRLF rewrite of the same text is no change.
-            guard disk != text else { return }
-            onOutsideChange?(disk)
+            if let change = disk.change(to: data, text: text) {
+                onOutsideChange?(change)
+            }
         }
 
         // MARK: deletion (screens §3.12)
@@ -221,7 +217,7 @@
         /// A move to the Trash is a deletion; any other move renames the
         /// window through `fileURL`.
         func noteMoved(to url: URL) {
-            if url.pathComponents.contains(".Trash") {
+            if DiskWatch.isTrash(url) {
                 noteDeleted()
             }
         }

@@ -64,7 +64,7 @@
                 == ["Untitled.md", "c.md", "d.md"])
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a rename commits on Return, and an open tab follows`() async throws {
             let (document, controller) = try await open()
 

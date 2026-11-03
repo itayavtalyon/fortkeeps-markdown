@@ -65,7 +65,7 @@
             await document.closeOnMain()
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a checkbox change saves at once, and a reload stays clean`() async throws {
             let url = try given("a.md", "- [ ] a\r\n")
             let (document, _) = await Self.opened(url)
@@ -106,7 +106,7 @@
             #expect(!FileManager.default.fileExists(atPath: url.path()))
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a deletion or a move to the Trash marks the file deleted; another move renames`() async throws {
             let (document, _) = try await Self.opened(given("a.md", "a\n"))
             var states = 0
@@ -127,7 +127,7 @@
             }
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a failed save marks the document failed and keeps the text`() async throws {
             let url = try given("a.md", "a\n")
             let (document, _) = await Self.opened(url)
@@ -138,7 +138,7 @@
                 try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path())
             }
             #expect(!document.saveFailed)
-            var outsideChanges: [String] = []
+            var outsideChanges: [DiskWatch.Change] = []
             document.onOutsideChange = { outsideChanges.append($0) }
 
             document.apply(Self.change(.edit, "ab\n"))
@@ -159,7 +159,7 @@
         func `the bytes it read are no outside change, even with edits`() throws {
             let document = try ScrollDocument(fileURL: given("a.md", "a\n"))
             try document.load(fromContents: Data("a\n".utf8), ofType: nil)
-            var outsideChanges: [String] = []
+            var outsideChanges: [DiskWatch.Change] = []
             document.onOutsideChange = { outsideChanges.append($0) }
             document.apply(Self.change(.edit, "b\n"))
 

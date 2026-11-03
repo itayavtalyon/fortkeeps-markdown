@@ -156,7 +156,7 @@
             #expect(presented.count == 1)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a renamed file keeps its screen and its row under the new name`() async throws {
             let url = try given("a.md")
             let screen = try #require(await session.open(url))

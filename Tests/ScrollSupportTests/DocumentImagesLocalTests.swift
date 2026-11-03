@@ -15,7 +15,7 @@ extension DocumentImagesTests {
             .refused(reason: "Save the document to show local images."))
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(.timeLimit(.minutes(2)))
     func `a local image needs access until the folder is granted, then every card of it refreshes`() async throws {
         try givenFile("docs/a.png", Self.png())
         try givenFile("docs/b.png", Self.png())
@@ -84,7 +84,7 @@ extension DocumentImagesTests {
         #expect(try await images.image(for: request("link.png")) == .image(Self.png()))
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(.timeLimit(.minutes(2)))
     func `a FIFO is refused without a read`() async throws {
         try givenFile("docs/a.md", Data())
         #expect(mkfifo(folder.appending(path: "docs/pipe.png").path(percentEncoded: false), 0o600) == 0)

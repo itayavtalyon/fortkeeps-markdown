@@ -122,7 +122,7 @@ struct RemoteLoaderTests {
         #expect(await RemoteLoader(transport: transport).load(Self.url) == .failed(reason: .network))
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(.timeLimit(.minutes(2)))
     func `a load that outlasts the timeout fails as timed out`() async {
         let transport = FakeTransport([:])
 

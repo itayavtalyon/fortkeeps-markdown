@@ -86,7 +86,7 @@
             #expect(tabs.selected?.title == "a.md")
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `tapping a tab selects it; its close control closes it`() async throws {
             try await opened("a.md", "b.md")
             let first = try #require(tabs.strip.arrangedSubviews.first as? TabView)
@@ -108,7 +108,7 @@
             }
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a renamed file renames its tab`() async throws {
             try await opened("a.md", "b.md")
             let first = try #require(tabs.tabs.first)

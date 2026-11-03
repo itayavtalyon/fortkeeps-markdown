@@ -1,6 +1,6 @@
 # 004 - Fortkeeps Scroll plan 02 decisions
 
-Revision 3, 2026-11-01 (Round 3 added for stage 2c). Revision 2, 2026-11-01 (Round 2 added for stage 2b). Revision 1, 2026-10-31. Written by the plan 02 implementer from Itay's answers to the plan 02 grill questions. Status: Design.
+Revision 4, 2026-11-03 (Round 7 added by the plan 02 whole-plan review). Revision 3, 2026-11-01 (Round 3 added for stage 2c). Revision 2, 2026-11-01 (Round 2 added for stage 2b). Revision 1, 2026-10-31. Written by the plan 02 implementer from Itay's answers to the plan 02 grill questions. Status: Design.
 Logs 001, 002, and 003 stay as written. This log amends them. Each decision names the section it amends. Where this log and an earlier log differ, this log wins.
 Each stage of plan 02 (`implementation-plans/02-apps.md`) adds its answers here as a new round.
 
@@ -126,7 +126,23 @@ Stage 2b loads images. Logs 001 and 002 differ on the card of an SVG, on which f
 - **Q: On iPhone the Outline (☰) button narrows the title block, and the accessibility audit flags the status subtitle ("Documents · Saving…") as clippable at larger Dynamic Type. What does 2f do?** (asked 2026-11-03, during the gate)
   A: Accept it. The subtitle is UIKit's own navigation-bar label, which truncates at large sizes as system apps do, and VoiceOver reads it in full. The UI test's audit skips only the clipped-text issue on that subtitle. Not chosen: dropping the folder from the iPhone status, moving Outline into ⋯, or a custom title view.
 
+### Round 7 (2026-11-03: Itay, the plan 02 whole-plan review)
+
+- **Q: Both apps list `public.plain-text` in the Markdown document type at rank Default. That claims every plain-text file (source code, logs), which Scroll then refuses. What does `.txt` use?**
+  A: Markdown keeps rank Default. `.txt` is a second document type at rank Alternate: on the Mac by its extension only, on iOS by `public.plain-text`, since iOS matches by type only.
+- **Q: Another app writes the open file with bytes that are not UTF-8, or with a NUL. Both apps ignored it, and the next save wrote over the other app's version. What happens?**
+  A: Saves and edits pause, and a strip reads `"<name>" changed outside Scroll and can't be read as text.` (DRAFT until WAIT-3), with `Keep My Changes` (iOS: `Keep my changes`), which saves the text over the other version, and `Close`.
+- **Q: The Mac and iOS code repeat the outside-change flow and the document's disk check. Share them now?**
+  A: Both now: one disk check (`DiskWatch`) for both documents, and one outside-change flow (`OutsideChangeHost`) that each app's controller adopts.
+- **Q: When do the UI tests run on the review's fixes?**
+  A: After the fixes and the gate without them; the reviewer asks Itay first, so he can step away from the Mac.
+
 ## Design
+
+### Document types (amends log 001 › Files; Round 7)
+
+The Markdown type (`net.daringfireball.markdown`: `.md`, `.markdown`, `.mdown`, `.mkd`) has rank Default.
+`.txt` is a second type with rank Alternate. The Mac app claims it by its extension only, so Scroll never claims a source file or a log. The iOS app claims `public.plain-text`, because iOS matches documents by type only.
 
 ### Host interface (amends log 001 › Host interface)
 
@@ -194,6 +210,7 @@ No button is the default. Return and Esc do nothing. On iOS, `Use version on dis
 `Use Version on Disk` calls plan 01's `reload(text:)`, which clears Undo.
 `Keep My Changes` closes the dialog; the next autosave writes the local text, and the status then reads `Saved your changes over the other version.`
 `Compare…` opens the compare view, titled `Compare versions of "<name>"`, with the columns `Your Changes` and `On Disk`.
+When the new bytes on disk are not UTF-8 text (or hold a NUL), the app pauses saves and edits and shows the strip `"<name>" changed outside Scroll and can't be read as text.` (DRAFT until WAIT-3) with `Keep My Changes` and `Close`. Keep My Changes saves the document's text over the other version, and the status then reads `Saved your changes over the other version.` Close closes the document without saving. Text written to the file later follows the rules above (Round 7).
 Apply calls `replaceText(_:)` with the merged text: one undo group with reason `edit`. Cancel returns to the dialog and writes nothing.
 
 ## Trade-offs

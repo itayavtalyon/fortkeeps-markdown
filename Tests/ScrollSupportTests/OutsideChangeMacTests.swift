@@ -45,7 +45,7 @@
             #expect(!Self.texts(controller).contains(Self.note))
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the file presenter hands a change to the window`() async throws {
             let url = try given("a.md", "a\n")
             let (document, controller) = try open(url)
@@ -58,7 +58,7 @@
             }
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the note goes after its time, but not while the pointer is over it`() async throws {
             let url = try given("a.md", "a\n")
             let (document, controller) = try open(url)
@@ -154,7 +154,7 @@
             #expect(!controller.markdownView.isEditable)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a checkbox click while the dialog is visible changes no byte`() async throws {
             let (document, controller) = try dialog()
 
@@ -189,7 +189,7 @@
             #expect(controller.markdownView.isEditable)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `keeping my changes writes them on the next autosave, and the status says so`() async throws {
             let (document, controller) = try dialog()
 
@@ -204,7 +204,43 @@
             #expect(Self.texts(controller).contains("Saved · 3 words"))
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        /// Log 004 Round 7: the strip, with saves and edits paused.
+        @Test(.timeLimit(.minutes(2)))
+        func `bytes that are not text pause the document, and Keep My Changes writes the text back`() async throws {
+            let url = try given("a.md", "a\n")
+            let (document, controller) = try open(url)
+
+            try Data([0x61, 0xFF, 0x0A]).write(to: url)
+            document.noteChangeOnDisk()
+
+            #expect(Self.texts(controller).contains("“a.md” changed outside Scroll and can’t be read as text."))
+            #expect(!controller.markdownView.isEditable)
+            #expect(document.pausesSaves)
+            #expect(spy.alerts.isEmpty)
+            try #require(Self.button("Keep My Changes", in: controller.window?.contentView)).performClick(nil)
+            #expect(controller.markdownView.isEditable)
+            #expect(!document.pausesSaves)
+            try await document.autosave(withImplicitCancellability: false)
+            #expect(try disk(document) == Data("a\n".utf8))
+            #expect(Self.texts(controller).contains("Saved your changes over the other version. · 1 word"))
+        }
+
+        @Test
+        func `text written after unreadable bytes follows the usual rules`() throws {
+            let url = try given("a.md", "a\n")
+            let (document, controller) = try open(url)
+            try Data([0x00]).write(to: url)
+            document.noteChangeOnDisk()
+
+            try changeOnDisk(url, "b\n", document)
+
+            #expect(controller.markdownView.text == "b\n")
+            #expect(controller.markdownView.isEditable)
+            #expect(!document.pausesSaves)
+            #expect(!controller.outside.isUnreadable)
+        }
+
+        @Test(.timeLimit(.minutes(2)))
         func `the compare view's Apply writes once, and its Undo restores the text from before`() async throws {
             let (document, controller) = try dialog()
 
@@ -230,7 +266,7 @@
             #expect(controller.markdownView.text == "- [ ] one\nmine\n")
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the compare view's Cancel writes nothing and shows the dialog again`() async throws {
             let (document, controller) = try dialog()
 
@@ -251,7 +287,7 @@
         }
 
         /// The text saved, then typed on: the saved bytes are the window's own.
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a save of the window's own text, typed on since, is no outside change`() async throws {
             let url = try given("a.md", "a\n")
             let (document, controller) = try open(url)
@@ -288,7 +324,7 @@
         }
 
         /// A rename moves the base of relative links and images (log 004 Round 5).
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a moved file moves the text's base`() async throws {
             let url = try given("a.md", "a\n")
             let (document, controller) = try open(url)

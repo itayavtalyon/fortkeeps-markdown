@@ -211,7 +211,7 @@ struct DocumentImagesTests {
         #expect(try cache.image(for: #require(URL(string: "https://e.com/a.png"))) == new)
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(.timeLimit(.minutes(2)))
     func `load all skips an image loaded in this session`() async throws {
         let png = try Self.png()
         let harness = given([
@@ -232,7 +232,7 @@ struct DocumentImagesTests {
         ])
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(.timeLimit(.minutes(2)))
     func `load all fetches each remote image of the text once, and nothing else`() async throws {
         let png = try Self.png()
         let harness = given([

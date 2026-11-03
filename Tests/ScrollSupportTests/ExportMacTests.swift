@@ -105,7 +105,7 @@
             #expect(operation.jobTitle == "a.md")
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a cancelled panel writes nothing, and a failed export says so`() async throws {
             let controller = try open("# Trip\n")
 

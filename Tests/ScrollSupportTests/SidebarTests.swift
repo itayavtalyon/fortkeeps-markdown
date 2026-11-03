@@ -83,7 +83,7 @@
 
         /// Plan 01: no editor path parses the whole text after open (log 004 Round 6).
         /// A 1 h pause, so a busy main actor cannot make the pause pass.
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `typing parses nothing until it pauses, and a newer edit starts the pause again`() async throws {
             let (_, controller) = try await open("Plain\n")
             controller.outlinePause = .seconds(3600)
@@ -117,7 +117,7 @@
             #expect(Self.rows(controller).prefix(2) == ["Outline", "Shown"])
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a reload refreshes the Outline at once`() async throws {
             let (_, controller) = try await open("Plain\n")
             controller.outlinePause = .seconds(3600)

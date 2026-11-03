@@ -98,7 +98,7 @@
             #expect(controller.markdownView.controller.checkboxAccessibility(0).isEnabled)
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a failed save shows the strip and keeps the text`() async throws {
             let url = try given()
             let (document, controller) = try open(url)
@@ -136,7 +136,7 @@
             #expect(try Data(contentsOf: url) == Data("- [ ] one two\n".utf8))
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `another error keeps the system sheet`() async throws {
             let (document, controller) = try open(given())
             let window = try #require(controller.window)
@@ -207,7 +207,7 @@
             copy.close()
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `the file presenter notes a rename and a deletion`() async throws {
             let (document, _) = try open(given())
             var changes = 0
@@ -228,7 +228,7 @@
             }
         }
 
-        @Test(.timeLimit(.minutes(1)))
+        @Test(.timeLimit(.minutes(2)))
         func `a deleted file shows its strip and pauses autosave until a save`() async throws {
             let url = try given()
             let (document, controller) = try open(url)

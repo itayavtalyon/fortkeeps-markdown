@@ -21,6 +21,19 @@ struct AppInfoTests {
         #expect(Set(listed) == DocumentFile.acceptedExtensions)
     }
 
+    /// A claim of public.plain-text would take every source file and log (log 004 Round 7).
+    @Test
+    func `the Markdown type is the default and txt an alternate claimed by its extension only`() throws {
+        let types = try #require(Self.info()["CFBundleDocumentTypes"] as? [[String: Any]])
+        let markdown = try #require(types.first { $0["CFBundleTypeName"] as? String == "Markdown" })
+        let plain = try #require(types.first { ($0["CFBundleTypeExtensions"] as? [String]) == ["txt"] })
+
+        #expect(markdown["LSHandlerRank"] as? String == "Default")
+        #expect(markdown["LSItemContentTypes"] as? [String] == ["net.daringfireball.markdown"])
+        #expect(plain["LSHandlerRank"] as? String == "Alternate")
+        #expect(plain["LSItemContentTypes"] == nil)
+    }
+
     @Test
     func `the Markdown type declares every accepted extension but txt`() throws {
         let declared = try #require(Self.info()["UTImportedTypeDeclarations"] as? [[String: Any]])

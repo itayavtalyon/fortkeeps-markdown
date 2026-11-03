@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Fail unless the iOS app opens the same document types as the Mac app (plan 02, stage 2d).
 
-Compares `CFBundleDocumentTypes` (without the Mac-only `NSDocumentClass`) and
-`UTImportedTypeDeclarations` of the two Info.plist files.
+Compares `CFBundleDocumentTypes` (without the Mac-only `NSDocumentClass`, and
+without iOS's `public.plain-text` for .txt) and `UTImportedTypeDeclarations`
+of the two Info.plist files.
 """
 
 import plistlib
@@ -19,6 +20,10 @@ def types(path: Path) -> dict:
     found = {key: info.get(key) for key in KEYS}
     for entry in found["CFBundleDocumentTypes"] or []:
         entry.pop("NSDocumentClass", None)
+        # iOS matches documents by type only, so its .txt entry names public.plain-text;
+        # the Mac claims .txt by extension, so it never claims source code or logs.
+        if entry.get("LSItemContentTypes") == ["public.plain-text"]:
+            entry.pop("LSItemContentTypes")
     return found
 
 

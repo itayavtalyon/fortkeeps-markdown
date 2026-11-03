@@ -33,7 +33,7 @@
         }
 
         static func texts(_ controller: DocumentWindowController) -> [String] {
-            texts(in: controller.window?.contentView)
+            texts(in: controller.contentStack)
         }
 
         static func texts(in view: NSView?) -> [String] {
@@ -63,6 +63,20 @@
             let (_, controller) = try open(given())
 
             #expect(Self.texts(controller).contains("Saved · 2 words"))
+        }
+
+        /// Settings (screens §3.17): every window follows at once.
+        @Test
+        func `the text column and the word count follow Settings`() throws {
+            let settings = ScrollSettings(defaults: spy.defaults)
+            let (_, controller) = try open(given())
+            #expect(controller.markdownView.maxLineWidth == 680)
+
+            settings.lineWidth = .narrow
+            settings.showsWordCount = false
+
+            #expect(controller.markdownView.maxLineWidth == 560)
+            #expect(Self.texts(controller).contains("Saved"))
         }
 
         @Test
@@ -285,6 +299,12 @@
         /// The button an alert answers with; nil leaves it open.
         var response: NSApplication.ModalResponse?
         let access = FakeAccess()
+        let defaults = UserDefaults(suiteName: "EnvironmentSpy-\(UUID().uuidString)") ?? .standard
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("EnvironmentSpy-\(UUID().uuidString)"))
+        /// Where Export writes; nil cancels the panel.
+        var exportURL: URL?
+        var exportNames: [String] = []
+        var printed: [NSPrintOperation] = []
 
         /// No answer: a request waits, logged.
         let transport = FakeTransport([:])
@@ -304,7 +324,14 @@
                         handler(response)
                     }
                 },
-                showPopover: { [weak self] text, _ in self?.popovers.append(text) }
+                showPopover: { [weak self] text, _ in self?.popovers.append(text) },
+                chooseExportURL: { [weak self] name, _ in
+                    self?.exportNames.append(name)
+                    return self?.exportURL
+                },
+                runPrint: { [weak self] operation, _ in self?.printed.append(operation) },
+                defaults: defaults,
+                pasteboard: pasteboard
             )
         }
     }

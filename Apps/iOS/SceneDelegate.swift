@@ -9,10 +9,12 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var home: HomeViewController?
     private var browser: BrowserViewController?
+    private var session: DocumentSession?
 
     func scene(_ scene: UIScene, willConnectTo _: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene, let environment = ScrollEnvironment.app else { return }
         let session = DocumentSession(store: FileListStore(defaults: .standard), environment: environment)
+        self.session = session
         let window = UIWindow(windowScene: scene)
         if scene.traitCollection.userInterfaceIdiom == .pad {
             let browser = BrowserViewController(session: session)
@@ -36,6 +38,14 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         Self.current = self
         window.makeKeyAndVisible()
         open(options.urlContexts.map(\.url))
+        if let browser, options.urlContexts.isEmpty {
+            Task { await browser.reopen() }
+        }
+    }
+
+    /// Each open file keeps its place and Lock for the next launch.
+    func sceneDidEnterBackground(_: UIScene) {
+        session?.keepPlaces()
     }
 
     func scene(_: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) {

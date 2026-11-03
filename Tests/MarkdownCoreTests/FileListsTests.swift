@@ -129,4 +129,11 @@ struct FileListsTests {
     ) {
         #expect(DocumentFile.copyName(of: name, taken: taken) == copy)
     }
+
+    @Test
+    func `a free name is the name, then name 2, with the file's extension`() {
+        #expect(DocumentFile.freeName("Trip.md", taken: ["a.md"]) == "Trip.md")
+        #expect(DocumentFile.freeName("Trip.md", taken: ["trip.md", "Trip 2.md"]) == "Trip 3.md")
+        #expect(DocumentFile.freeName("Notes", taken: ["Notes"]) == "Notes 2")
+    }
 }

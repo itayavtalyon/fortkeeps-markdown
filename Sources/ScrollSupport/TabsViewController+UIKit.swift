@@ -14,10 +14,14 @@
         private(set) var selected: DocumentViewController?
         /// Browse, or the last tab closed: back to the document browser.
         var showBrowser: (() -> Void)?
+        /// The split view's sidebar: the selected tab's Outline and its folder.
+        let sidebar: SidebarViewController
 
         init(session: DocumentSession) {
             self.session = session
+            sidebar = SidebarViewController(environment: session.environment)
             super.init(nibName: nil, bundle: nil)
+            sidebar.session = session
             navigationItem.leftBarButtonItem = UIBarButtonItem(
                 title: ScrollStrings.browse,
                 primaryAction: UIAction { [weak self] _ in self?.showBrowser?() }
@@ -87,16 +91,19 @@
                 screen.didMove(toParent: self)
             }
             showTitle()
+            sidebar.show(screen)
             for case let tab as TabView in strip.arrangedSubviews {
                 tab.isSelected = tab.screen === screen
             }
         }
 
-        /// The bar shows the selected document's title block and ⋯ menu.
+        /// The bar shows the selected document's title block, ⋯ menu, and Share;
+        /// the split view has its own sidebar button.
         private func showTitle() {
             navigationItem.title = selected?.title
             navigationItem.showStatus(selected?.statusText)
-            navigationItem.rightBarButtonItem = selected?.navigationItem.rightBarButtonItem
+            let items = selected?.navigationItem.rightBarButtonItems
+            navigationItem.rightBarButtonItems = items.map { Array($0.prefix(2)) }
         }
 
         func close(at index: Int) async {
@@ -133,6 +140,10 @@
                 UIKeyCommand(
                     title: ScrollStrings.nextTab, action: #selector(nextTab), input: "]",
                     modifierFlags: [.command, .shift]
+                ),
+                UIKeyCommand(
+                    title: String(localized: "Open Folder…"), action: #selector(openFolder(_:)), input: "o",
+                    modifierFlags: [.command, .shift]
                 )
             ] + (1 ... 9).map { number in
                 UIKeyCommand(
@@ -142,6 +153,20 @@
                     modifierFlags: .command
                 )
             }
+        }
+
+        /// Open Folder… (⇧⌘O; log 004 Round 6): the folder keeps its access and
+        /// shows in the sidebar.
+        @objc func openFolder(_: Any?) {
+            Task { await openFolder() }
+        }
+
+        func openFolder() async {
+            guard let bookmarks = session.environment.access as? FolderBookmarks,
+                  let chosen = await bookmarks.openFolder(from: sidebar.folder ?? session.environment.appFolder)
+            else { return }
+            sidebar.folder = chosen
+            splitViewController?.show(.primary)
         }
 
         @objc func closeTab() {
@@ -167,6 +192,13 @@
             guard let index = command.input.flatMap(Int.init).map({ $0 - 1 }), tabs.indices.contains(index)
             else { return }
             select(tabs[index])
+        }
+    }
+
+    extension TabsViewController: UISplitViewControllerDelegate {
+        /// A new split follows the last choice.
+        func splitViewController(_: UISplitViewController, willChangeTo mode: UISplitViewController.DisplayMode) {
+            ScrollSettings(defaults: session.environment.defaults).showsSidebar = mode != .secondaryOnly
         }
     }
 
@@ -246,6 +278,12 @@
             nil
         }
 
+        /// A relaunch: the files that were open come back as tabs.
+        func reopen() async {
+            let store = session.store
+            await open(store.lists.open.map(\.url).filter { !store.missing.contains($0) }, typing: false)
+        }
+
         func open(_ urls: [URL], typing: Bool) async {
             for url in urls {
                 await tabs.open(url)
@@ -254,9 +292,15 @@
             guard tabs.selected != nil, !showsTabs else { return }
             showsTabs = true
             session.alertHost = tabs
-            let shown = UINavigationController(rootViewController: tabs)
-            shown.modalPresentationStyle = .fullScreen
-            session.environment.present(shown, self)
+            let split = UISplitViewController(style: .doubleColumn)
+            split.setViewController(tabs.sidebar, for: .primary)
+            split.setViewController(tabs, for: .secondary)
+            let showsSidebar = ScrollSettings(defaults: session.environment.defaults).showsSidebar
+            split.preferredDisplayMode = showsSidebar ? .oneBesideSecondary : .secondaryOnly
+            split.preferredSplitBehavior = .tile
+            split.delegate = tabs
+            split.modalPresentationStyle = .fullScreen
+            session.environment.present(split, self)
         }
     }
 

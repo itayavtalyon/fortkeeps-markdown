@@ -29,7 +29,11 @@
                 openFile: { _ in },
                 closeFile: { _ in },
                 present: { [weak self] controller, _ in self?.presented.append(controller) },
-                appFolder: folder.appending(path: "Documents")
+                appFolder: folder.appending(path: "Documents"),
+                runPrint: { _, _ in },
+                defaults: UserDefaults(suiteName: "Scroll-\(UUID().uuidString)") ?? .standard,
+                pasteboard: .withUniqueName(),
+                cache: ImageCache(directory: folder.appending(path: "Cache"))
             )
         )
         lazy var home = HomeViewController(session: session)

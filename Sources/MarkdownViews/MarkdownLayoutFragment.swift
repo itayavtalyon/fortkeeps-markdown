@@ -35,6 +35,28 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
         isRightToLeft ? layoutFragmentFrame.width - offset - width : offset
     }
 
+    /// The space between a leading marker and its text: the indent step less the marker and 2 pt.
+    private var gap: CGFloat {
+        MarkdownAttributedText.indentStep - 2 - Self.checkboxSize
+    }
+
+    /// Where the first line's text starts on its leading side. TextKit 2 may put
+    /// the fragment at the indent or at the container's edge, so it is measured.
+    private func textStart(_ line: NSTextLineFragment) -> CGFloat {
+        let bounds = line.typographicBounds
+        return isRightToLeft ? bounds.maxX : bounds.minX + line.locationForCharacter(at: line.characterRange.location).x
+    }
+
+    /// A marker's top: centred on the capitals of the text after it, so it sits
+    /// on the words and not on the line spacing.
+    private func markerY(on line: NSTextLineFragment, textAt location: Int, size: CGFloat) -> CGFloat {
+        let length = paragraph?.length ?? 0
+        let font = paragraph?.attribute(.font, at: max(0, min(location, length - 1)), effectiveRange: nil)
+        let capHeight = (font as? PlatformFont)?.capHeight ?? size
+        let baseline = line.typographicBounds.minY + line.glyphOrigin.y
+        return baseline - capHeight / 2 - size / 2
+    }
+
     /// The marker rectangles in fragment coordinates.
     var markerBoxes: [MarkerBox] {
         guard let paragraph, let firstLine = textLineFragments.first else { return [] }
@@ -47,13 +69,14 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
             let size = Self.checkboxSize
             if marker.covers {
                 let line = textLineFragments.first { $0.characterRange.contains(range.location) } ?? firstLine
-                let start = line.locationForCharacter(at: range.location).x
-                let end = line.locationForCharacter(at: NSMaxRange(range)).x
-                let bounds = line.typographicBounds
+                // Character locations count from the line's left, which right-to-left text moves.
+                let left = line.typographicBounds.minX
+                let start = left + line.locationForCharacter(at: range.location).x
+                let end = left + line.locationForCharacter(at: NSMaxRange(range)).x
                 boxes.append(MarkerBox(
                     rect: CGRect(
                         x: (start + end - size) / 2,
-                        y: bounds.maxY - bounds.height / 2 - size / 2 - 2,
+                        y: markerY(on: line, textAt: NSMaxRange(range), size: size),
                         width: size,
                         height: size
                     ),
@@ -61,12 +84,10 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
                     offset: range.location
                 ))
             } else if range.location == 0 {
-                let style = paragraph.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
-                let indent = style?.headIndent ?? MarkdownAttributedText.indentStep
-                let bounds = firstLine.typographicBounds
-                let x = edge(indent - MarkdownAttributedText.indentStep + 2, width: size)
+                let x = isRightToLeft ? textStart(firstLine) + gap : textStart(firstLine) - gap - size
+                let y = markerY(on: firstLine, textAt: NSMaxRange(range), size: size)
                 boxes.append(MarkerBox(
-                    rect: CGRect(x: x, y: bounds.maxY - bounds.height / 2 - size / 2 - 2, width: size, height: size),
+                    rect: CGRect(x: x, y: y, width: size, height: size),
                     marker: marker,
                     offset: 0
                 ))
@@ -125,11 +146,21 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
             context.fill(CGRect(x: frame.minX, y: frame.midY, width: frame.width, height: 1))
         }
         // A quote has a 2 pt `line2` bar on the leading edge, one per level.
-        let depth = paragraph.attribute(.markdownQuoteDepth, at: 0, effectiveRange: nil) as? Int ?? 0
         context.setFillColor(MarkdownTheme.color(.line2).cgColor)
-        for level in 0 ..< depth {
-            let x = edge(CGFloat(level) * MarkdownAttributedText.indentStep + 4, width: 2)
-            context.fill(CGRect(x: point.x + x, y: frame.minY, width: 2, height: frame.height))
+        for bar in quoteBars {
+            context.fill(bar.offsetBy(dx: point.x, dy: point.y))
+        }
+    }
+
+    /// The quote bars in fragment coordinates: 4 pt into each level's indent step.
+    var quoteBars: [CGRect] {
+        guard let paragraph, paragraph.length > 0, let firstLine = textLineFragments.first else { return [] }
+        let depth = paragraph.attribute(.markdownQuoteDepth, at: 0, effectiveRange: nil) as? Int ?? 0
+        let start = textStart(firstLine)
+        return (0 ..< depth).map { level in
+            let back = CGFloat(depth - level) * MarkdownAttributedText.indentStep - 4
+            let x = isRightToLeft ? start + back - 2 : start - back
+            return CGRect(x: x, y: 0, width: 2, height: layoutFragmentFrame.height)
         }
     }
 
@@ -300,8 +331,10 @@ extension NSTextLayoutManager {
 
     /// The first character of the fragment at a y in container coordinates.
     /// Below the last line, the document end.
+    /// Half a point of slack: a scroll to a fragment's top rounds to the screen's
+    /// pixels, which can land just above it.
     func firstOffset(atY y: CGFloat) -> Int {
-        guard let fragment = textLayoutFragment(for: CGPoint(x: 0, y: max(0, y))) else {
+        guard let fragment = textLayoutFragment(for: CGPoint(x: 0, y: max(0, y + 0.5))) else {
             return y > 0 ? offset(of: documentRange.endLocation) : 0
         }
         return offset(of: fragment.rangeInElement.location)

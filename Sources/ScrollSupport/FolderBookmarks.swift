@@ -40,17 +40,40 @@ final class FolderBookmarks: FolderAccess {
     /// True when the person chose the folder or a folder that holds it.
     func request(_ folder: URL) async -> Bool {
         guard let chosen = await choose(folder),
-              folder.standardizedFileURL.pathComponents.starts(with: chosen.standardizedFileURL.pathComponents),
-              let bookmark = try? chosen.bookmarkData(
-                  options: Self.creationOptions,
-                  includingResourceValuesForKeys: nil,
-                  relativeTo: nil
-              )
+              folder.standardizedFileURL.pathComponents.starts(with: chosen.standardizedFileURL.pathComponents)
         else { return false }
-        stored[chosen.path(percentEncoded: false)] = bookmark
-        _ = chosen.startAccessingSecurityScopedResource()
-        folders.append(chosen)
+        return grant(chosen)
+    }
+
+    /// Open Folder… on iPad: the picker, and the chosen folder keeps its access.
+    func openFolder(from folder: URL) async -> URL? {
+        guard let chosen = await choose(folder), grant(chosen) else { return nil }
+        return chosen
+    }
+
+    /// Keeps access to a folder the person chose: the picker above, or Open Folder….
+    @discardableResult
+    func grant(_ folder: URL) -> Bool {
+        guard let bookmark = try? folder.bookmarkData(
+            options: Self.creationOptions,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else { return false }
+        stored[folder.path(percentEncoded: false)] = bookmark
+        _ = folder.startAccessingSecurityScopedResource()
+        if !folders.contains(folder) {
+            folders.append(folder)
+        }
         return true
+    }
+
+    /// Settings › Remove (screens §3.17): the bookmark goes, and access ends.
+    func remove(_ folder: URL) {
+        // A restored folder's path can differ from its key: a trailing slash, or /private.
+        let path = folder.resolvingSymlinksInPath().pathComponents
+        stored = stored.filter { URL(fileURLWithPath: $0.key).resolvingSymlinksInPath().pathComponents != path }
+        folder.stopAccessingSecurityScopedResource()
+        folders.removeAll { $0 == folder }
     }
 
     /// A bookmark that no longer resolves, or is stale, is dropped.

@@ -101,6 +101,31 @@ Stage 2b loads images. Logs 001 and 002 differ on the card of an SVG, on which f
 - **Q: The screen is locked, so the UI tests cannot run. What then?**
   A: Itay unlocks the screen; 2e runs `just mac-app-test ios-app-test` before its commit.
 
+### Round 6 (2026-11-02: Itay, stage 2f)
+
+- **Q: Settings › Line width gives Medium 680 pt only. What are Narrow and Wide?**
+  A: Narrow 560 pt, Medium 680 pt, Wide 840 pt.
+- **Q: Which folder does the folder sidebar show, and what does Open Folder… do?**
+  A: Each window shows its document's folder once the app has access to it. Open Folder… (⇧⌘O) picks a folder, stores its access, and shows it in the front window's sidebar; with no document window, it opens a new Untitled window with that folder in the sidebar. The iPad works the same.
+- **Q: On iOS, do the export items go in the Share menu (screens §3.16) or in ⋯ (§3.20)?**
+  A: ⋯ › Export holds Export PDF, Export HTML, Print, and Copy as rich text. The Share button stays the system share sheet for the file itself.
+- **Q: What happens to raw HTML in Export as HTML?**
+  A: It is escaped and shown as source text in a code block, like the in-app fallback (screens §3.9 outcome A).
+- **Q: Does the iPhone get the folder list?**
+  A: Yes. ☰ opens a sheet with the Outline and, once folder access exists, the Folder section with New File, Rename, and Move to Trash.
+- **Q: Above 20 MB, log 001 shows "Large file: styling updates as you scroll.", but the library styles the whole text at once. What does 2f do?**
+  A: 2f builds the 5 MB progress only. The 20 MB note and lazy styling wait for a library change.
+- **Q: Is the Mac sidebar shown in a new window?**
+  A: Hidden at first. ⌃⌘S or the toolbar button shows it, and new windows follow the last choice. A restored window keeps its own state.
+- **Q: How does the folder sidebar show subfolders, and where does New File create the file?**
+  A: Subfolders expand in place with a disclosure triangle. New File creates the file in the selected folder, or the folder of the selected file, or else the top folder.
+- **Q: iOS has no system Trash for these files (`trashItem` fails: the volume has none). What does Move to Trash do on iOS?**
+  A: It moves the file into a `Trash` folder in the app's own Files folder (On My iPhone › FK Scroll › Trash). Undo moves it back. The person empties that folder in Files, so nothing is deleted for good.
+- **Q: The sidebar's Outline parsed the whole text on every keystroke, even with the sidebar hidden, against plan 01's rule that no editor path parses the whole text after open (2 MB: about 0.3 s per parse). How does the Outline stay current?** (asked 2026-11-03, during the deep review)
+  A: It refreshes only while it is on screen: when it appears, on open and reload, and 1 s after typing pauses. The parse runs off the main thread on a copy of the text, and a result for a text that has changed since is dropped. A hidden sidebar costs nothing. The Outline can lag about 1 s behind typing. A library heading scanner (live, no full parse) was weighed and not chosen: it would have to match cmark's headings (setext, in lists and quotes) and render each title as drawn.
+- **Q: On iPhone the Outline (☰) button narrows the title block, and the accessibility audit flags the status subtitle ("Documents · Saving…") as clippable at larger Dynamic Type. What does 2f do?** (asked 2026-11-03, during the gate)
+  A: Accept it. The subtitle is UIKit's own navigation-bar label, which truncates at large sizes as system apps do, and VoiceOver reads it in full. The UI test's audit skips only the clipped-text issue on that subtitle. Not chosen: dropping the folder from the iPhone status, moving Outline into ⋯, or a custom title view.
+
 ## Design
 
 ### Host interface (amends log 001 › Host interface)

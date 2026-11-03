@@ -64,6 +64,30 @@ public extension MarkdownView {
         set { controller.documentURL = newValue }
     }
 
+    /// Copy as Rich Text: RTF, HTML, and the rendered plain text.
+    /// Export as PDF and Print (screens §3.16): the whole text, rendered,
+    /// with each image the host gives now. The host fetches nothing for it.
+    func printableText(width: CGFloat, image: (ImageRequest) async -> ImageResult) async -> NSAttributedString {
+        await controller.printableText(width: width, image: image)
+    }
+
+    internal func richTextFlavors() -> RichTextFlavors {
+        let rich = controller.richText()
+        let range = NSRange(location: 0, length: rich.rendered.length)
+        let attributes: [NSAttributedString.DocumentAttributeKey: Any] =
+            [.documentType: NSAttributedString.DocumentType.rtf]
+        // RTF from an attributed string in memory does not fail.
+        let rtf = (try? rich.rendered.data(from: range, documentAttributes: attributes)) ?? Data()
+        return RichTextFlavors(rtf: rtf, html: rich.html, plain: rich.rendered.string)
+    }
+
+    /// The left and right text inset: a column of at most `maxLineWidth`,
+    /// centred, never closer to the edge than `minimum`.
+    internal static func sideInset(width: CGFloat, maxLineWidth: CGFloat?, minimum: CGFloat) -> CGFloat {
+        guard let maxLineWidth else { return minimum }
+        return max(minimum, (width - maxLineWidth) / 2)
+    }
+
     private func keepingPlace(_ change: () -> Void) {
         let kept = anchor
         change()
@@ -83,14 +107,43 @@ public extension MarkdownView {
     @discardableResult
     func showHeading(fragment: String) -> Bool {
         guard let block = controller.document.headingBlock(forFragment: fragment) else { return false }
-        let start = block.sourceRange.lowerBound
+        show(sourceOffset: block.sourceRange.lowerBound)
+        return true
+    }
+
+    /// The Outline (screens §3.4): every heading, in reading order. The text is
+    /// parsed off the main thread when it changed since the last parse.
+    func loadOutline() async -> [MarkdownDocument.OutlineItem] {
+        await controller.loadDocument().outline
+    }
+
+    /// The Outline row of the section at the top of the view; nil before the
+    /// first heading, or after an edit until the Outline loads again.
+    var currentOutlineIndex: Int? {
+        controller.cachedDocument?.outlineIndex(
+            atSourceOffset: controller.sourceByte(ofDisplayOffset: firstVisibleOffset)
+        )
+    }
+
+    /// An Outline click: the caret at the heading's start, the view there, and VoiceOver focus there.
+    func showOutlineItem(_ item: MarkdownDocument.OutlineItem) {
+        show(sourceOffset: item.sourceOffset)
+    }
+
+    private func show(sourceOffset start: Int) {
         anchor = MarkdownAnchor(block: start, offsetInBlock: 0, selection: start ..< start)
         moveAccessibilityFocusToSelection()
-        return true
     }
 
     /// Performs a format command, as the format bar and the shortcuts do.
     func perform(_ command: FormatCommand) {
         controller.perform(command)
     }
+}
+
+/// What Copy as Rich Text puts on the pasteboard.
+struct RichTextFlavors {
+    let rtf: Data
+    let html: String
+    let plain: String
 }

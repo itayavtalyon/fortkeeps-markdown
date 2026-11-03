@@ -32,7 +32,7 @@ final class MarkdownTextController {
     var reduceMotion = false
     /// The largest size the view draws an image at.
     var maxImagePixelSize = CGSize(width: 8192, height: 8192)
-    let undoManager = UndoManager()
+    let undoManager = ModelUndoManager()
 
     /// Called after the text or the mode changes, so the view redraws.
     var onDisplayChange: (() -> Void)?
@@ -45,7 +45,7 @@ final class MarkdownTextController {
     /// The open undo group: later edits of the same typed run join it.
     private var openGroup: UndoGroup?
     /// Internal so tests can check that the editor paths do not parse the whole text.
-    private(set) var cachedDocument: MarkdownDocument?
+    var cachedDocument: MarkdownDocument?
     // Internal for the links and images extension.
     var imageResults: [String: ImageResult] = [:]
     var imageTasks: [String: Task<Void, Never>] = [:]
@@ -156,13 +156,13 @@ final class MarkdownTextController {
         onDisplayChange?()
     }
 
-    /// The accessibility of a checkbox: the task text, `done` or `not done`,
+    /// The accessibility of a checkbox: the task text, `checked` or `unchecked` (log 002),
     /// and whether a click may change it.
     func checkboxAccessibility(_ index: Int) -> CheckboxState {
         let task = document.tasks[index]
         return CheckboxState(
             label: task.text,
-            value: task.checked ? "done" : "not done",
+            value: CheckboxState.value(checked: task.checked),
             isEnabled: isEditable && mode != .editorLocked
         )
     }
@@ -345,4 +345,49 @@ struct CheckboxState: Equatable {
     /// `done` or `not done`.
     let value: String
     let isEnabled: Bool
+}
+
+extension CheckboxState {
+    /// VoiceOver's value of a checkbox (log 002).
+    static func value(checked: Bool) -> String {
+        checked
+            ? String(localized: "checkbox.checked", defaultValue: "checked", bundle: resourceBundle)
+            : String(localized: "checkbox.unchecked", defaultValue: "unchecked", bundle: resourceBundle)
+    }
+}
+
+/// The controller's undo manager. The iOS text view opens and closes a group
+/// for each Find replacement (screens §3.6) with nothing in it, and the
+/// controller makes the change again as its own group; this manager notes a
+/// group left empty, so the controller can take it off.
+final class ModelUndoManager: UndoManager {
+    /// The last top-level group closed with nothing in it.
+    private(set) var hasEmptyGroup = false
+    private var registered = false
+
+    override func beginUndoGrouping() {
+        if groupingLevel == 0 {
+            registered = false
+        }
+        super.beginUndoGrouping()
+    }
+
+    override func endUndoGrouping() {
+        super.endUndoGrouping()
+        if groupingLevel == 0, !isUndoing, !isRedoing {
+            hasEmptyGroup = !registered
+        }
+    }
+
+    override func __registerUndoWithTarget(_ target: Any, handler undoHandler: @escaping @MainActor (Any) -> Void) {
+        registered = true
+        super.__registerUndoWithTarget(target, handler: undoHandler)
+    }
+
+    /// Takes off an empty group, so Undo does not stop on nothing.
+    func dropEmptyGroup() {
+        guard hasEmptyGroup else { return }
+        hasEmptyGroup = false
+        undo()
+    }
 }

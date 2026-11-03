@@ -12,15 +12,23 @@
         var opened: [URL] = []
         var presented: [UIViewController] = []
         var closed: [URL] = []
+        var printed: [UIPrintInteractionController] = []
+        let transport = FakeTransport([:])
+        /// Windows a test puts a screen in, kept until the test ends.
+        var windows: [UIWindow] = []
 
         lazy var environment = ScrollEnvironment(
-            transport: FakeTransport([:]),
+            transport: transport,
             access: FakeAccess(),
             openURL: { [weak self] in self?.opened.append($0) },
             openFile: { [weak self] in self?.opened.append($0) },
             closeFile: { [weak self] in self?.closed.append($0) },
             present: { [weak self] controller, _ in self?.presented.append(controller) },
-            appFolder: folder.appending(path: "App")
+            appFolder: folder.appending(path: "App"),
+            runPrint: { [weak self] controller, _ in self?.printed.append(controller) },
+            defaults: UserDefaults(suiteName: "Scroll-\(UUID().uuidString)") ?? .standard,
+            pasteboard: .withUniqueName(),
+            cache: ImageCache(directory: folder.appending(path: "Cache"))
         )
 
         func screen(_ text: String = "# A\n", name: String = "a.md") async throws -> DocumentViewController {
@@ -38,8 +46,10 @@
             controller.navigationItem.rightBarButtonItem?.menu?.children.map(\.title) ?? []
         }
 
+        /// An item of the ⋯ menu, or of its Export submenu.
         func perform(_ title: String, _ controller: DocumentViewController) {
-            let action = controller.navigationItem.rightBarButtonItem?.menu?.children
+            let items = controller.navigationItem.rightBarButtonItem?.menu?.children ?? []
+            let action = (items + items.compactMap { $0 as? UIMenu }.flatMap(\.children))
                 .compactMap { $0 as? UIAction }.first { $0.title == title }
             action?.performWithSender(nil, target: nil)
         }
@@ -69,15 +79,15 @@
         }
 
         @Test
-        func `the more menu has Lock and Settings, and Lock toggles with its title`() async throws {
+        func `the more menu has Find, Lock, Export, and Settings, and Lock toggles with its title`() async throws {
             let controller = try await screen()
-            #expect(menuTitles(controller) == ["Lock", "Settings"])
+            #expect(menuTitles(controller) == ["Find", "Lock", "Export", "Settings"])
 
             perform("Lock", controller)
 
             #expect(controller.markdownView.mode == .editorLocked)
             #expect(controller.statusText == folder.lastPathComponent + " · Locked")
-            #expect(menuTitles(controller) == ["Unlock", "Settings"])
+            #expect(menuTitles(controller) == ["Find", "Unlock", "Export", "Settings"])
             controller.toggleLock()
             #expect(controller.markdownView.mode == .editor)
         }
@@ -135,7 +145,7 @@
             readOnly.toggleLock()
 
             #expect(readOnly.markdownView.mode == .editorLocked)
-            #expect(menuTitles(readOnly) == ["Settings"])
+            #expect(menuTitles(readOnly) == ["Find", "Export", "Settings"])
         }
 
         @Test(arguments: [

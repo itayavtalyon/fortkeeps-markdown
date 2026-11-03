@@ -83,6 +83,12 @@ public extension DocumentFile {
         )
     }
 
+    /// The name, or `Trip 2.md`, `Trip 3.md`, … when the folder has it.
+    static func freeName(_ name: String, taken: [String]) -> String {
+        let file = URL(filePath: name)
+        return numbered(file.deletingPathExtension().lastPathComponent, extension: file.pathExtension, taken: taken)
+    }
+
     private static func numbered(_ base: String, extension ext: String, taken: [String]) -> String {
         let taken = Set(taken.map { $0.lowercased() })
         let suffix = ext.isEmpty ? "" : "." + ext

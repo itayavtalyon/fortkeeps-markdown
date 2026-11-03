@@ -67,11 +67,11 @@ struct MarkdownTextControllerCheckboxTests {
     }
 
     @Test
-    func `the checkbox accessibility value is done or not done and its label is the task text`() {
+    func `the checkbox accessibility value is checked or unchecked and its label is the task text`() {
         let (controller, _) = MarkdownTextControllerTests.givenController("- [x] one\n- [ ] two\n")
 
-        #expect(controller.checkboxAccessibility(0).value == "done")
-        #expect(controller.checkboxAccessibility(1).value == "not done")
+        #expect(controller.checkboxAccessibility(0).value == "checked")
+        #expect(controller.checkboxAccessibility(1).value == "unchecked")
         #expect(controller.checkboxAccessibility(1).label == "two")
         #expect(controller.checkboxAccessibility(0).isEnabled)
     }

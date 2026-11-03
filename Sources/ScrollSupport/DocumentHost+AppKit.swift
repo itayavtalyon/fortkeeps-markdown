@@ -15,6 +15,7 @@
             outside.keepsMine = false
             outside.keptMine = false
             scrollDocument?.apply(change)
+            refreshOutline(after: change.reason == .reload ? .zero : outlinePause)
             update()
         }
 

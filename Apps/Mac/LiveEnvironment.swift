@@ -30,7 +30,27 @@ extension ScrollEnvironment {
                 of: view,
                 preferredEdge: .maxY
             )
-        }
+        },
+        chooseExportURL: { name, window in
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = name
+            panel.isExtensionHidden = false
+            let response = if let window {
+                await panel.beginSheetModal(for: window)
+            } else {
+                panel.runModal()
+            }
+            return response == .OK ? panel.url : nil
+        },
+        runPrint: { operation, window in
+            if let window {
+                operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+            } else {
+                operation.run()
+            }
+        },
+        defaults: .standard,
+        pasteboard: .general
     )
 }
 

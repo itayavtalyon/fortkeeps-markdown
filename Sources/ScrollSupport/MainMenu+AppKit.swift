@@ -51,6 +51,8 @@
                     #selector(NSApplication.orderFrontStandardAboutPanel(_:))
                 ),
                 item(String(localized: "Acknowledgements"), #selector(ScrollAppDelegate.showAcknowledgements)),
+                .separator(),
+                item(String(localized: "Settings…"), #selector(ScrollAppDelegate.showSettings), ","),
                 .separator(), services, .separator(),
                 item(String(localized: "Hide Fortkeeps Scroll"), #selector(NSApplication.hide(_:)), "h"),
                 item(
@@ -72,6 +74,12 @@
                 item(ScrollStrings.newFile, #selector(NSDocumentController.newDocument(_:)), "n"),
                 // AppKit adds Open Recent after Open… at launch.
                 item(String(localized: "Open…"), #selector(NSDocumentController.openDocument(_:)), "o"),
+                item(
+                    String(localized: "Open Folder…"),
+                    #selector(ScrollAppDelegate.openFolder),
+                    "o",
+                    [.command, .shift]
+                ),
                 .separator(),
                 item(String(localized: "Close Tab"), #selector(NSWindow.performClose(_:)), "w"),
                 item(
@@ -84,7 +92,13 @@
                 item(String(localized: "Duplicate"), #selector(NSDocument.duplicate(_:)), "s", [.command, .shift]),
                 item(String(localized: "Rename…"), #selector(NSDocument.rename(_:))),
                 item(String(localized: "Move To…"), #selector(NSDocument.move(_:))),
-                item(String(localized: "Revert to Saved"), #selector(NSDocument.revertToSaved(_:)))
+                item(String(localized: "Revert to Saved"), #selector(NSDocument.revertToSaved(_:))),
+                // The sidebar's file; the text's Delete stays ⌫ alone.
+                item(ScrollStrings.moveToTrash, #selector(SidebarController.moveToTrash), "\u{8}"),
+                .separator(),
+                item(ScrollStrings.exportPDF, #selector(DocumentWindowController.exportPDF(_:))),
+                item(ScrollStrings.exportHTML, #selector(DocumentWindowController.exportHTML(_:))),
+                item(ScrollStrings.print, #selector(DocumentWindowController.printText(_:)), "p")
             ]
             return menu
         }
@@ -98,6 +112,12 @@
                 .separator(),
                 item(String(localized: "Cut"), #selector(NSText.cut(_:)), "x"),
                 item(String(localized: "Copy"), #selector(NSText.copy(_:)), "c"),
+                item(
+                    ScrollStrings.copyRichText,
+                    #selector(DocumentWindowController.copyAsRichText(_:)),
+                    "c",
+                    [.command, .option]
+                ),
                 item(String(localized: "Paste"), #selector(NSText.paste(_:)), "v"),
                 item(
                     String(localized: "Paste and Match Style"),
@@ -120,34 +140,6 @@
                 ])
             ]
             return menu
-        }
-
-        private static func findMenu() -> NSMenuItem {
-            let find = #selector(NSResponder.performTextFinderAction(_:))
-            return menu(String(localized: "Find"), [
-                item(String(localized: "Find…"), find, "f", tag: NSTextFinder.Action.showFindInterface.rawValue),
-                item(
-                    String(localized: "Find and Replace…"),
-                    find,
-                    "f",
-                    [.command, .option],
-                    tag: NSTextFinder.Action.showReplaceInterface.rawValue
-                ),
-                item(String(localized: "Find Next"), find, "g", tag: NSTextFinder.Action.nextMatch.rawValue),
-                item(
-                    String(localized: "Find Previous"),
-                    find,
-                    "g",
-                    [.command, .shift],
-                    tag: NSTextFinder.Action.previousMatch.rawValue
-                ),
-                item(
-                    String(localized: "Use Selection for Find"),
-                    find,
-                    "e",
-                    tag: NSTextFinder.Action.setSearchString.rawValue
-                )
-            ])
         }
 
         /// The format commands with their shortcuts; Heading holds the levels.
@@ -190,6 +182,18 @@
             let menu = NSMenu()
             menu.items = [
                 item(String(localized: "Show Format Bar"), #selector(DocumentWindowController.toggleFormatBar)),
+                item(
+                    String(localized: "Show Sidebar"),
+                    #selector(NSSplitViewController.toggleSidebar(_:)),
+                    "s",
+                    [.command, .control]
+                ),
+                item(
+                    ScrollStrings.outlineTitle,
+                    #selector(DocumentWindowController.focusOutline),
+                    "o",
+                    [.command, .option]
+                ),
                 item(String(localized: "Show Status Bar"), #selector(DocumentWindowController.toggleStatusBar)),
                 .separator(),
                 item(ScrollStrings.lock, #selector(DocumentWindowController.toggleLock), "l", [.command, .option]),
@@ -244,6 +248,36 @@
                 menu.addItem(tab)
             }
             return menu
+        }
+    }
+
+    extension MainMenu {
+        static func findMenu() -> NSMenuItem {
+            let find = #selector(NSResponder.performTextFinderAction(_:))
+            return menu(String(localized: "Find"), [
+                item(String(localized: "Find…"), find, "f", tag: NSTextFinder.Action.showFindInterface.rawValue),
+                item(
+                    String(localized: "Find and Replace…"),
+                    find,
+                    "f",
+                    [.command, .option],
+                    tag: NSTextFinder.Action.showReplaceInterface.rawValue
+                ),
+                item(String(localized: "Find Next"), find, "g", tag: NSTextFinder.Action.nextMatch.rawValue),
+                item(
+                    String(localized: "Find Previous"),
+                    find,
+                    "g",
+                    [.command, .shift],
+                    tag: NSTextFinder.Action.previousMatch.rawValue
+                ),
+                item(
+                    String(localized: "Use Selection for Find"),
+                    find,
+                    "e",
+                    tag: NSTextFinder.Action.setSearchString.rawValue
+                )
+            ])
         }
     }
 #endif

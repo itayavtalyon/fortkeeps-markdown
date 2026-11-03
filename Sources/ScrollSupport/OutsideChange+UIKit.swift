@@ -48,9 +48,10 @@
 
         /// The note stays while the pointer is over it, then fades, unless Reduce Motion is on.
         private func hideNoteLater() async {
-            try? await Task.sleep(for: outside.noteDuration)
-            while !Task.isCancelled, outside.isPointerOver {
+            var waits = true
+            while waits {
                 try? await Task.sleep(for: outside.noteDuration)
+                waits = !Task.isCancelled && outside.isPointerOver
             }
             guard !Task.isCancelled else { return } // coverage:ignore - a newer note replaced this one
             if let note = strips.arrangedSubviews.first, !UIAccessibility.isReduceMotionEnabled {

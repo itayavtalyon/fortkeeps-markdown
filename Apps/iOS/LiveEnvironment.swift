@@ -10,7 +10,11 @@ extension ScrollEnvironment {
         openFile: { SceneDelegate.current?.open([$0]) },
         closeFile: { SceneDelegate.current?.close($0) },
         present: { controller, over in over.present(controller, animated: true) },
-        appFolder: .documentsDirectory
+        appFolder: .documentsDirectory,
+        runPrint: { printer, _ in printer.present(animated: true) },
+        defaults: .standard,
+        pasteboard: .general,
+        cache: .standard
     )
 }
 

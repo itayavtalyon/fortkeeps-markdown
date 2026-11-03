@@ -217,7 +217,8 @@
             let (_, controller) = try open(given())
             let toolbar = try #require(controller.window?.toolbar)
 
-            #expect(controller.toolbarAllowedItemIdentifiers(toolbar) == [.flexibleSpace, .lock])
+            #expect(controller.toolbarAllowedItemIdentifiers(toolbar)
+                == [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .lock])
         }
 
         @Test

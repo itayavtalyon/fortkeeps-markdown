@@ -13,6 +13,8 @@
         let defaults = UserDefaults(suiteName: "TabsTests-\(UUID().uuidString)") ?? .standard
         var presented: [UIViewController] = []
         var emptied = 0
+        /// Windows of the test stay until it ends.
+        var windows: [UIWindow] = []
 
         lazy var session = DocumentSession(
             store: FileListStore(defaults: defaults),
@@ -23,7 +25,11 @@
                 openFile: { _ in },
                 closeFile: { _ in },
                 present: { [weak self] controller, _ in self?.presented.append(controller) },
-                appFolder: folder
+                appFolder: folder,
+                runPrint: { _, _ in },
+                defaults: UserDefaults(suiteName: "Scroll-\(UUID().uuidString)") ?? .standard,
+                pasteboard: .withUniqueName(),
+                cache: ImageCache(directory: folder.appending(path: "Cache"))
             )
         )
         lazy var tabs: TabsViewController = {
@@ -66,7 +72,8 @@
             #expect(tabs.selected?.title == "b.md")
             #expect(tabs.children.map(\.title) == ["b.md"])
             #expect(tabs.navigationItem.title == "b.md")
-            #expect(tabs.navigationItem.rightBarButtonItem === tabs.selected?.navigationItem.rightBarButtonItem)
+            #expect(tabs.navigationItem.rightBarButtonItems
+                == tabs.selected?.navigationItem.rightBarButtonItems.map { Array($0.prefix(2)) })
             let tab = try #require(tabs.strip.arrangedSubviews.last as? TabView)
             #expect(tab.nameButton.accessibilityTraits.contains(.selected))
         }
@@ -151,11 +158,11 @@
         }
 
         @Test
-        func `the tab shortcuts: Command-W, Shift-Command-brackets, Command-1 to 9`() async throws {
+        func `the tab shortcuts: Command-W, Shift-Command-brackets, Open Folder, Command-1 to 9`() async throws {
             try await opened("a.md", "b.md", "c.md")
             let commands = try #require(tabs.keyCommands)
             let inputs = commands.map { ($0.input ?? "") + ($0.modifierFlags == [.command, .shift] ? "⇧" : "") }
-            #expect(inputs == ["w", "[⇧", "]⇧"] + (1 ... 9).map(String.init))
+            #expect(inputs == ["w", "[⇧", "]⇧", "o⇧"] + (1 ... 9).map(String.init))
 
             tabs.previousTab()
             #expect(tabs.selected?.title == "b.md")
@@ -164,9 +171,9 @@
             #expect(tabs.selected?.title == "a.md")
             tabs.previousTab()
             #expect(tabs.selected?.title == "c.md")
-            tabs.selectTab(commands[4])
+            tabs.selectTab(commands[5])
             #expect(tabs.selected?.title == "b.md")
-            tabs.selectTab(commands[11])
+            tabs.selectTab(commands[12])
             #expect(tabs.selected?.title == "b.md")
             tabs.closeTab()
             try await Task.sleep(for: .milliseconds(100))
@@ -206,9 +213,7 @@
 
             #expect(browser.tabs.strip.arrangedSubviews.count == 2)
             #expect(presented.count == 1)
-            let shown = try #require(presented.first as? UINavigationController)
-            #expect(shown.topViewController === browser.tabs)
-            #expect(shown.modalPresentationStyle == .fullScreen)
+            #expect(presented.first is UISplitViewController)
             #expect(session.alertHost === browser.tabs)
             browser.tabs.showBrowser?()
             #expect(session.alertHost === browser)

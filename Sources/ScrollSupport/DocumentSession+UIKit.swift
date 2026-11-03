@@ -48,6 +48,16 @@
             }
             let accessing = url.startAccessingSecurityScopedResource()
             let document = ScrollDocument(fileURL: url)
+            let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
+            if let size, size > ScrollDocument.largeFileBytes {
+                let screen = add(document, key: key, accessing: accessing)
+                screen.onLargeRefusal = { [weak self] in
+                    self?.refuse(url, ScrollStrings.notUTF8)
+                    Task { await self?.close(url) }
+                }
+                screen.beginLargeLoad()
+                return screen
+            }
             guard await document.open() else {
                 if accessing {
                     url.stopAccessingSecurityScopedResource() // coverage:ignore - a picked file outside the sandbox
@@ -56,7 +66,16 @@
                 refuse(url, (reason as? OpenRefusal)?.message ?? reason?.localizedDescription)
                 return nil
             }
+            return add(document, key: key, accessing: accessing)
+        }
+
+        private func add(_ document: ScrollDocument, key: URL, accessing: Bool) -> DocumentViewController {
+            let url = document.fileURL
             let screen = DocumentViewController(document: document, environment: environment)
+            screen.session = self
+            if let place = store.place(of: url) {
+                screen.restore(place)
+            }
             document.onMove = { [weak self] in self?.moved($0, to: $1) }
             screens[key] = screen
             if accessing {
@@ -79,11 +98,33 @@
         func close(_ url: URL) async {
             let key = FileListStore.key(url)
             if let screen = screens.removeValue(forKey: key) {
+                // The file's open ends before its close starts.
+                screen.largeLoadTask?.cancel()
+                await screen.largeLoadTask?.value
+                store.keep(screen.place, for: url)
                 await screen.document.closeOnMain()
                 scoped.removeValue(forKey: key)?.stopAccessingSecurityScopedResource()
             }
             guard store.lists.open.contains(where: { $0.url == key }) else { return }
             store.closed(url, at: .now)
+        }
+
+        /// The app goes to the background: each open file keeps its place for a relaunch.
+        func keepPlaces() {
+            for (url, screen) in screens {
+                store.keep(screen.place, for: url)
+            }
+        }
+
+        /// Move to Trash from the sidebar: unsaved text goes into the file first,
+        /// so Undo brings it back, and the screen closes after the move.
+        func closeForTrash(_ url: URL) throws -> (() -> Void)? {
+            guard let document = screen(for: url)?.document else { return nil }
+            if document.hasUnsavedChanges {
+                try DocumentFile.data(for: document.text).write(to: url)
+                document.updateChangeCount(.cleared)
+            }
+            return { [environment] in environment.closeFile(url) }
         }
 
         /// `Untitled.md`, then `Untitled 2.md`, … in the app's folder (log 004, Round 4).

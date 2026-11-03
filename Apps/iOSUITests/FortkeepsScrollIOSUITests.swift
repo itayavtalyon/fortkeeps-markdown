@@ -76,9 +76,13 @@ final class FortkeepsScrollIOSUITests: XCTestCase {
         XCTAssert(app.keyboards.firstMatch.waitForExistence(timeout: 15))
         app.typeText("# Trip\n\nSee [the map](https://example.com).\n\n- [ ] Book the room")
 
-        // The title is the file name, which is the person's text, not ours.
+        // The title is the file name, which is the person's text, not ours. The
+        // status subtitle ("folder · state") is UIKit's own label, which
+        // truncates at large sizes as system apps do (log 004 Round 6).
         try app.performAccessibilityAudit { issue in
-            issue.auditType == .sufficientElementDescription && issue.element?.label.hasSuffix(".md") == true
+            let label = issue.element?.label ?? ""
+            return issue.auditType == .sufficientElementDescription && label.hasSuffix(".md")
+                || issue.auditType == .textClipped && label.contains(" · ")
         }
     }
 }

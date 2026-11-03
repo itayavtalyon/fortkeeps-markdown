@@ -142,7 +142,7 @@
         }
     }
 
-    /// A checkbox as VoiceOver reads it: the task text, `done` or `not done`.
+    /// A checkbox as VoiceOver reads it: the task text, `checked` or `unchecked`.
     final class CheckboxElement: UIAccessibilityElement {
         private(set) var task = 0
         private weak var controller: MarkdownTextController?

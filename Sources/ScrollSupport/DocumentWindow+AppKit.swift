@@ -15,12 +15,23 @@
         /// No write permission: Lock stays on (screens §3.13).
         let isReadOnly: Bool
         let strips = NSStackView()
+        /// The strips, the text, and the status bar, right of the sidebar.
+        let contentStack = NSStackView()
+        let sidebar: SidebarController
+        let split = SidebarSplitController()
         private let status = NSTextField(labelWithString: "")
         private let statusBar: NSStackView
         let lockItem = NSToolbarItem(itemIdentifier: .lock)
         /// The folder-access strip shows once per document per session.
         private var showsFolderStrip = false
         var outside = OutsideChange()
+        /// A large file loading (screens §3.14).
+        var largeLoad: LargeLoad?
+        var largeLoadTask: Task<Void, Never>?
+        /// The Outline loading off the main thread (log 004 Round 6).
+        var outlineTask: Task<Void, Never>?
+        /// Typing pauses this long before the Outline loads again.
+        var outlinePause = Duration.seconds(1)
 
         var scrollDocument: ScrollDocument? {
             document as? ScrollDocument
@@ -41,6 +52,7 @@
                 text: document.text, mode: isReadOnly ? .editorLocked : .editor, documentURL: url, host: nil
             )
             statusBar = NSStackView(views: [status])
+            sidebar = SidebarController(environment: environment)
             let window = NSWindow(
                 contentRect: CGRect(x: 0, y: 0, width: 760, height: 720),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -59,6 +71,15 @@
                 ).needsFolder(documentURL: url)
             }
             layOut(window)
+            if let folder = url?.deletingLastPathComponent(), environment.access.canRead(folder) {
+                sidebar.folder = folder
+            }
+            refreshOutline()
+            sidebar.onHeading = { [weak self] in self?.showHeading($0) }
+            markdownView.onScroll = { [weak self] in self?.scrolled() }
+            if document.largeFileURL != nil {
+                beginLargeLoad(document)
+            }
             document.onStateChange = { [weak self] in self?.update() }
             document.onOutsideChange = { [weak self] in self?.outsideChange($0) }
             NotificationCenter.default.addObserver(
@@ -77,15 +98,27 @@
             statusBar.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
             status.textColor = .secondaryLabelColor
             status.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-            let stack = NSStackView(views: [strips, markdownView, statusBar])
-            stack.orientation = .vertical
-            stack.spacing = 0
-            stack.alignment = .leading
+            contentStack.setViews([strips, markdownView, statusBar], in: .top)
+            contentStack.orientation = .vertical
+            contentStack.spacing = 0
+            contentStack.alignment = .leading
             for view in [strips, markdownView, statusBar] {
-                view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+                view.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
             }
             markdownView.setContentHuggingPriority(.defaultLow, for: .vertical)
-            window.contentView = stack
+            let content = NSViewController()
+            content.view = contentStack
+            let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
+            sidebarItem.isCollapsed = !ScrollSettings(defaults: environment.defaults).showsSidebar
+            split.splitViewItems = [sidebarItem, NSSplitViewItem(viewController: content)]
+            let settings = ScrollSettings(defaults: environment.defaults)
+            split.onToggle = { [weak self] shows in
+                settings.showsSidebar = shows
+                self?.refreshOutline()
+                self?.invalidateRestorableState()
+            }
+            window.contentViewController = split
+            window.setContentSize(CGSize(width: 760, height: 720))
             window.initialFirstResponder = markdownView
             let toolbar = NSToolbar(identifier: "ScrollDocument")
             toolbar.delegate = self
@@ -123,7 +156,10 @@
             let state = markdownView.mode == .editorLocked ? ScrollStrings.locked
                 : document.saveState == .saved ? saved : ScrollStrings.saving
             // ponytail: counts the whole text per change; count off the main thread if large files lag.
-            status.stringValue = state + " · " + ScrollStrings.words(WordCount.count(document.text))
+            let settings = ScrollSettings(defaults: environment.defaults)
+            status.stringValue = settings.showsWordCount
+                ? state + " · " + ScrollStrings.words(WordCount.count(document.text)) : state
+            markdownView.maxLineWidth = settings.lineWidth.points
             statusBar.isHidden = !UserDefaults.standard.bool(forKey: Self.showsStatusBarKey, default: true)
             markdownView.showsFormatBar = UserDefaults.standard.bool(forKey: Self.showsFormatBarKey, default: true)
             let locked = markdownView.mode == .editorLocked
@@ -134,44 +170,11 @@
             strips.setViews(currentStrips(document), in: .top)
         }
 
-        private func currentStrips(_ document: ScrollDocument) -> [StripView] {
-            let name = document.fileName
-            var views: [StripView] = []
-            if outside.showsNote {
-                views.append(StripView(kind: .reloaded, text: ScrollStrings.reloadNote, buttons: [
-                    .init(title: ScrollStrings.undo, target: self, action: #selector(undoReload))
-                ]))
-            }
-            if showsFolderStrip, let folder = document.fileURL?.deletingLastPathComponent() {
-                views.append(StripView(
-                    kind: .folderAccess,
-                    text: ScrollStrings.accessBar(folder.lastPathComponent),
-                    buttons: [.init(title: ScrollStrings.allowAccess, target: self, action: #selector(allowAccess))],
-                    dismiss: .init(title: "", target: self, action: #selector(dismissFolderStrip))
-                ))
-            }
-            let saveAs = StripView.Button(
-                title: ScrollStrings.saveAs, target: document, action: #selector(NSDocument.saveAs(_:))
-            )
-            if document.isDeleted {
-                views.append(StripView(kind: .deleted, text: ScrollStrings.deleted(name), buttons: [
-                    saveAs, .init(title: ScrollStrings.close, target: self, action: #selector(confirmClose))
-                ]))
-            } else if document.saveState == .failed {
-                views.append(StripView(kind: .saveFailed, text: ScrollStrings.saveFailed(name), buttons: [saveAs]))
-            }
-            if isReadOnly {
-                views.append(StripView(kind: .readOnly, text: ScrollStrings.readOnly, buttons: [
-                    .init(title: ScrollStrings.duplicate, target: document, action: #selector(NSDocument.duplicate(_:)))
-                ]))
-            }
-            return views
-        }
-
         @objc private func allowAccess() {
             guard let folder = scrollDocument?.fileURL?.deletingLastPathComponent() else { return }
             Task {
                 guard await images.requestAccess(folder) else { return }
+                sidebar.folder = folder
                 dismissFolderStrip()
             }
         }
@@ -208,6 +211,7 @@
         @objc func toggleLock(_: Any?) {
             guard !isReadOnly else { return }
             markdownView.mode = markdownView.mode == .editorLocked ? .editor : .editorLocked
+            invalidateRestorableState()
             update()
         }
 
@@ -276,6 +280,43 @@
         }
     }
 
+    /// The strips over the text (screens §3.2, §3.12, §3.13; log 004 › Outside changes).
+    extension DocumentWindowController {
+        private func currentStrips(_ document: ScrollDocument) -> [StripView] {
+            let name = document.fileName
+            var views: [StripView] = []
+            if outside.showsNote {
+                views.append(StripView(kind: .reloaded, text: ScrollStrings.reloadNote, buttons: [
+                    .init(title: ScrollStrings.undo, target: self, action: #selector(undoReload))
+                ]))
+            }
+            if showsFolderStrip, let folder = document.fileURL?.deletingLastPathComponent() {
+                views.append(StripView(
+                    kind: .folderAccess,
+                    text: ScrollStrings.accessBar(folder.lastPathComponent),
+                    buttons: [.init(title: ScrollStrings.allowAccess, target: self, action: #selector(allowAccess))],
+                    dismiss: .init(title: "", target: self, action: #selector(dismissFolderStrip))
+                ))
+            }
+            let saveAs = StripView.Button(
+                title: ScrollStrings.saveAs, target: document, action: #selector(NSDocument.saveAs(_:))
+            )
+            if document.isDeleted {
+                views.append(StripView(kind: .deleted, text: ScrollStrings.deleted(name), buttons: [
+                    saveAs, .init(title: ScrollStrings.close, target: self, action: #selector(confirmClose))
+                ]))
+            } else if document.saveState == .failed {
+                views.append(StripView(kind: .saveFailed, text: ScrollStrings.saveFailed(name), buttons: [saveAs]))
+            }
+            if isReadOnly {
+                views.append(StripView(kind: .readOnly, text: ScrollStrings.readOnly, buttons: [
+                    .init(title: ScrollStrings.duplicate, target: document, action: #selector(NSDocument.duplicate(_:)))
+                ]))
+            }
+            return views
+        }
+    }
+
     extension DocumentWindowController: NSToolbarDelegate {
         func toolbar(
             _: NSToolbar,
@@ -285,8 +326,9 @@
             lockItem
         }
 
+        /// The sidebar button shows or hides the sidebar (log 004 Round 6), as ⌃⌘S does.
         func toolbarDefaultItemIdentifiers(_: NSToolbar) -> [NSToolbarItem.Identifier] {
-            [.flexibleSpace, .lock]
+            [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .lock]
         }
 
         func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -308,6 +350,14 @@
         var presentAlert: (NSAlert, NSWindow?, @escaping (NSApplication.ModalResponse) -> Void) -> Void
         /// A short note next to the mouse in a view.
         var showPopover: (String, NSView) -> Void
+        /// The save panel of Export, as a sheet, with a suggested name; nil when cancelled.
+        var chooseExportURL: @MainActor (String, NSWindow?) async -> URL?
+        /// The print panel, as a sheet.
+        var runPrint: (NSPrintOperation, NSWindow?) -> Void
+        /// Settings (screens §3.17); the tests use their own.
+        var defaults: UserDefaults
+        /// Copy as Rich Text; the tests use their own.
+        var pasteboard: NSPasteboard
 
         /// The app's services; `main.swift` sets them before the app runs.
         static var app: ScrollEnvironment?

@@ -56,9 +56,10 @@
 
         /// The note stays while the pointer is over it, then fades, unless Reduce Motion is on.
         private func hideNoteLater() async {
-            try? await Task.sleep(for: outside.noteDuration)
-            while !Task.isCancelled, isPointerOverNote() {
+            var waits = true
+            while waits {
                 try? await Task.sleep(for: outside.noteDuration)
+                waits = !Task.isCancelled && isPointerOverNote()
             }
             guard !Task.isCancelled else { return } // coverage:ignore - a newer note replaced this one
             if let note = strips.arrangedSubviews.first, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -131,8 +132,8 @@
         // MARK: the compare view
 
         private func compare() {
-            guard let document = scrollDocument, let disk = outside.disk,
-                  let stack = window?.contentView as? NSStackView else { return } // coverage:ignore - as above
+            guard let document = scrollDocument, let disk = outside.disk else { return } // coverage:ignore - as above
+            let stack = contentStack
             let resolve = ResolveView(
                 mine: document.text, theirs: disk,
                 mineTitle: ScrollStrings.yourChanges, theirsTitle: ScrollStrings.onDisk

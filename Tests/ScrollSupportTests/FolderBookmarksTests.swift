@@ -35,6 +35,15 @@
         }
 
         @Test
+        func `the Open Folder picker keeps the chosen folder, and a cancelled picker keeps nothing`() async throws {
+            let docs = try folder("a/docs")
+
+            #expect(await FolderBookmarks(defaults: defaults) { _ in docs }.openFolder(from: root) == docs)
+            #expect(await FolderBookmarks(defaults: defaults) { _ in nil }.openFolder(from: root) == nil)
+            #expect(FolderBookmarks(defaults: defaults) { _ in nil }.folders.map(\.lastPathComponent) == ["docs"])
+        }
+
+        @Test
         func `the picker opens at the document folder`() async throws {
             let docs = try folder("a/docs")
             var asked: URL?
@@ -61,6 +70,41 @@
             defaults.set(["/gone": Data("not a bookmark".utf8)], forKey: FolderBookmarks.key)
 
             #expect(FolderBookmarks(defaults: defaults) { _ in nil }.folders.isEmpty)
+        }
+
+        /// Open Folder… (log 004 Round 6) and Settings › Remove (screens §3.17).
+        @Test
+        func `a folder chosen with Open Folder is kept once, and Remove revokes it`() throws {
+            let docs = try folder("docs")
+            let bookmarks = FolderBookmarks(defaults: defaults) { _ in nil }
+
+            #expect(bookmarks.grant(docs))
+            #expect(bookmarks.grant(docs))
+            #expect(bookmarks.folders == [docs])
+            let again = FolderBookmarks(defaults: defaults) { _ in nil }
+            try again.remove(#require(again.folders.first))
+
+            #expect(again.folders.isEmpty)
+            #expect(FolderBookmarks(defaults: defaults) { _ in nil }.folders.isEmpty)
+        }
+
+        @Test
+        func `removing finds a folder kept under its private path`() throws {
+            let docs = try folder("docs")
+            let bookmarks = FolderBookmarks(defaults: defaults) { _ in nil }
+            #expect(bookmarks.grant(URL(fileURLWithPath: "/private" + docs.path(percentEncoded: false))))
+
+            bookmarks.remove(docs)
+
+            #expect(FolderBookmarks(defaults: defaults) { _ in nil }.folders.isEmpty)
+        }
+
+        @Test
+        func `a folder that is gone is not kept`() {
+            let bookmarks = FolderBookmarks(defaults: defaults) { _ in nil }
+
+            #expect(!bookmarks.grant(root.appending(path: "missing")))
+            #expect(bookmarks.folders.isEmpty)
         }
     }
 #endif

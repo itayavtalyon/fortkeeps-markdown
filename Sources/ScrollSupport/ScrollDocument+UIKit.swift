@@ -5,6 +5,8 @@
     /// One Markdown file on iOS (design log 001 › Files). The view holds the
     /// working text and its Undo; the document follows each change.
     public final class ScrollDocument: UIDocument {
+        /// Above this, the screen shows before the text (screens §3.14).
+        nonisolated static let largeFileBytes = 5_000_000
         public private(set) var text = ""
         /// Why the last open or save failed.
         private(set) var lastError: (any Error)?
@@ -66,6 +68,11 @@
         /// A save failed; the system keeps trying (screens §3.21).
         var saveFailed: Bool {
             documentState.contains(.savingError)
+        }
+
+        /// `open()` async sends the document off the main actor.
+        @MainActor func openOnMain() async -> Bool {
+            await withCheckedContinuation { done in open { done.resume(returning: $0) } }
         }
 
         /// `close()` async sends the document off the main actor.

@@ -90,6 +90,19 @@
             #expect(NSApplication.shared.helpMenu === menu.item(withTitle: "Help")?.submenu)
         }
 
+        /// D10: relaunch reopens every window not closed, whatever the system's Quit setting.
+        @Test
+        func `the app keeps its windows at Quit, so a relaunch reopens them`() {
+            let delegate = given()
+
+            delegate.applicationWillFinishLaunching(Notification(name: NSApplication.willFinishLaunchingNotification))
+
+            #expect(UserDefaults.standard
+                .volatileDomain(forName: UserDefaults.registrationDomain)["NSQuitAlwaysKeepsWindows"]
+                as? Bool == true)
+            #expect(delegate.applicationSupportsSecureRestorableState(NSApplication.shared))
+        }
+
         @Test
         func `the app purges its image cache at launch and when it is left`() throws {
             let delegate = given()
@@ -139,7 +152,7 @@
         func `the File menu leaves Open Recent to AppKit, which adds it after Open…`() throws {
             let file = try #require(MainMenu.make().item(withTitle: "File")?.submenu)
 
-            #expect(file.items.prefix(3).map(\.title) == ["New File", "Open…", ""])
+            #expect(file.items.prefix(4).map(\.title) == ["New File", "Open…", "Open Folder…", ""])
         }
 
         @Test
@@ -168,6 +181,77 @@
             let mine = documents.recentDocumentURLs.map { $0.resolvingSymlinksInPath() }.filter(urls.contains)
             #expect(mine == [urls[2], urls[0]])
             delegate.emptyWindow?.close()
+        }
+
+        // MARK: Settings and Open Folder (screens §3.17; log 004 Round 6)
+
+        @Test
+        func `the Settings window is one for the app`() {
+            let delegate = given()
+            delegate
+                .bookmarks = FolderBookmarks(defaults: UserDefaults(suiteName: UUID().uuidString) ?? .standard) { _ in
+                    nil
+                }
+
+            delegate.showSettings(nil)
+            let first = delegate.settings
+            delegate.showSettings(nil)
+
+            #expect(first != nil)
+            #expect(delegate.settings === first)
+            first?.close()
+        }
+
+        func openFolder(front: DocumentWindowController?, chosen: URL?) -> (ScrollAppDelegate, FolderBookmarks) {
+            let delegate = given()
+            let bookmarks = FolderBookmarks(defaults: UserDefaults(suiteName: UUID().uuidString) ?? .standard) { _ in
+                nil
+            }
+            delegate.bookmarks = bookmarks
+            delegate.environment = EnvironmentSpy().environment
+            delegate.chooseFolder = { chosen }
+            delegate.frontWindow = { front }
+            delegate.openFolder(nil)
+            return (delegate, bookmarks)
+        }
+
+        @Test
+        func `opening a folder shows it in the front window's sidebar`() throws {
+            let base = DocumentWindowTests()
+            let (_, controller) = try base.open(base.given())
+            let folder = FileManager.default.temporaryDirectory.appending(path: "OpenFolder-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+            let (_, bookmarks) = openFolder(front: controller, chosen: folder)
+
+            #expect(bookmarks.folders == [folder])
+            #expect(controller.sidebar.folder == folder)
+            #expect(!controller.split.splitViewItems[0].isCollapsed)
+        }
+
+        @Test
+        func `opening a folder with no window opens an Untitled window with it`() throws {
+            let folder = FileManager.default.temporaryDirectory.appending(path: "OpenFolder-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let before = Set(TestApp.controller.documents.map(ObjectIdentifier.init))
+
+            _ = openFolder(front: nil, chosen: folder)
+
+            let document = try #require(TestApp.controller.documents.first { !before.contains(ObjectIdentifier($0)) })
+            let window = try #require(document.windowControllers.first as? DocumentWindowController)
+            #expect(document.fileURL == nil)
+            #expect(window.sidebar.folder == folder)
+            document.close()
+        }
+
+        @Test
+        func `a cancelled Open Folder changes nothing`() {
+            let before = TestApp.controller.documents.count
+
+            let (_, bookmarks) = openFolder(front: nil, chosen: nil)
+
+            #expect(bookmarks.folders.isEmpty)
+            #expect(TestApp.controller.documents.count == before)
         }
     }
 #endif

@@ -16,9 +16,24 @@
         let isReadOnly: Bool
         /// A new file opens with the keyboard up.
         var startsTyping = false
+        /// A file over 5 MB loads after the screen shows (screens §3.14).
+        var largeLoad: LargeLoadView?
+        var largeLoadTask: Task<Void, Never>?
+        /// The Outline loading off the main thread (log 004 Round 6).
+        var outlineTask: Task<Void, Never>?
+        /// Typing pauses this long before the Outline loads again.
+        var outlinePause = Duration.seconds(1)
+        /// The large file could not be read: the session refuses it.
+        var onLargeRefusal: (() -> Void)?
+        /// A relaunch's place in the text, set once the text is laid out.
+        private var restoredAnchor: MarkdownAnchor?
+        /// The open files of the scene, for Move to Trash.
+        weak var session: DocumentSession?
         /// The iPad tabs show this screen's title and menu in their bar.
         var onUpdate: (() -> Void)?
         var outside = OutsideChange()
+        /// The sidebar that shows this screen's Outline.
+        weak var sidebar: SidebarViewController?
 
         init(document: ScrollDocument, environment: ScrollEnvironment) {
             self.document = document
@@ -37,7 +52,23 @@
             document.onStateChange = { [weak self] in self?.update() }
             document.onOutsideChange = { [weak self] in self?.outsideChange($0) }
             navigationItem.largeTitleDisplayMode = .always
-            navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"))
+            navigationItem.rightBarButtonItems = [
+                UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle")),
+                UIBarButtonItem(systemItem: .action, primaryAction: UIAction { [weak self] _ in self?.share() }),
+                UIBarButtonItem(
+                    image: UIImage(systemName: "list.bullet"),
+                    primaryAction: UIAction { [weak self] _ in self?.showSidebar() }
+                )
+            ]
+            navigationItem.rightBarButtonItems?[2].accessibilityLabel = ScrollStrings.outlineTitle
+            markdownView.onScroll = { [weak self] in
+                guard let self else { return } // coverage:ignore - the view goes with its screen
+                sidebar?.follow(markdownView.currentOutlineIndex)
+            }
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(settingsChanged), name: UserDefaults.didChangeNotification,
+                object: environment.defaults
+            )
             update()
         }
 
@@ -69,13 +100,11 @@
         override func viewDidLayoutSubviews() {
             super.viewDidLayoutSubviews()
             additionalSafeAreaInsets.top = strips.frame.height
-        }
-
-        override func viewDidAppear(_ animated: Bool) {
-            super.viewDidAppear(animated)
-            guard startsTyping else { return }
-            startsTyping = false
-            _ = markdownView.becomeFirstResponder()
+            // The text has its width only now, so the kept place shows where it was.
+            guard let anchor = restoredAnchor, view.bounds.width > 0, largeLoad == nil else { return }
+            restoredAnchor = nil
+            markdownView.layoutIfNeeded()
+            markdownView.anchor = anchor
         }
 
         // MARK: state
@@ -93,15 +122,8 @@
             markdownView.accessibilityLabel = document.fileName
             markdownView.documentURL = document.fileURL
             navigationItem.showStatus(statusText)
-            let locked = markdownView.mode == .editorLocked
-            var items: [UIMenuElement] = []
-            if !isReadOnly {
-                items.append(UIAction(title: locked ? ScrollStrings.unlock : ScrollStrings.lock) { [weak self] _ in
-                    self?.toggleLock()
-                })
-            }
-            items.append(UIAction(title: ScrollStrings.settings) { [weak self] _ in self?.showSettings() })
-            navigationItem.rightBarButtonItem?.menu = UIMenu(children: items)
+            navigationItem.rightBarButtonItem?.menu = moreMenu()
+            markdownView.maxLineWidth = ScrollSettings(defaults: environment.defaults).lineWidth.points
             showStrips()
             onUpdate?()
         }
@@ -136,10 +158,15 @@
 
         /// The text as a file of the same name, for the Files export sheet.
         func exportCopy() throws -> URL {
+            try temporaryFile(document.fileName, DocumentFile.data(for: document.text))
+        }
+
+        /// A file in a folder of its own, so its name is the one the sheet shows.
+        func temporaryFile(_ name: String, _ data: Data) throws -> URL {
             let folder = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let url = folder.appending(path: document.fileName)
-            try DocumentFile.data(for: document.text).write(to: url)
+            let url = folder.appending(path: name)
+            try data.write(to: url)
             return url
         }
 
@@ -183,7 +210,7 @@
             }
         }
 
-        private func showError(_ error: any Error) {
+        func showError(_ error: any Error) {
             let alert = UIAlertController(title: error.localizedDescription, message: nil, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: ScrollStrings.ok, style: .default))
             environment.present(alert, self)
@@ -208,17 +235,6 @@
             update()
         }
 
-        /// An in-app sheet (screens §3.17); 2f fills it.
-        private func showSettings() {
-            let settings = UITableViewController(style: .insetGrouped)
-            settings.title = ScrollStrings.settings
-            settings.navigationItem.rightBarButtonItem = UIBarButtonItem(
-                systemItem: .done,
-                primaryAction: UIAction { [weak settings] _ in settings?.dismiss(animated: true) }
-            )
-            environment.present(UINavigationController(rootViewController: settings), self)
-        }
-
         // MARK: MarkdownHost
 
         nonisolated func image(for request: ImageRequest) async -> ImageResult {
@@ -230,6 +246,7 @@
             outside.showsNote = false
             outside.keptMine = false
             document.apply(change)
+            refreshOutline(after: change.reason == .reload ? .zero : outlinePause)
             update()
         }
 
@@ -278,6 +295,60 @@
         }
     }
 
+    // MARK: Settings, the sidebar sheet, and relaunch
+
+    extension DocumentViewController {
+        /// An in-app sheet (screens §3.17).
+        func showSettings() {
+            let settings = SettingsViewController(
+                settings: ScrollSettings(defaults: environment.defaults),
+                bookmarks: environment.access as? FolderBookmarks,
+                cache: environment.cache
+            )
+            environment.present(UINavigationController(rootViewController: settings), self)
+        }
+
+        /// ☰ on iPhone: the Outline and the folder in a sheet.
+        func showSidebar() {
+            let sidebar = SidebarViewController(environment: environment)
+            sidebar.session = session
+            sidebar.show(self)
+            sidebar.onChoose = { [weak sidebar] in sidebar?.dismiss(animated: true) }
+            let sheet = UINavigationController(rootViewController: sidebar)
+            sheet.sheetPresentationController?.detents = [.medium(), .large()]
+            environment.present(sheet, self)
+        }
+
+        /// Settings changed here or on another screen.
+        @objc func settingsChanged() {
+            update()
+        }
+
+        // MARK: relaunch (log 001 Q14)
+
+        var place: FileListStore.Place {
+            // A place not yet applied (the screen not laid out, or still loading) is still the place.
+            FileListStore.Place(
+                anchor: restoredAnchor ?? markdownView.anchor,
+                locked: markdownView.mode == .editorLocked
+            )
+        }
+
+        func restore(_ place: FileListStore.Place) {
+            if place.locked != (markdownView.mode == .editorLocked) {
+                toggleLock()
+            }
+            restoredAnchor = place.anchor
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            guard startsTyping else { return }
+            startsTyping = false
+            _ = markdownView.becomeFirstResponder()
+        }
+    }
+
     extension UINavigationItem {
         /// The second line of the title block: the subtitle, or the prompt before iOS 26.
         func showStatus(_ text: String?) {
@@ -304,6 +375,14 @@
         var present: (UIViewController, UIViewController) -> Void
         /// On My iPhone › FK Scroll: where New File and Duplicate write (log 004, Round 4).
         var appFolder: URL
+        /// Print in the ⋯ menu: the system print sheet.
+        var runPrint: (UIPrintInteractionController, UIViewController) -> Void
+        /// Settings (screens §3.17), kept for every screen.
+        var defaults: UserDefaults
+        /// Copy as rich text.
+        var pasteboard: UIPasteboard
+        /// The remote images on disk; Settings clears it.
+        var cache: ImageCache
 
         /// The app's services; the app delegate sets them before the first scene.
         static var app: ScrollEnvironment?

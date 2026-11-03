@@ -4,10 +4,6 @@
     /// The iOS-only strings; check-ios-coverage.py gates them.
     extension ScrollStrings {
         /// Screens §3.20, log 002 › iPhone home screen.
-        static var settings: String {
-            String(localized: "more.settings", defaultValue: "Settings")
-        }
-
         static var openFiles: String {
             String(localized: "nav.openFiles", defaultValue: "Open Files")
         }
@@ -59,6 +55,15 @@
 
         static var nextTab: String {
             String(localized: "tab.next", defaultValue: "Show next tab")
+        }
+
+        /// The ⋯ menu (screens §3.20; log 004 Round 6).
+        static var find: String {
+            String(localized: "menu.find", defaultValue: "Find")
+        }
+
+        static var export: String {
+            String(localized: "menu.export", defaultValue: "Export")
         }
     }
 #endif

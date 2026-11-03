@@ -36,6 +36,24 @@ struct FileListStoreTests {
     }
 
     @Test
+    func `a file's place comes back after a relaunch, and follows a rename`() throws {
+        let store = FileListStore(defaults: defaults)
+        let first = try file("a.md")
+        let place = FileListStore.Place(
+            anchor: MarkdownAnchor(block: 4, offsetInBlock: 2, selection: 5 ..< 6), locked: true
+        )
+        store.opened(first, at: start)
+        store.keep(place, for: first)
+        let renamed = try file("b.md")
+        store.moved(first, to: renamed)
+
+        let relaunched = FileListStore(defaults: defaults)
+
+        #expect(relaunched.place(of: renamed) == place)
+        #expect(relaunched.place(of: first) == nil)
+    }
+
+    @Test
     func `a file that is gone comes back missing at its old path`() throws {
         let store = FileListStore(defaults: defaults)
         let url = try file("a.md")

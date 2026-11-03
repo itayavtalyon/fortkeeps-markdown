@@ -28,10 +28,11 @@ final class ParsedMarkdown {
     }
 
     /// cmark-gfm's HTML for the tree. Raw HTML passes through only when
-    /// `html` is true; the tag filter then shows the disallowed tags as text.
-    func html() -> String {
+    /// `html` is true and `safe` is false; the tag filter then shows the
+    /// disallowed tags as text. `safe` also drops `javascript:` and other unsafe links.
+    func html(safe: Bool = false) -> String {
         var options = CMARK_OPT_DEFAULT
-        if features.html {
+        if features.html, !safe {
             options |= CMARK_OPT_UNSAFE
         }
         if features.softBreakAsLine {
@@ -162,16 +163,16 @@ final class ParsedMarkdown {
         }
     }
 
-    /// The nodes of the given leaf types, in document order. A leaf node gets
-    /// only an enter event, so each node appears once.
-    private static func nodes(in root: Node, ofType types: [cmark_node_type]) -> [Node] {
+    /// The nodes of the given types, in document order, each once (at its enter event).
+    static func nodes(in root: Node, ofType types: [cmark_node_type]) -> [Node] {
         var found: [Node] = []
         let iterator = cmark_iter_new(root)
         defer { cmark_iter_free(iterator) }
         while cmark_iter_next(iterator) != CMARK_EVENT_DONE {
-            if let node = cmark_iter_get_node(iterator), types.contains(cmark_node_get_type(node)) {
-                found.append(node)
-            }
+            guard cmark_iter_get_event_type(iterator) == CMARK_EVENT_ENTER, let node = cmark_iter_get_node(iterator),
+                  types.contains(cmark_node_get_type(node))
+            else { continue }
+            found.append(node)
         }
         return found
     }

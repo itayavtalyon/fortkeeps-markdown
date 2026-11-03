@@ -134,9 +134,9 @@ final class FortkeepsScrollUITests: XCTestCase {
 
         app.open(url)
         XCTAssertTrue(window("crlf.md").waitForExistence(timeout: 10))
-        // The caret leaves the first line, so its checkbox is drawn: 39, 80 from the window's corner.
+        // The caret leaves the first line, so its checkbox is drawn: centered at 63, 88 from the window's corner.
         app.typeKey(.downArrow, modifierFlags: .command)
-        window("crlf.md").coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 39, dy: 80)).click()
+        window("crlf.md").coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 63, dy: 88)).click()
         XCTAssertTrue(saved("- [x] one\n- [ ] two\n"))
 
         app.typeKey("z", modifierFlags: .command)

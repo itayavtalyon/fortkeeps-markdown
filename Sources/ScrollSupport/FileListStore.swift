@@ -7,11 +7,18 @@ import MarkdownCore
 final class FileListStore {
     static let key = "FileLists"
 
+    /// Where a file was left (log 001 Q14): the place in the text and Lock.
+    struct Place: Codable, Equatable {
+        var anchor: MarkdownAnchor
+        var locked: Bool
+    }
+
     private struct Item: Codable {
         var bookmark: Data?
         var path: String
         var lastOpened: Date
         var isOpen: Bool
+        var place: Place?
     }
 
     private let defaults: UserDefaults
@@ -19,6 +26,7 @@ final class FileListStore {
     /// The files whose bookmark no longer resolves, at their last path.
     private(set) var missing: Set<URL> = []
     private var bookmarks: [URL: Data] = [:]
+    private var places: [URL: Place] = [:]
     /// The home screen and the tabs follow the lists.
     var onChange: (() -> Void)?
 
@@ -30,6 +38,7 @@ final class FileListStore {
         var recent: [FileLists.Entry] = []
         for item in items {
             let url = resolve(item)
+            places[url] = item.place
             let entry = FileLists.Entry(url: url, lastOpened: item.lastOpened)
             if item.isOpen {
                 open.append(entry)
@@ -86,7 +95,20 @@ final class FileListStore {
 
     /// A rename or a move: the row keeps its place under the new path.
     func moved(_ url: URL, to newURL: URL) {
-        lists.replace(Self.key(url), with: remember(newURL))
+        let place = places.removeValue(forKey: Self.key(url))
+        let newURL = remember(newURL)
+        places[newURL] = place
+        lists.replace(Self.key(url), with: newURL)
+        save()
+    }
+
+    func place(of url: URL) -> Place? {
+        places[Self.key(url)]
+    }
+
+    /// A screen closes, or the app goes to the background.
+    func keep(_ place: Place, for url: URL) {
+        places[Self.key(url)] = place
         save()
     }
 
@@ -113,7 +135,8 @@ final class FileListStore {
             bookmark: bookmarks[entry.url],
             path: entry.url.path(percentEncoded: false),
             lastOpened: entry.lastOpened,
-            isOpen: isOpen
+            isOpen: isOpen,
+            place: places[entry.url]
         )
     }
 }

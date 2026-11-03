@@ -38,10 +38,17 @@
             return outside.isPointerOver(note)
         }
 
+        /// The fade's completion handler can wait on a busy run loop for good, which
+        /// left the note up; the note goes once the fade's time has passed.
         func fadeNote() async {
-            if let note = strips.arrangedSubviews.first, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-                await NSAnimationContext.runAnimationGroup { _ in note.animator().alphaValue = 0 }
-            }
+            guard let note = strips.arrangedSubviews.first, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            else { return }
+            let duration = 0.25
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = duration
+                note.animator().alphaValue = 0
+            }, completionHandler: nil)
+            try? await Task.sleep(for: .seconds(duration))
         }
 
         @objc func undoReload() {

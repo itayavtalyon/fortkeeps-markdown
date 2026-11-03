@@ -562,3 +562,40 @@ Choices made in code, not asked (flag them in the step-wide review):
 - Lint and gate fixes: a `MarkdownTextController` body over 250 lines moved `loadDocument` to `+Reload`; `DocumentViewController+UIKit` over 400 lines moved `refreshOutline` to `Sidebar+UIKit`; the trash restore took six parameters (the reopen is now one closure); `MarkerLayoutTests` used a three-member tuple.
 - Known gaps (not 2f scope, or waiting): the 20 MB note and lazy styling (decision 6), so opening a 6 MB file blocks the main thread while it styles (about 14 s in a debug build); the folder list does not see changes made by other apps; New File and Rename are only in the sidebar's context menu on the Mac; the iOS word count (decision); the iOS print sheet adds the paper's hardware margins to the 20 mm; the iOS read progress jumps to 0.9 (UIDocument reads in one piece); the Mac restores a large file's place onto the empty text before it loads; iOS mode switches drift up to 2 lines (there before 2f); WAIT-3 strings.
 - Gate: full `just check` green (2026-11-03), no warnings: Mac `swift test` 338 MarkdownCore + 183 MarkdownViews + 216 ScrollSupport + 17 FortkeepsCards tests; coverage 100% for MarkdownCore, FortkeepsCards, and ScrollSupport; core modules load no UI framework; iOS simulator 369 passed, 1 skipped, iOS-only files 100%; the Mac app UI tests, and the iOS app UI tests on iPhone 18 Pro and iPad Air 11-inch (M4); SwiftLint strict and SwiftFormat clean. It took five runs: each earlier one found something fixed above.
+
+## Whole-plan Review Notes (2026-11-03)
+
+Whole-plan deep review of stages 2a–2f at caa4b58, in a clean worktree, with the simplicity, adversarial, and product-fit lenses. No stage of plan 02 had a second-opinion review (`decision:fortkeeps-markdown-plan02-flow-2026-10-31`), so this is the first outside pass. Commits ef116a3, a88e040, e32c05f, d62ec4e on `review/plan02` (from `stage/2f-sidebar-export`). Design log 004 Round 7 records Itay's answers: `decision:fortkeeps-markdown-plan02-whole-review-2026-11-03`. 33 of the 34 decision keys in `.claude/WHOLE_PLAN_REVIEW` are not in Remember (the coder held the writes); log 004 Rounds 3–6 hold their text, and this review read them there.
+
+**Does the code serve the product?** Mostly yes. Scroll is a sandboxed, Mac App Store Markdown editor that never fetches without consent: `image(for:)` never fetches, every redirect is re-checked, no cookies or cache leave the session, local images stay inside the document's folder, autosave and the immediate checkbox save follow log 004, outside changes follow log 003, and the compare view lives in the library so Fortkeeps can reuse it. Four places worked against the product and are fixed below: the document types, unreadable outside bytes, HTML export's image reads, and the status grammar. One stays against it: a file over 5 MB shows its progress and then freezes the window while it styles (about 14 s in a debug build); Round 6 deferred it to a library change.
+
+**Security (fixed, each with a test that a one-clause mutant turns red).**
+
+- The local image read resolved symlinks, checked the path, then opened the path again by name (lens 11): a component swapped to a symlink in between read outside the document folder, and a FIFO swapped in hung a thread. `DocumentImages.readLocal` opens once with `O_NONBLOCK` and checks the open file: `fstat` for a regular file, `F_GETPATH` for a place inside the folder.
+- HTML export read local images with `Data(contentsOf:)` on both platforms: a symlink in the document folder embedded a private image from elsewhere in the granted folder into a page meant for sharing, and a huge file was read whole. Export now takes exactly what the view draws (`exportData`: inside the folder, at most 5,000,000 bytes, through `ImageCheck`).
+
+**Product (fixed; Round 7).**
+
+- Both apps listed `public.plain-text` at rank Default, which claims every source file and log; Scroll could become their double-click app and then refuse them. Markdown keeps Default; `.txt` is a second type at Alternate (Mac: by extension; iOS: by `public.plain-text`).
+- Another app's bytes that are not UTF-8 were ignored (a `ponytail:` comment), and the next save wrote over them without a word. Saves and edits now pause with a strip; Keep My Changes saves over it, Close closes without saving.
+- The status bar read "1 words".
+- On the Mac, a window restored while its large file loaded put its place on the empty text, and a state saved during the load wrote that empty place back.
+- On the Mac, the reload note awaited its fade's completion handler, which a busy run loop can hold for good: the note stayed up, and under the full suite the note test hung to its limit in 2 of 2 runs. The note now goes once the fade's 0.25 s have passed (2 of 2 full runs then passed; a run with the await removed passed too, which is how the cause was found).
+
+**Simplify.** One `DiskWatch` replaces the two documents' disk rules; one `OutsideChangeHost` extension replaces the two copies of the outside-change flow (each app keeps its dialog, compare screen, announcement, and fade); one `DocumentFile.largeFileBytes`; one checked local read for the view and export; two equivalent empty-data checks removed. The iOS `ScrollEnvironment` has its own file. Sources: 437 lines added, 272 removed, mostly the new behavior. Not shrunk, noted: `ScrollStrings+2f.swift` is named after a stage, not a topic; the two `apply(_:)` save-action switches differ only in the platform's change-count API.
+
+**Tests.** The one-minute time limits are two: the suite's 6 MB loads hold the main actor, and tests waiting behind them timed out (the 2f notes saw 8 in 2 of 3 runs; this review's restore test tipped it over again). Mutations: 25 one-clause mutants over every change; survivors got tests (an image wider than 8192 px is not exported, the Close of the unreadable strip on iOS) or were equivalent and removed (two empty-data checks).
+
+**Gate.** Without the UI tests, `just check` passes on the final review commit: Mac tests, coverage 100% for MarkdownCore, FortkeepsCards, and ScrollSupport, the module trace, the iOS build, the iOS simulator tests with the iOS-only coverage gate. The Mac and iOS app UI tests wait for Itay (Round 7).
+
+**Open, for Itay or plan 03.**
+
+- The large-file freeze after the progress (Round 6) and lazy styling.
+- Plan 03 stage 3b: the HTML spike tests are not written, though its row says they are written now (a plan 01 gap).
+- Both documents read a changed file without file coordination, so a writer that edits in place can be read half-written; the next change notice corrects it.
+- `URLSessionTransport` reads the body a byte at a time and does not check `Content-Length` first, so a response over the limit downloads 5 MB before it is refused.
+- A cached image is not checked again when it is read; a file planted in the app's cache would skip the 8192-pixel rule.
+- Rename accepts a name that starts with `.` or changes the extension, and the file then leaves the sidebar without a word.
+- iOS mode switches drift up to 2 lines (plan 01's must-pass says one); the 2f notes list it.
+- WAIT-3 strings, WAIT-6 signing, and the held Remember writes of the plan 02 decisions.
+

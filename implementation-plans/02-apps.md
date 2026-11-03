@@ -33,12 +33,12 @@ Test that policy in the plan 01 test target.
 
 | Stage | Name | Status | Blocked by |
 |---|---|---|---|
-| 2a | Document policy | Built, self-reviewed (step-wide review pending) | — |
-| 2b | Image loader and cache | Built, self-reviewed (step-wide review pending) | — |
-| 2c | Mac app | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending) |
-| 2d | iOS and iPadOS app | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending), WAIT-6 (simulator only: no team ID) |
-| 2e | Outside changes and Resolve | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending) |
-| 2f | Sidebar, export, settings, relaunch | Built, self-reviewed (step-wide review pending) | WAIT-3 (string tests pending) |
+| 2a | Document policy | Done (whole-plan review 2026-11-03) | — |
+| 2b | Image loader and cache | Done (whole-plan review 2026-11-03) | — |
+| 2c | Mac app | Done (whole-plan review 2026-11-03) | WAIT-3 (string tests pending) |
+| 2d | iOS and iPadOS app | Done (whole-plan review 2026-11-03) | WAIT-3 (string tests pending), WAIT-6 (simulator only: no team ID) |
+| 2e | Outside changes and Resolve | Done (whole-plan review 2026-11-03) | WAIT-3 (string tests pending) |
+| 2f | Sidebar, export, settings, relaunch | Done (whole-plan review 2026-11-03) | WAIT-3 (string tests pending) |
 
 ### 2a — Document policy
 
@@ -586,7 +586,7 @@ Whole-plan deep review of stages 2a–2f at caa4b58, in a clean worktree, with t
 
 **Tests.** The one-minute time limits are two: the suite's 6 MB loads hold the main actor, and tests waiting behind them timed out (the 2f notes saw 8 in 2 of 3 runs; this review's restore test tipped it over again). Mutations: 25 one-clause mutants over every change; survivors got tests (an image wider than 8192 px is not exported, the Close of the unreadable strip on iOS) or were equivalent and removed (two empty-data checks).
 
-**Gate.** Without the UI tests, `just check` passes on the final review commit: Mac tests, coverage 100% for MarkdownCore, FortkeepsCards, and ScrollSupport, the module trace, the iOS build, the iOS simulator tests with the iOS-only coverage gate. The Mac and iOS app UI tests wait for Itay (Round 7).
+**Gate.** Without the UI tests, `just check` passes on the final review commit: Mac tests, coverage 100% for MarkdownCore, FortkeepsCards, and ScrollSupport, the module trace, the iOS build, the iOS simulator tests with the iOS-only coverage gate. On Itay's OK (Round 7), the Mac app UI tests and the iOS app UI tests on iPhone 18 Pro and iPad Air 11-inch (M4) pass too, with the document-type parity check.
 
 **Open, for Itay or plan 03.**
 

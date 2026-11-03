@@ -43,6 +43,8 @@ public struct MarkdownDocument: Sendable {
     /// The line-1 ATX H1 text (log 010 MD-09 to MD-12), or nil.
     public let title: String?
     public let rendered: RenderedText
+    /// Every heading, in reading order, with its text as drawn.
+    public let outline: [OutlineItem]
 
     public init(text: String, features: MarkdownFeatures, presentation: MarkdownPresentation) {
         let source = Self.droppingBOM(text)
@@ -54,6 +56,7 @@ public struct MarkdownDocument: Sendable {
         blocks = builder.topLevelBlocks
         rendered = builder.rendered
         tasks = builder.tasks(in: rendered)
+        outline = Self.outline(of: rendered)
     }
 
     /// The text with the task's marker byte flipped: a space becomes `x`, and
@@ -97,6 +100,33 @@ public struct MarkdownDocument: Sendable {
         let utf16 = Array(rendered.string.utf16)
         let slugs = GFMSlug.slugs(headings.map { String(decoding: utf16[$0.range], as: UTF16.self) })
         return slugs.firstIndex(of: fragment).map { headings[$0] }
+    }
+
+    /// A heading in the Outline (screens §3.4).
+    public struct OutlineItem: Equatable, Sendable {
+        public let level: Int
+        public let title: String
+        /// The heading's first source byte.
+        public let sourceOffset: Int
+    }
+
+    private static func outline(of rendered: RenderedText) -> [OutlineItem] {
+        let string = rendered.string as NSString
+        return rendered.blocks.compactMap { block in
+            guard case let .heading(level) = block.kind else { return nil }
+            let title = string.substring(with: NSRange(block.range))
+            return OutlineItem(
+                level: level,
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                sourceOffset: block.sourceRange.lowerBound
+            )
+        }
+    }
+
+    /// The Outline row of the section that holds a source offset: the last
+    /// heading at or before it; nil before the first heading.
+    public func outlineIndex(atSourceOffset offset: Int) -> Int? {
+        outline.lastIndex { $0.sourceOffset <= offset }
     }
 
     static let bom = "\u{FEFF}"

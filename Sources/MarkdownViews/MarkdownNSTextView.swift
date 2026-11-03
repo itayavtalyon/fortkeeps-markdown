@@ -12,6 +12,25 @@
             owner?.controller
         }
 
+        /// Undo and Redo reach the controller's undo groups. The window would
+        /// answer them with its own manager, which is empty.
+        @objc func undo(_: Any?) {
+            controller?.undoManager.undo()
+        }
+
+        @objc func redo(_: Any?) {
+            controller?.undoManager.redo()
+        }
+
+        override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+            guard let undoManager = controller?.undoManager else { return super.validateUserInterfaceItem(item) }
+            switch item.action {
+            case #selector(undo(_:)): return undoManager.canUndo
+            case #selector(redo(_:)): return undoManager.canRedo
+            default: return super.validateUserInterfaceItem(item)
+            }
+        }
+
         private func containerPoint(_ event: NSEvent) -> CGPoint {
             let point = convert(event.locationInWindow, from: nil)
             return CGPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
@@ -22,6 +41,27 @@
         func clickEditorImage(at point: CGPoint) -> Bool {
             guard let controller, controller.mode != .rendered else { return false }
             return controller.click(textLayoutManager?.editorImage(at: point))
+        }
+
+        /// The image under a point in container coordinates, in the editor: a
+        /// thumbnail or card under a line, or the image source text.
+        func imageDestination(at point: CGPoint) -> String? {
+            guard let controller, controller.mode != .rendered else { return nil }
+            if let mark = textLayoutManager?.editorImage(at: point) {
+                return mark.destination
+            }
+            let offset = characterIndexForInsertion(at: CGPoint(
+                x: point.x + textContainerOrigin.x,
+                y: point.y + textContainerOrigin.y
+            ))
+            return controller.imageDestination(atDisplayOffset: offset)
+        }
+
+        /// Reload Image and Load All Images join the text view's own menu.
+        override func menu(for event: NSEvent) -> NSMenu? {
+            let menu = super.menu(for: event) ?? NSMenu()
+            owner?.addImageItems(to: menu, destination: imageDestination(at: containerPoint(event)))
+            return menu
         }
 
         /// Toggles the checkbox at a point in container coordinates; false when there is none.
@@ -179,7 +219,7 @@
         }
     }
 
-    /// A checkbox as VoiceOver reads it: the task text, `done` or `not done`.
+    /// A checkbox as VoiceOver reads it: the task text, `checked` or `unchecked`.
     final class CheckboxElement: NSAccessibilityElement {
         let task: Int
         private weak var textView: MarkdownNSTextView?

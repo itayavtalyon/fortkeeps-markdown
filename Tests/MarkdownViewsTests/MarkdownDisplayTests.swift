@@ -1,6 +1,7 @@
 import Foundation
 import MarkdownCore
 @testable import MarkdownViews
+import Synchronization
 import Testing
 #if os(macOS)
     import AppKit
@@ -52,18 +53,18 @@ struct MarkdownDisplayTests {
     @Test
     func `a restyle writes to the storage only when a style changed`() {
         let display = Self.givenDisplay("a *b* `c`\n- [ ] task\n")
-        var edits = 0
+        let edits = Mutex(0)
         let observer = NotificationCenter.default.addObserver(
             forName: NSTextStorage.didProcessEditingNotification, object: display.storage, queue: nil
-        ) { _ in edits += 1 }
+        ) { _ in edits.withLock { $0 += 1 } }
         defer { NotificationCenter.default.removeObserver(observer) }
 
         display.restyle(around: 3)
-        let unchanged = edits
+        let unchanged = edits.withLock { $0 }
         Self.type("# ", at: 0 ..< 0, in: display)
 
         #expect(unchanged == 0)
-        #expect(edits == 2)
+        #expect(edits.withLock { $0 } == 2)
         #expect(MarkdownTheme.color(.text3) === MarkdownTheme.color(.text3))
     }
 

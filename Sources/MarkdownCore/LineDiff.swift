@@ -19,8 +19,8 @@ public struct LineDiff: Sendable {
         case both
     }
 
-    let mineLines: [Substring]
-    let theirsLines: [Substring]
+    public let mineLines: [Substring]
+    public let theirsLines: [Substring]
     public let hunks: [Hunk]
 
     public init(mine: String, theirs: String) {

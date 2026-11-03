@@ -48,6 +48,7 @@ final class ImageAttachment: NSTextAttachment {
     }
 
     /// An image fits the column and 80% of the viewport, and is not upscaled.
+    /// A status line under a kept image adds its height.
     func size(lineWidth: CGFloat) -> CGSize {
         let width = max(lineWidth - 10, 1)
         switch content.kind {
@@ -55,7 +56,8 @@ final class ImageAttachment: NSTextAttachment {
             let natural = Self.headerSize(data)
             guard natural.width > 0, natural.height > 0 else { return CGSize(width: 1, height: 1) }
             let scale = min(1, width / natural.width, maxHeight > 0 ? maxHeight / natural.height : 1)
-            return CGSize(width: natural.width * scale, height: natural.height * scale)
+            let status = content.statusLine == nil ? 0 : ImageCardContent.statusLineHeight
+            return CGSize(width: natural.width * scale, height: natural.height * scale + status)
         case .card:
             return content.cardSize(columnWidth: width)
         case .link:

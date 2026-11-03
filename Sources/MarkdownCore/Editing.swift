@@ -71,6 +71,8 @@ public struct UndoGrouping: Sendable {
         case replaceAll
         case resolveApply
         case compositionCommitted
+        /// An undoable reload (design log 004 › Outside changes).
+        case reload
     }
 
     public enum Decision: Equatable, Sendable {

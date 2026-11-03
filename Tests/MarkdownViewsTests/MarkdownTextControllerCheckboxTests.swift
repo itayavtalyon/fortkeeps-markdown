@@ -67,11 +67,11 @@ struct MarkdownTextControllerCheckboxTests {
     }
 
     @Test
-    func `the checkbox accessibility value is done or not done and its label is the task text`() {
+    func `the checkbox accessibility value is checked or unchecked and its label is the task text`() {
         let (controller, _) = MarkdownTextControllerTests.givenController("- [x] one\n- [ ] two\n")
 
-        #expect(controller.checkboxAccessibility(0).value == "done")
-        #expect(controller.checkboxAccessibility(1).value == "not done")
+        #expect(controller.checkboxAccessibility(0).value == "checked")
+        #expect(controller.checkboxAccessibility(1).value == "unchecked")
         #expect(controller.checkboxAccessibility(1).label == "two")
         #expect(controller.checkboxAccessibility(0).isEnabled)
     }
@@ -97,5 +97,27 @@ struct MarkdownTextControllerCheckboxTests {
 
         #expect(controller.text == "- [x] task\n")
         #expect(host.changes.map(\.reason) == [.checkbox, .undo, .redo])
+    }
+
+    @Test
+    func `undo and redo of a checkbox click carry the checkbox group reason`() {
+        let (controller, host) = MarkdownTextControllerTests.givenController("- [ ] task\n")
+
+        controller.toggleTask(0)
+        controller.undoManager.undo()
+        controller.undoManager.redo()
+
+        #expect(host.changes.map(\.groupReason) == [.checkbox, .checkbox, .checkbox])
+    }
+
+    @Test
+    func `undo and redo of a typed edit carry the edit group reason`() {
+        let (controller, host) = MarkdownTextControllerTests.givenController("- [ ] task\n")
+
+        controller.textViewDidReplace(3 ..< 4, with: "x", event: .typed("x"), at: 0)
+        controller.undoManager.undo()
+        controller.undoManager.redo()
+
+        #expect(host.changes.map(\.groupReason) == [.edit, .edit, .edit])
     }
 }

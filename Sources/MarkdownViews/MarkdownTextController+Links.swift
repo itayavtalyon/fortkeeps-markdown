@@ -70,7 +70,8 @@ extension MarkdownTextController {
 
     /// A refused image draws `Image: {alt}` as a link with the `.link` fallback.
     func imageDrawsAsText(_ index: Int) -> Bool {
-        presentation.imageFallback == .link && imageResult(for: index) == .refused
+        guard case .refused? = imageResult(for: index) else { return false }
+        return presentation.imageFallback == .link
     }
 
     // MARK: images
@@ -78,6 +79,7 @@ extension MarkdownTextController {
     /// Requests the images within one viewport above and below the visible
     /// range, and cancels the requests of images that left it.
     func viewportChanged(_ visible: Range<Int>) {
+        self.visible = visible
         let near = visible.lowerBound - visible.count ... visible.upperBound + visible.count
         let wanted: Set<String>
         if mode == .rendered {
@@ -119,14 +121,50 @@ extension MarkdownTextController {
     /// The person activated a card: the view draws the loading card and
     /// tells the host, which refreshes the result when it has one.
     func activateImage(destination: String) {
+        guard let card = imageResults[destination] else { return }
         imageTasks[destination]?.cancel()
         imageTasks[destination] = nil
         setImageResult(.loading, for: destination)
-        host?.imageActivated(ImageRequest(
-            destination: destination,
-            documentURL: documentURL,
-            maxPixelSize: maxImagePixelSize
-        ))
+        host?.activateImage(ImageActivation(destination: destination, documentURL: documentURL, card: card))
+    }
+
+    /// The image items of a context menu: Reload Image on a drawn image, and
+    /// Load All Images in This Document while a remote image is not loaded.
+    func imageMenuItems(destination: String?) -> [ImageMenuItem] {
+        var items: [ImageMenuItem] = []
+        if let destination, case .image? = imageResults[destination] {
+            items.append(.reload(destination))
+        }
+        let notLoaded = document.rendered.images.contains { image in
+            guard case .remote = ImageRules.classify(image.destination, documentURL: documentURL) else { return false }
+            switch imageResults[image.destination] {
+            case nil, .remoteNotLoaded?: return true
+            default: return false
+            }
+        }
+        if notLoaded {
+            items.append(.loadAll)
+        }
+        return items
+    }
+
+    /// The destination of the image whose source holds a display offset.
+    func imageDestination(atDisplayOffset offset: Int) -> String? {
+        let byte = sourceByte(ofDisplayOffset: offset)
+        return document.rendered.images.first { $0.sourceRange.contains(byte) }?.destination
+    }
+
+    func perform(_ item: ImageMenuItem) {
+        switch item {
+        case let .reload(destination):
+            host?.reloadImage(ImageRequest(
+                destination: destination,
+                documentURL: documentURL,
+                maxPixelSize: maxImagePixelSize
+            ))
+        case .loadAll:
+            host?.loadAllImages()
+        }
     }
 
     /// The host has a new result for a destination.
@@ -153,6 +191,9 @@ extension MarkdownTextController {
     func setImageResult(_ result: ImageResult, for destination: String) {
         imageResults[destination] = result
         onImageChange?(destination)
+        if case let .image(_, failure?) = result {
+            onAnnouncement?(Strings.reloadFailed(failure))
+        }
     }
 
     func imageResult(for index: Int) -> ImageResult? {
@@ -161,7 +202,21 @@ extension MarkdownTextController {
 
     /// A gif plays unless Reduce Motion is on.
     func isAnimating(imageIndex: Int) -> Bool {
-        guard case let .image(data) = imageResult(for: imageIndex) else { return false }
+        guard case let .image(data, _) = imageResult(for: imageIndex) else { return false }
         return data.starts(with: Array("GIF8".utf8)) && !reduceMotion
+    }
+}
+
+/// An image item of the view's context menu (design log 001 › Images).
+enum ImageMenuItem: Equatable {
+    case reload(String)
+    case loadAll
+
+    var title: String {
+        switch self {
+        case .reload: String(localized: "img.reload", defaultValue: "Reload Image", bundle: resourceBundle)
+        case .loadAll:
+            String(localized: "img.loadAll", defaultValue: "Load All Images in This Document", bundle: resourceBundle)
+        }
     }
 }

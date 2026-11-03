@@ -4,7 +4,7 @@ import MarkdownCore
 /// One format command with its shortcut and name (design log 001 › Format
 /// commands). The format bar and the shortcuts both perform these, so a
 /// button and its shortcut give the same text.
-enum FormatAction: CaseIterable, Equatable {
+public enum FormatAction: CaseIterable, Equatable, Sendable {
     case bold, italic, link, code, quote, checkbox, heading1, heading2, heading3, body, bulletedList
 
     // swiftlint:disable:next cyclomatic_complexity - one case per command
@@ -24,7 +24,7 @@ enum FormatAction: CaseIterable, Equatable {
         }
     }
 
-    var shortcut: FormatShortcut {
+    public var shortcut: FormatShortcut {
         switch self {
         case .bold: FormatShortcut(key: "b", modifiers: .command)
         case .italic: FormatShortcut(key: "i", modifiers: .command)
@@ -44,7 +44,7 @@ enum FormatAction: CaseIterable, Equatable {
         allCases.first { $0.shortcut == FormatShortcut(key: key.lowercased(), modifiers: modifiers) }
     }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .bold: String(localized: "fmt.bold", defaultValue: "Bold", bundle: resourceBundle)
         case .italic: String(localized: "fmt.italic", defaultValue: "Italic", bundle: resourceBundle)
@@ -107,16 +107,20 @@ enum FormatBarButton: CaseIterable {
 }
 
 /// A key with its modifiers.
-struct FormatShortcut: Equatable {
-    struct Modifiers: OptionSet {
-        let rawValue: Int
+public struct FormatShortcut: Equatable, Sendable {
+    public struct Modifiers: OptionSet, Sendable {
+        public let rawValue: Int
 
-        static let command = Modifiers(rawValue: 1 << 0)
-        static let shift = Modifiers(rawValue: 1 << 1)
-        static let option = Modifiers(rawValue: 1 << 2)
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+
+        public static let command = Modifiers(rawValue: 1 << 0)
+        public static let shift = Modifiers(rawValue: 1 << 1)
+        public static let option = Modifiers(rawValue: 1 << 2)
     }
 
     /// The key without Shift or Option applied.
-    let key: String
-    let modifiers: Modifiers
+    public let key: String
+    public let modifiers: Modifiers
 }

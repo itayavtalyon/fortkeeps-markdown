@@ -5,8 +5,14 @@
     /// The text view of `MarkdownView`: checkboxes, copy, paste, Undo, and the shortcuts.
     final class MarkdownUITextView: UITextView {
         weak var owner: MarkdownView?
+        /// `UITextView(usingTextLayoutManager:)` does not run this class's
+        /// property initializers: a stored property must be valid when zero.
+        private var testPasteboard: UIPasteboard?
         /// Copy writes here; tests use a named pasteboard.
-        var pasteboard = UIPasteboard.general
+        var pasteboard: UIPasteboard {
+            get { testPasteboard ?? .general }
+            set { testPasteboard = newValue }
+        }
 
         private var controller: MarkdownTextController? {
             owner?.controller
@@ -100,6 +106,10 @@
 
         // MARK: accessibility
 
+        /// The checkbox elements by task. Accessibility holds an element
+        /// weakly, so the view keeps each one and returns it on every read.
+        private var checkboxes: [Int: CheckboxElement]?
+
         func checkboxElements(container: UIView) -> [CheckboxElement] {
             guard let controller, let layout = textLayoutManager,
                   let viewport = layout.textViewportLayoutController.viewportRange
@@ -116,7 +126,7 @@
                         dx: fragment.layoutFragmentFrame.minX + textContainerInset.left,
                         dy: fragment.layoutFragmentFrame.minY + textContainerInset.top
                     )
-                    let element = CheckboxElement(accessibilityContainer: container)
+                    let element = checkboxes?[task] ?? CheckboxElement(accessibilityContainer: container)
                     element.configure(task: task, controller: controller)
                     // 44 pt hit size.
                     element.accessibilityFrameInContainerSpace = convert(
@@ -127,13 +137,14 @@
                 }
                 return fragment.rangeInElement.endLocation.compare(viewport.endLocation) == .orderedAscending
             }
+            checkboxes = Dictionary(elements.map { ($0.task, $0) }) { first, _ in first }
             return elements
         }
     }
 
-    /// A checkbox as VoiceOver reads it: the task text, `done` or `not done`.
+    /// A checkbox as VoiceOver reads it: the task text, `checked` or `unchecked`.
     final class CheckboxElement: UIAccessibilityElement {
-        private var task = 0
+        private(set) var task = 0
         private weak var controller: MarkdownTextController?
 
         func configure(task: Int, controller: MarkdownTextController) {

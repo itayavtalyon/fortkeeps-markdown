@@ -91,6 +91,7 @@ struct MarkdownTextControllerTests {
         #expect(controller.text == "aXb")
         #expect(host.changes.first == TextChange(
             reason: .edit,
+            groupReason: .edit,
             range: NSRange(location: 1, length: 0),
             replacement: "X",
             text: "aXb"
@@ -243,6 +244,7 @@ struct MarkdownTextControllerTests {
         #expect(!controller.undoManager.canUndo)
         #expect(host.changes.last == TextChange(
             reason: .reload,
+            groupReason: .reload,
             range: NSRange(location: 0, length: 8),
             replacement: "new\n",
             text: "new\n"

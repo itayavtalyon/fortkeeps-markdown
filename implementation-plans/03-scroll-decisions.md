@@ -19,10 +19,10 @@ Do not build a step marked PROPOSED in log 002 until Itay approves it and a new 
 
 | Stage | Name | Adds to | Status | Blocked by |
 |---|---|---|---|---|
-| 3a | Package target, pinned spec examples, MD-29, list copy | Plan 01 stages 1a, 1b, 1c | Not started | — |
-| 3b | HTML spike tests | Plan 01 stage 1e step 8 | Not started | WAIT-1 (the policy only; the tests are written now) |
-| 3c | Views: images, wide blocks, keyboard, VoiceOver, editor | Plan 01 stage 1f | Not started | — |
-| 3d | Apps: image activation, signing deferral, copy terms, iPhone home screen | Plan 02 stages 2b, 2c, 2d, 2f | Not started | WAIT-3 (string tests) |
+| 3a | Package target, pinned spec examples, MD-29, list copy | Plan 01 stages 1a, 1b, 1c | Built in plan 01 (1g) | — |
+| 3b | HTML spike tests | Plan 01 stage 1e step 8 | Not started: the spike tests are not written | WAIT-1 (the policy only; the tests are written now) |
+| 3c | Views: images, wide blocks, keyboard, VoiceOver, editor | Plan 01 stage 1f | Built in plan 01 (1g) and plan 02 (2b–2f) | — |
+| 3d | Apps: image activation, signing deferral, copy terms, iPhone home screen | Plan 02 stages 2b, 2c, 2d, 2f | Built in plan 02 | WAIT-3 (string tests) |
 
 ### 3a — Package target, pinned spec examples, MD-29, list copy
 

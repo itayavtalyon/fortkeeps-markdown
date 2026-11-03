@@ -8,7 +8,11 @@ final class RecordingHost: MarkdownHost {
     var changes: [TextChange] = []
     var requested: [String] = []
     var cancelled: [String] = []
-    var activated: [String] = []
+    var activations: [ImageActivation] = []
+    var activated: [String] {
+        activations.map(\.destination)
+    }
+
     /// Destinations without an entry wait until cancelled.
     var results: [String: ImageResult] = [:]
 
@@ -37,8 +41,19 @@ final class RecordingHost: MarkdownHost {
         changes.append(change)
     }
 
-    func imageActivated(_ request: ImageRequest) {
-        activated.append(request.destination)
+    func activateImage(_ activation: ImageActivation) {
+        activations.append(activation)
+    }
+
+    var reloaded: [ImageRequest] = []
+    var loadAllCount = 0
+
+    func reloadImage(_ request: ImageRequest) {
+        reloaded.append(request)
+    }
+
+    func loadAllImages() {
+        loadAllCount += 1
     }
 }
 

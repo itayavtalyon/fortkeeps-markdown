@@ -33,7 +33,8 @@ final class EditorImageMark: NSObject {
         if let image, image.size.width > 0, image.size.height > 0 {
             thumbnail = image
             let scale = min(1, width / image.size.width, Self.thumbnailHeight / image.size.height)
-            size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            let status = content.statusLine == nil ? 0 : ImageCardContent.statusLineHeight
+            size = CGSize(width: image.size.width * scale, height: image.size.height * scale + status)
         } else {
             thumbnail = nil
             size = content.cardSize(columnWidth: width)
@@ -50,7 +51,20 @@ final class EditorImageMark: NSObject {
     /// Draws the thumbnail, or the card with its glyph, title, lines, and button.
     func draw(in rect: CGRect, context: CGContext) {
         if let image = thumbnail?.cgImageForDrawing {
-            Self.drawFlipped(image, in: rect, context: context)
+            guard let status = content.statusLine else {
+                Self.drawFlipped(image, in: rect, context: context)
+                return
+            }
+            var imageRect = rect
+            imageRect.size.height -= ImageCardContent.statusLineHeight
+            Self.drawFlipped(image, in: imageRect, context: context)
+            Self.drawText(
+                status,
+                size: 11,
+                role: .text3,
+                at: CGPoint(x: rect.minX, y: imageRect.maxY + 2),
+                context: context
+            )
             return
         }
         let path = CGPath(roundedRect: rect, cornerWidth: 8, cornerHeight: 8, transform: nil)
@@ -185,8 +199,7 @@ extension MarkdownDisplay {
                 let content = ImageCardContent(
                     result: controller.imageResults[item.image.destination],
                     alt: item.image.alt,
-                    fallback: .text,
-                    isUntitled: controller.documentURL == nil
+                    fallback: .text
                 )
                 return EditorImageMark(
                     destination: item.image.destination,

@@ -7,10 +7,20 @@ import MarkdownCore
 /// to it. Offsets are UTF-16 offsets in `displayString` unless named otherwise.
 @MainActor
 final class MarkdownTextController {
-    weak var host: MarkdownHost?
+    /// A host set after the first viewport pass gets the images near it.
+    weak var host: MarkdownHost? {
+        didSet {
+            if let visible {
+                viewportChanged(visible)
+            }
+        }
+    }
+
+    /// The last visible range, in display offsets.
+    var visible: Range<Int>?
     let features: MarkdownFeatures
     let presentation: MarkdownPresentation
-    let documentURL: URL?
+    var documentURL: URL?
     let maxUTF8Bytes: Int?
 
     private(set) var text: String
@@ -22,18 +32,20 @@ final class MarkdownTextController {
     var reduceMotion = false
     /// The largest size the view draws an image at.
     var maxImagePixelSize = CGSize(width: 8192, height: 8192)
-    let undoManager = UndoManager()
+    let undoManager = ModelUndoManager()
 
     /// Called after the text or the mode changes, so the view redraws.
     var onDisplayChange: (() -> Void)?
     /// Called when an image result arrives or changes.
     var onImageChange: ((String) -> Void)?
+    /// A message VoiceOver reads without moving focus.
+    var onAnnouncement: ((String) -> Void)?
 
     private var grouping = UndoGrouping()
     /// The open undo group: later edits of the same typed run join it.
     private var openGroup: UndoGroup?
     /// Internal so tests can check that the editor paths do not parse the whole text.
-    private(set) var cachedDocument: MarkdownDocument?
+    var cachedDocument: MarkdownDocument?
     // Internal for the links and images extension.
     var imageResults: [String: ImageResult] = [:]
     var imageTasks: [String: Task<Void, Never>] = [:]
@@ -144,13 +156,13 @@ final class MarkdownTextController {
         onDisplayChange?()
     }
 
-    /// The accessibility of a checkbox: the task text, `done` or `not done`,
+    /// The accessibility of a checkbox: the task text, `checked` or `unchecked` (log 002),
     /// and whether a click may change it.
     func checkboxAccessibility(_ index: Int) -> CheckboxState {
         let task = document.tasks[index]
         return CheckboxState(
             label: task.text,
-            value: task.checked ? "done" : "not done",
+            value: CheckboxState.value(checked: task.checked),
             isEnabled: isEditable && mode != .editorLocked
         )
     }
@@ -166,6 +178,7 @@ final class MarkdownTextController {
         selection = clamped(selection)
         host?.textDidChange(TextChange(
             reason: .reload,
+            groupReason: .reload,
             range: NSRange(location: 0, length: old),
             replacement: newText,
             text: newText
@@ -173,7 +186,15 @@ final class MarkdownTextController {
         onDisplayChange?()
     }
 
-    private func apply(_ edit: TextEdit, reason: TextChange.Reason, event: UndoGrouping.Event?, time: Double) {
+    /// `groupReason` is the reason of the undo group an undo or redo replays.
+    func apply(
+        _ edit: TextEdit,
+        reason: TextChange.Reason,
+        groupReason: TextChange.Reason? = nil,
+        event: UndoGrouping.Event?,
+        time: Double,
+        actionName: String? = nil
+    ) {
         let lower = text.utf16.index(text.utf16.startIndex, offsetBy: edit.range.lowerBound)
         let upper = text.utf16.index(lower, offsetBy: edit.range.count)
         let removed = String(text[lower ..< upper])
@@ -181,10 +202,11 @@ final class MarkdownTextController {
         cachedDocument = nil
         let change = Change(location: edit.range.lowerBound, removed: removed, inserted: edit.replacement)
         if let event {
-            record(change, decision: grouping.register(event, at: time))
+            record(change, reason: reason, decision: grouping.register(event, at: time), actionName: actionName)
         }
         host?.textDidChange(TextChange(
             reason: reason,
+            groupReason: groupReason ?? reason,
             range: NSRange(location: edit.range.lowerBound, length: edit.range.count),
             replacement: edit.replacement,
             text: text
@@ -207,19 +229,30 @@ final class MarkdownTextController {
     /// The changes of one undo group, in order. A class, so a typed run can
     /// keep adding to a group that is already registered.
     private final class UndoGroup {
+        /// The reason of the change that opened the group.
+        let reason: TextChange.Reason
         var changes: [Change]
+        /// The name in the Undo and Redo menu items, as `Undo Reload`; nil keeps the system's.
+        let actionName: String?
 
-        init(_ changes: [Change]) {
+        init(_ reason: TextChange.Reason, _ changes: [Change], actionName: String? = nil) {
+            self.reason = reason
             self.changes = changes
+            self.actionName = actionName
         }
     }
 
-    private func record(_ change: Change, decision: UndoGrouping.Decision) {
+    private func record(
+        _ change: Change,
+        reason: TextChange.Reason,
+        decision: UndoGrouping.Decision,
+        actionName: String?
+    ) {
         if decision == .continueGroup, let openGroup {
             openGroup.changes.append(change)
             return
         }
-        let group = UndoGroup([change])
+        let group = UndoGroup(reason, [change], actionName: actionName)
         register(group)
         // After an own group UndoGrouping opens a new one, so the group can stay open.
         openGroup = group
@@ -234,6 +267,7 @@ final class MarkdownTextController {
                 controller.reverse(group)
             }
         }
+        group.actionName.map { undoManager.setActionName($0) }
         undoManager.endUndoGrouping()
     }
 
@@ -241,12 +275,14 @@ final class MarkdownTextController {
         let reason: TextChange.Reason = undoManager.isUndoing ? .undo : .redo
         openGroup = nil
         _ = grouping.register(.caretJump, at: 0)
-        let inverse = UndoGroup(group.changes.reversed().map(\.inverse))
+        // The undo manager keeps the action name for Redo and the next Undo.
+        let inverse = UndoGroup(group.reason, group.changes.reversed().map(\.inverse))
         for change in inverse.changes {
             let range = change.location ..< change.location + change.removed.utf16.count
             apply(
                 TextEdit(range: range, replacement: change.inserted, selection: selection),
                 reason: reason,
+                groupReason: group.reason,
                 event: nil,
                 time: 0
             )
@@ -309,4 +345,49 @@ struct CheckboxState: Equatable {
     /// `done` or `not done`.
     let value: String
     let isEnabled: Bool
+}
+
+extension CheckboxState {
+    /// VoiceOver's value of a checkbox (log 002).
+    static func value(checked: Bool) -> String {
+        checked
+            ? String(localized: "checkbox.checked", defaultValue: "checked", bundle: resourceBundle)
+            : String(localized: "checkbox.unchecked", defaultValue: "unchecked", bundle: resourceBundle)
+    }
+}
+
+/// The controller's undo manager. The iOS text view opens and closes a group
+/// for each Find replacement (screens §3.6) with nothing in it, and the
+/// controller makes the change again as its own group; this manager notes a
+/// group left empty, so the controller can take it off.
+final class ModelUndoManager: UndoManager {
+    /// The last top-level group closed with nothing in it.
+    private(set) var hasEmptyGroup = false
+    private var registered = false
+
+    override func beginUndoGrouping() {
+        if groupingLevel == 0 {
+            registered = false
+        }
+        super.beginUndoGrouping()
+    }
+
+    override func endUndoGrouping() {
+        super.endUndoGrouping()
+        if groupingLevel == 0, !isUndoing, !isRedoing {
+            hasEmptyGroup = !registered
+        }
+    }
+
+    override func __registerUndoWithTarget(_ target: Any, handler undoHandler: @escaping @MainActor (Any) -> Void) {
+        registered = true
+        super.__registerUndoWithTarget(target, handler: undoHandler)
+    }
+
+    /// Takes off an empty group, so Undo does not stop on nothing.
+    func dropEmptyGroup() {
+        guard hasEmptyGroup else { return }
+        hasEmptyGroup = false
+        undo()
+    }
 }

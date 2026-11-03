@@ -33,12 +33,12 @@ Test that policy in the plan 01 test target.
 
 | Stage | Name | Status | Blocked by |
 |---|---|---|---|
-| 2a | Document policy | Not started | — |
-| 2b | Image loader and cache | Not started | — |
-| 2c | Mac app | Not started | WAIT-3 (string tests), WAIT-6 (signing) |
-| 2d | iOS and iPadOS app | Not started | WAIT-3 (string tests), WAIT-4 (icon asset), WAIT-6 (signing) |
-| 2e | Outside changes and Resolve | Not started | — |
-| 2f | Sidebar, export, settings, relaunch | Not started | — |
+| 2a | Document policy | Done (whole-plan review 2026-11-03) | — |
+| 2b | Image loader and cache | Done (whole-plan review 2026-11-03) | — |
+| 2c | Mac app | Done (whole-plan review 2026-11-03) | WAIT-3 (string tests pending) |
+| 2d | iOS and iPadOS app | Done (whole-plan review 2026-11-03) | WAIT-3 (string tests pending), WAIT-6 (simulator only: no team ID) |
+| 2e | Outside changes and Resolve | Done (whole-plan review 2026-11-03) | WAIT-3 (string tests pending) |
+| 2f | Sidebar, export, settings, relaunch | Done (whole-plan review 2026-11-03) | WAIT-3 (string tests pending) |
 
 ### 2a — Document policy
 
@@ -182,3 +182,420 @@ When the stage definition of done holds except the second review, commit the sta
 Write `.claude/REVIEW_REQUEST` with the stage name, this plan path, and the commit.
 Stop.
 Do not start the next stage.
+
+Plan 02 flow (Itay, 2026-10-31, `decision:fortkeeps-markdown-plan02-flow-2026-10-31`): each stage is built, deep-reviewed in-session, and committed, and the next stage starts without `.claude/REVIEW_REQUEST`. After 2f the implementer writes `.claude/WHOLE_PLAN_REVIEW` and stops. This replaces the Handover above for plan 02.
+
+## Implementation Notes
+
+### 2a — Document policy
+
+Branch `stage/2a-document-policy` from `main` at 64a7708.
+
+**Decisions.** Itay answered four grill questions (`decision:fortkeeps-markdown-2a-save-policy-2026-10-31`), recorded in design log 004 Round 1:
+
+1. `TextChange` gains `groupReason`: for `undo` and `redo`, the reason of the undo group (`edit` or `checkbox`); for any other reason, the reason itself. The controller's `UndoGroup` keeps the reason of the change that opened it, and its inverse keeps the same reason, so a redo carries it too.
+2. Every save writes the normalized text (CRLF and lone CR to LF, a final newline).
+3. An empty or BOM-only text stays empty.
+4. `TextChange` moved from `MarkdownViews/MarkdownHost.swift` to `MarkdownCore/TextChange.swift`. `MarkdownViews` re-exports `MarkdownCore` (`@_exported import` in `MarkdownViews.swift`).
+
+**Files.** `Sources/MarkdownCore/DocumentFile.swift` (`acceptedExtensions`, `accepts(_:)`, `text(from:)`, `data(for:)`, `normalized(_:)`, `SaveAction`, `saveAction(for:)`), `Sources/MarkdownCore/TextChange.swift`. `LinkRules` now calls `DocumentFile.accepts(_:)`; `LinkRules.acceptedExtensions` moved to `DocumentFile` (no release tag exists, so no consumer breaks). `MarkdownTextController` passes `groupReason`. Tests: `Tests/MarkdownCoreTests/DocumentFileTests.swift` (16 tests), two tests in `MarkdownTextControllerCheckboxTests`, and two literal `TextChange` values updated in `MarkdownTextControllerTests`.
+
+**Consumers.** A host that builds a `TextChange` (a test double) passes `groupReason`. A host that imports only `MarkdownViews` still sees `TextChange` and `DocumentFile`. Proof: a probe test that imports only `MarkdownViews` and builds a `TextChange` compiled with the re-export and failed with `cannot find type 'TextChange' in scope` without it.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| Each accepted extension and its uppercase form are accepted. | `each accepted extension and its uppercase form are accepted` (11) |
+| Any other extension is refused. | `any other extension is refused` (7, with `a.md.zip`, `.md`, `a.mdx`) |
+| Invalid UTF-8 and a NUL byte are refused and produce no output bytes. | `invalid UTF-8 is refused and gives no text` (6: lone continuation, `FF`, truncated, overlong, surrogate, past U+10FFFF), `a NUL byte is refused and gives no text` (4). `text(from:)` throws `Refusal.notUTF8`, so no text exists. |
+| A CRLF, a lone-CR, and a mixed buffer become LF in memory and stay clean until an edit. | `CRLF, a lone CR, and mixed endings become LF in the buffer` (7); `a reload leaves the document clean`, `an edit marks the document dirty and leaves the save to autosave`. Opening makes no `TextChange`, so nothing marks the document dirty before the first change. The `NSDocument` check (`isDocumentEdited` false after open) belongs to 2c. |
+| The output of the first edit ends with a newline and contains no CR. | `the saved bytes end with a newline and contain no CR` (4), `the saved bytes keep the BOM and the text` |
+| A BOM remains. | `a leading BOM stays in the buffer`, `the saved bytes keep the BOM and the text` |
+| An empty file opens. | `an empty file opens and stays empty` (2: empty, BOM only), `an empty text saves as no bytes` |
+
+Also (steps 4–5): `a checkbox change saves immediately`, `undo or redo of a checkbox change saves immediately` (2), `undo or redo of an edit leaves the save to autosave` (2), `undo and redo of a checkbox click carry the checkbox group reason`, `undo and redo of a typed edit carry the edit group reason`.
+
+**Self-review (deep review, in session).**
+
+- Mutations: 21 one-clause mutants over `DocumentFile`, the `LinkRules` call, and the controller's group reason (runner in the session scratchpad: restores the file in `finally`, counts a mutant red only with a named failing test). M5 survived first: skipping a LF after a CR without resetting the flag ate the next LF, so `a\r\n\nb` lost its blank line. Tests now include `a\r\n\nb\n` and `a\r\r\n\r\nb\n`; M5 is red. Two mutants did not build (an unused constant) and were run again in a valid form (`byte == carriageReturn + 1`, `count > min(bomLength, 0)`); both red. One survivor is equivalent and stays: `groupReason == .edit ? .autosave : .saveNow` gives the same actions, because the controller reports only `edit` or `checkbox` as the group reason of an undo or redo (`undo and redo of ... carry the ... group reason`).
+- Probes: a BOM followed by U+0301 is one grapheme, so `hasPrefix` does not see the BOM; `normalized` still adds the newline (test argument added). The same grapheme rule makes `MarkdownDocument` and the controller treat that BOM as text; both use `hasPrefix`, so their offsets agree. Not changed (plan 01 code, a text that starts with a combining mark).
+- Timing (release, M1 Max, probe test removed after the run): open (`text(from:)`) 2 MB 15 ms, 20 MB 143 ms; save (`data(for:)`) 2 MB 5 ms, 20 MB 54 ms. Neither runs per keystroke; autosave calls `data(for:)` once per save.
+- Lint: SwiftLint `optional_data_string_conversion` refused `String(decoding: [UInt8], as: UTF8.self)`; `normalized` writes into `String(unsafeUninitializedCapacity:)` instead, which also drops the array copy.
+- Auto-fixed: `SaveAction.none` renamed `stayClean` (it shadowed `Optional.none` in a pattern). A pre-existing warning in `MarkdownDisplayTests` (a captured `var` mutated in a `@Sendable` observer) now uses `Mutex`; `just check` printed it on `main` too.
+- Simplify: (1) `data(for:)` is one line over `normalized`; kept, because both apps call it as the save entry point. (2) The extension set and test had two copies (`LinkRules` and the new rule); now one. (3) `apply`'s `groupReason` defaults to `reason`, so only `reverse` passes it; no other call site changed.
+- Gate infrastructure: during this stage a background CoreSimulator update (framework 1174.21, 20:44) unmounted the iOS 27.0 image ("Unusable - Cryptex Mount Preferred"), and a new iOS 27.1 runtime supports only an "iPhone Duo" device type that Xcode 27.2 does not list. The step passed once the 27.0 image remounted, on the unchanged tree.
+- Gate: `just check` passes on the committed tree: 122 MarkdownViews, 305 MarkdownCore, and 17 FortkeepsCards tests on macOS, coverage 100% for both pure modules, the module trace, the iOS build, the MarkdownViews tests on iPhone 18 Pro, lint, and format, with zero warnings.
+
+### 2b — Image loader and cache
+
+Branch `stage/2b-image-loader` from the 2a tip (c02c16c).
+
+**Decisions.** Itay answered ten grill questions in three rounds (`decision:fortkeeps-markdown-2b-images-2026-10-31`, `decision:fortkeeps-markdown-2b-image-cards-2026-10-31`), recorded in design log 004 Round 2:
+
+1. Each plan 02 stage builds the plan 03 stage 3c items it needs. 2b builds `activateImage(_ activation: ImageActivation)` (replaces `imageActivated`), the final log 002 image strings, the refused reason line, and the reload status line.
+2. App code with I/O lives in the package target `ScrollSupport` (depends on `MarkdownViews`, not a product). The coverage gate covers it.
+3. Load failures: over 5,000,000 bytes → `.failed(tooLarge)`; a redirect to http or a blocked host → `.refused`; a 4th redirect, a status that is not 2xx, a DNS or connection error → `.failed(network)`; a timeout → `.failed(timedOut)`.
+4. `MarkdownHost` gains required `reloadImage(_:)` and `loadAllImages()`.
+5. An SVG gives `.failed(unsupported)`; the loader reads the bytes.
+6. Try Again only on the `timedOut` and `network` cards.
+7. A failed reload travels as `.image(Data, reloadFailure: ImageFailure?)`.
+8. A missing, folder, or unreadable local file gives `.refused`.
+9. "Shows the image from this file." is the hint of the folder-access card.
+10. `.refused(reason: String?)`; the app passes "Save the document to show local images." for a local image in an untitled document (`ImageSource.localInUntitled`, new in `ImageRules`).
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- A reload that ends `.refused` (a redirect to a blocked host) shows the refused card. `ImageFailure` has no refused case, so the old image cannot keep a status line for it.
+- A reload of a local image reads the file again through `image(for:)`. It does not keep the old copy on failure: the file on disk is the truth.
+- Granting folder access refreshes every destination that returned `.needsAccess` in this session, not only the clicked card.
+
+**Files.**
+
+- `MarkdownViews`: `MarkdownHost.swift` (the host methods, `ImageActivation`, public `ImageRequest.init`, the two result payloads), `ImageCardContent.swift` (strings, status line, labels), `MarkdownTextController+Links.swift` (activation, menu items, announcement), the card views and editor marks (status line under a kept image), `ImageMenu+AppKit.swift` (new: the Mac context-menu items, split out of `MarkdownView+AppKit.swift` for the file-length rule), the iOS edit menu in `MarkdownView+UIKit.swift`.
+- `MarkdownCore`: `ImageRules.swift` (`ImageSource.localInUntitled`, `FolderPath.decoded`).
+- `ScrollSupport` (new): `ImageCheck`, `RemoteLoader` (with the `ImageTransport` port), `URLSessionTransport`, `ImageCache`, `DocumentImages` (with the `FolderAccess` port).
+- Tests: `Tests/ScrollSupportTests` (61 tests, `FakeTransport`, a `URLProtocol` stub, a fake clock, a fake folder-access port), plus new and changed tests in `ImageCardContentTests`, `ImageRulesTests`, `MarkdownTextControllerImageMenuTests` (new file, split from the mode tests), `MarkdownViewMacLayoutTests`, and `MarkdownViewIOSTests`.
+- Gate: `scripts/check-coverage.py` gates `ScrollSupport` and reads the summary of a module that SwiftPM's report leaves out from that module's own test bundle (SwiftPM writes the report from one bundle only). `scripts/ios-test.sh` also runs `ScrollSupportTests` on the simulator.
+
+**Left to later stages.** Purge at launch and on entering the background (step 11) is wiring in the app delegates: 2c and 2d call `ImageCache.standard.purge()`. Clear Image Cache (step 12) is `ImageCache.clear()`; its Settings control is 2f. The real `FolderAccess` (security-scoped bookmarks and the folder picker) is 2c and 2d. The strings catalog entry `img.untitled` is added with the app's catalog in 2c.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| The loader tests use a fake transport for the size, the host list, the cookie ban, and the redirect cap. | `RemoteLoaderTests`: `a body over 5,000,000 bytes is too large` (5,000,000 passes, 5,000,001 fails), `the transport is asked for at most 5,000,000 bytes`, `a redirect to http or a blocked host is refused and not followed` (8 locations), `a request sends no cookies`, `three redirects are followed, each hop checked`, `a fourth redirect is a network failure`, plus status, transport-failure, and timeout tests. `URLSessionTransportTests`: `the session keeps no cookies and no cache`, `a redirect is returned, not followed`, `the body is read to one byte past the limit`. |
+| A symlink out of the directory is refused. | `a symlink out of the document folder is refused`; `a symlink inside the document folder is followed` |
+| An SVG and an undecodable byte stream give `.failed(unsupported)`. | `bytes that are not an allowed image are unsupported` (remote), `a local SVG or undecodable file is unsupported`, and the `ImageCheckTests` |
+| Opening a document with a remote image makes zero requests. | `opening a document makes zero requests` |
+| A loaded image is cached. A relaunch draws it with zero requests. | `activating a card fetches once and caches the image`, `a cached image shows on a later open with no request` (a new `DocumentImages` on the same cache folder), `a stored image is read back, also by a new cache on the same folder` |
+| With a fake clock, an entry expires after 3 days without a view. A view resets the clock. | `an entry expires 3 days after its last view`, `an entry is still shown exactly 3 days after its last view`, `purge removes only expired entries` |
+| Every cache file has `isExcludedFromBackup`. | `every cached file is excluded from backup` |
+| A failed Reload Image keeps the old copy. | `a failed reload keeps the old copy with the reason`, `a failed reload keeps the copy loaded in this session`, `a reload with no old copy shows the failed card` |
+| Clear Image Cache empties the cache. | `clear empties the cache and size counts the bytes` |
+
+Also: `activating a card fetches once and caches the image` activates twice and sees one request (`activateImage` gives exactly one fetch, `image(for:)` none). `load all fetches each remote image of the text once, and nothing else`, `load all skips an image loaded in this session`.
+
+**Self-review (deep review, in session).**
+
+- Mutations: 4 runs of 35, 14, 3, and 1 mutants with `scratchpad/mutate.py` (one clause each; a script restores the file). Every mutant of the final code is caught, except one harmless one and one caught by a hang (below).
+  - Run 1 (35): 24 caught. Survivors led to fixes: the session config (`the session keeps no cookies and no cache`), Load All's skip (`load all skips an image loaded in this session`), the FIFO and size reads (`a FIFO is refused without a read`, the bounded read). The 10-second timeout hung the process; the timeout test now has a 1-minute time limit. Accepted: the cleanup after a failed cache write (a failed `setResourceValues` cannot be caused in a test).
+  - Run 2 (14) caught 10. `old ?? cache` survived, so a new test covers a cache another document changed (`a failed reload keeps the shown copy when another document changed the cache`). `starts(with: base) → true` survived, because the symlink test's target had the same depth as the folder and the depth check refused it. The target is now deeper. The depth check (`count > base.count`) was redundant with the regular-file check and is deleted.
+  - Runs 3–4: both caught (`starts(with: base.prefix(1))` and `base.dropLast()` by `a symlink out of the document folder is refused`).
+  - Caught by a hang: `isRegularFile == true → != nil` blocks the FIFO test on a read that a time limit cannot cancel. The test never passes.
+  - Harmless: `needAccess = []` removed. A later grant refreshes cards that already refreshed.
+  - The first run 2 died with the session and left a mutant in the tree; it printed nothing because its output was buffered. The runner now caps each mutant at 7 minutes and prints each result when it ends.
+
+- Coverage: the gate first passed with `ScrollSupport` missing from the report, because SwiftPM's JSON comes from one test bundle (the same reason `MarkdownViews` is not gated). The script now asks `llvm-cov export` for that bundle. Then 4 uncovered functions were `??` fallbacks that cannot run (`url.host() ?? ""`, `fileSize ?? 0`); they are now guards. The line after the redirect loop was covered in one run and not in the next; the loop is now `while true` and returns from inside, and the unreachable function end has a `coverage:ignore`.
+- Bugs found and fixed: granting folder access refreshed only the clicked card, so the other cards of the folder kept "Needs folder access" (now every `.needsAccess` destination refreshes; test). A failed cache write was silent (now logged with `Logger`, and a half-written file is removed; test). Two tests checked `.loading` after the fake answered, which raced; the loading state has its own test against a request that never answers.
+- Local reads: `Data(contentsOf:)` read the whole file before the size check, and a FIFO would block it. Now the file must be a regular file and the read stops one byte past the limit (`FileHandle.read(upToCount:)`), so one check covers both a large file and a file that grows.
+- Lint fixes: `ImageCardContent.init` lost its `kind` switch to a helper; the Mac image menu moved to its own file; the mode tests and the document image tests were split into a second file each.
+- Performance: `URLSessionTransport` appends the async bytes one at a time. It runs off the main actor, at most 5,000,001 bytes per image. Not measured; measure in 2c with a real image if a load feels slow.
+- Gate: `just check` green with 0 warnings (2026-11-01): Swift Testing on macOS ran 306 + 132 + 62 + 17 tests; the coverage gate holds `MarkdownCore`, `FortkeepsCards`, and `ScrollSupport` at 100%; the iPhone 18 Pro simulator ran 120 `MarkdownViews` and 62 `ScrollSupport` tests; lint and format are clean. SwiftLint's `modifier_order` now puts isolation after access level, the order SwiftFormat writes (`private nonisolated`); the two tools disagreed before.
+
+
+### 2c — Mac app
+
+Branch `stage/2c-mac-app` from the 2b tip (a9143d9).
+
+**Decisions.** Itay answered five grill questions (design log 004 Round 3; the remember writes are held, see Handover):
+
+1. XcodeGen: `project.yml` is checked in; `just project` generates `FortkeepsScroll.xcodeproj`, which git ignores.
+2. An ad-hoc signature (`CODE_SIGN_IDENTITY` `-`), no team ID, sandbox on. This is the WAIT-6 fallback: it runs on this Mac only.
+3. 2c builds the menu commands whose features exist in 2c, plus per-document zoom and `#fragment` links. Export, Print, Open Folder, the sidebar, the Outline, Settings, and Copy as Rich Text come with 2f.
+4. `just check` runs the keyboard and accessibility-audit UI tests (`mac-app-test`).
+5. The empty window's create button reads `New File`.
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- `LSHandlerRank` is `Default`, and the role is `Editor`.
+- The image cache purges at launch and when the app resigns active (the Mac has no background state).
+- The word count counts the whole text on each change (`ponytail:` comment in `update()`); move it off the main thread if a large file lags.
+- `MarkdownView.documentURL` is fixed when the view is made. A rename updates the title (`presentedItemDidMove`) but not the base of relative links; 2e owns outside changes.
+- The Help menu is empty (2f has no help book in the plan).
+- On Mac the format bar shows on a non-empty selection (log 001), not always.
+- Spell check underlines words inside link syntax; the system checker sees the raw text.
+- The strip buttons use target/action: Save As and Duplicate go to `NSDocument.saveAs(_:)` and `duplicate(_:)`.
+
+**Files.** App: `project.yml`, `Apps/Mac` (`main.swift`, `LiveEnvironment.swift`, `Info.plist`, entitlements, assets), `Apps/MacUITests/FortkeepsScrollUITests.swift`. `ScrollSupport`: `ScrollDocument`, `ScrollDocumentController`, `ScrollAppDelegate`, `DocumentWindow+AppKit` (also `ScrollEnvironment`), `DocumentHost+AppKit` (the `MarkdownHost` side), `EmptyWindow+AppKit`, `StripView+AppKit`, `MainMenu+AppKit`, `FolderBookmarks+AppKit`, `Acknowledgements+AppKit`, `ScrollStrings`. `MarkdownCore`: `DocumentWindowRules.swift` (`WordCount`, `Zoom`, `MarkdownDocument.needsFolder`). `MarkdownViews`: public `zoom` and `perform(_:)`, the view hands first responder to its text view, a host set late gets the near images, Bold over Select All leaves the last line break outside. Gate: `scripts/mac-app-test.sh` and `just mac-app-test`; the iOS steps pass `-workspace .` so a generated project in the root does not hide the package.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| The document type list equals the accepted extensions. | `the document type list equals the accepted extensions`, `the Markdown type declares every accepted extension but txt` (Info.plist) |
+| A second open of the same path selects the open document. | `a second open of the same path gives the open document` |
+| The refusal strings equal the final strings. | **Pending (WAIT-3).** `another extension is refused with its alert and not opened` and `a file that is not UTF-8 is refused with its alert` check the DRAFT strings of screens §3; swap in the final strings when Story Weaver delivers them. |
+| A checkbox path calls save immediately. An `edit` change does not call save directly. | `a checkbox change saves at once`, `an edit marks the document dirty and does not save` |
+| A failed save shows the strip and keeps the text. | `a failed save shows the strip and keeps the text` (read-only folder and file; the strip's Save As goes to the document; the system error sheet is suppressed) |
+| Option-Command-L toggles Lock, and Lock disables the checkboxes. | `the Lock item, Option-Command-L, toggles Lock and Lock disables the checkboxes`; UI test `testOptionCommandLLocksAndUnlocksTheText` |
+| `performAccessibilityAudit()` passes on the document window and the empty window. | UI tests `testTheDocumentWindowPassesTheAccessibilityAudit`, `testTheEmptyWindowPassesTheAccessibilityAudit`. The empty-window audit ignores "Label not human-readable" only on a recent-file button whose title ends in `.md`: the title is the person's file name. |
+
+Manual check (CRLF, checkbox, Undo): now a UI test, `testACRLFFileKeepsItsBytesAndACheckboxAndItsUndoSaveAtOnce`. It opens `- [ ] one\r\n- [ ] two\r\n`, quits with Command-Q and reads the same bytes, clicks the first checkbox and reads `- [x] one\n- [ ] two\n`, then presses Command-Z and reads `- [ ] one\n- [ ] two\n`. Mutant: with `undo(_:)` emptied it fails at the Undo read.
+
+**Self-review (deep review, in session).**
+
+- Test harness: under `swift test` an AppKit call that stops the main run loop (`performClose` on a document window, ending a Save panel sheet) ends the whole run with exit 0 and no summary, so later suites never ran. Found by checking for the `Test run with` line of `ScrollSupportTests`, then bisecting with `--skip`. Close Window is tested with a window subclass that counts `performClose`; the strip buttons became target/action, so the tests check the target and selector instead of opening the Save panel. File-presenter calls go on `presentedItemOperationQueue` (on main they hang). Each tab test sets its own `tabbingIdentifier`, because AppKit tabs a new window into another test's group.
+- Bugs found by running the app: an image card stuck on "Loading…" (the host was set after the first viewport pass); a second Open Recent menu (AppKit adds one); the empty window had no title (a blank Window menu row, a contrast-audit failure) and grew to 853 pt with a long folder; Bold over Select All wrapped the final line break.
+- Lint fixes: `MarkdownView+AppKit.swift` over 400 lines (`formatAction(for:)` moved to `FormatBar+AppKit.swift`, `zoom` and `perform(_:)` to an extension); the Find submenu moved out of `editMenu()`; `unowned` captures became `weak`.
+- Mutations: 3 runs of 39, 6, and 1 one-clause mutants with `scratchpad/mutate.py` over `ScrollDocument`, `DocumentWindowController`, `ScrollAppDelegate`, `ScrollDocumentController`, `FolderBookmarks`, `EmptyWindowController`, `DocumentWindowRules`, the Select All fix, and the late-host fix.
+  - Run 1 (39): 31 caught, 1 skipped (its pattern had changed), 7 survived. The survivors led to these changes:
+    - The deleted-file test now waits for an autosave and sees no file. It then saves, and sees the file back with no deleted strip (`a deleted file shows its strip and pauses autosave until a save`).
+    - The read-only test now calls Lock and sees it stay on.
+    - The Lock test checks the toolbar label.
+    - The Remove from Recent test checks that the empty window no longer lists the file.
+  - Removed, not tested:
+    - `saveOperation != .autosaveElsewhereOperation`: an autosave elsewhere of a deleted document fails with Cocoa error 512 (probe run in the test), so the clause could not matter.
+    - `tabGroup?.selectedWindow =` in Command-number: a menu key equivalent reaches only an active app, where `makeKeyAndOrderFront` selects the tab.
+  - Accepted: the `!isStale` check in `FolderBookmarks.restore()`; a test cannot make a stale bookmark. The test is now named `a broken bookmark is dropped`.
+  - Runs 2–3 (7): every mutant caught, including the late-host re-request and `isDeleted = false` after a save.
+- Gate: `just test` now fails unless every bundle under `Tests` reports a passed run. Proof: an empty `Tests/ZZProbe` folder made it fail with `4 of 5 test bundles reported a passed run`.
+- Undo was broken on Mac: Edit › Undo stayed disabled and Command-Z did nothing, after typing or a checkbox click. The text view turns `allowsUndo` off, and the window answered `undo:` with its own, empty manager. `MarkdownNSTextView` now handles `undo:` and `redo:` and validates them against the controller's manager (`the window's Undo and Redo reach the view's undo groups`, red before the fix). An `undoManager` override alone did not help; the window does not ask the first responder. `MainMenu` builds the two selectors with `NSSelectorFromString`, because `#selector` cannot see the internal methods and `Selector(("undo:"))` now warns.
+- UI test harness: `XCUIApplication.open(_:)` starts its own copy of the app. After `launch()` it started a second copy, and the first copy's empty window stayed on screen. XCUITest reported it as an interrupting 560×412 window, and every test after the first failed. Found with `CGWindowListCopyWindowInfo` and an `NSLog` of the app's windows in the test run, both since removed. The tests now open files without `launch()`, and `tearDown` quits the app, which XCUITest leaves running after `open`. `mac-app-test.sh` ignores XCTest's `[Internal]` priority-inversion warnings about its own threads; app build warnings still fail it.
+- Gate fixes:
+  - The iOS steps pass `-workspace .`. With `FortkeepsScroll.xcodeproj` in the root, `xcodebuild` picked the project and could not find the package scheme.
+  - Coverage of `DocumentImages.image(for:)` dropped the three lines after an `await` in 2 of 5 runs. The test that runs those lines passed each time. The lines moved to a synchronous helper; 5 runs since, all at 100%.
+- Known flake: `testTabMovesToALinkAndReturnOpensIt` failed once in about 6 runs ("Failed to … application"), then passed 4 times, including alone. Not explained; rerun `mac-app-test` once and look if it repeats.
+- Gate: `just check` green with 0 warnings (2026-11-02): Swift Testing on macOS ran 128 ScrollSupport, 136 MarkdownViews, 310 MarkdownCore, and 17 FortkeepsCards tests; coverage 100% for the three gated modules; the iPhone 18 Pro run; 7 Mac UI tests; lint and format clean.
+
+
+### 2d — iOS and iPadOS app
+
+Branch `stage/2d-ios-app` from the 2c tip (fafc43e).
+
+**Decisions.** Itay answered six grill questions (design log 004 Round 4; the remember writes are held, see Handover):
+
+1. UIKit, like the AppKit Mac app and the UIKit `MarkdownView`.
+2. Settings: the ⋯ menu entry and an empty sheet with Done. 2f fills it on both platforms.
+3. New File on iPhone writes `Untitled.md` (then `Untitled 2.md`) into the app's own folder (On My iPhone › FK Scroll) and opens it with the keyboard up, with no picker. On iPad, New is the document browser's create button, which writes into the browser's current folder.
+4. The iPhone home screen's title is `Open Files`, the same as the document screen's back button.
+5. 2d builds the iOS strips (save failed, read-only, deleted) with the screens §3 copy, as on the Mac. Asked during the deep review: a failed save on iOS showed nothing, and the title said "Saving…" for good.
+6. The read-only strip's Duplicate writes `{name} copy` (then `{name} copy 2`), keeping the extension, into the app's folder and opens it. Save as uses the Files export sheet.
+
+Fallback: WAIT-6 (signing) is open, so the iOS app has no team ID and the shared ad-hoc settings of `project.yml`; it builds and runs on the simulator only.
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- iPhone launches into `Open Files` (log 002 › iPhone home screen), not the document browser; plan step 3's browser is the iPad launch screen and the iPhone Browse button.
+- The app has one scene; Stage Manager multiwindow (screens §3.19) is not built.
+- Close on the deleted strip, after its confirmation, pops the iPhone screen without animation (the alert's dismissal is the transition).
+- Save as exports a copy and opens it; the old screen stays open until the person closes it (iOS has no Save As that moves a `UIDocument`).
+- A deleted document stays deleted until it closes: iOS has no plain Save that writes it back, as the Mac's does.
+- The tab strip has no drag to reorder, and the iPhone and iPad screens have no Find, Outline, Share, or Export (2f).
+- The folder-access strip is not built on iOS: a sibling link with no access opens the Files folder picker at once.
+- The UI-test hooks live in the app shell: `FK_SCROLL_UI_TEST` clears the lists and the app folder at launch, and on iPad writes `UI test.md` and reveals it, so the browser starts in the app's folder (Recents has no folder to create in).
+
+**Files.** App: `project.yml` (targets `Fortkeeps Scroll iOS` and `Fortkeeps Scroll iOS UI Tests`, iOS 18, bundle `app.fortkeeps.scroll`, display name `FK Scroll`), `Apps/iOS` (`AppDelegate`, `SceneDelegate`, `LiveEnvironment`, `Info.plist`, the icon from `design/icon`), `Apps/iOSUITests/FortkeepsScrollIOSUITests.swift`. `MarkdownCore`: `FileLists.swift` (`FileLists`, `DocumentFile.untitledName(taken:)`, `copyName(of:taken:)`). `ScrollSupport`: `OpenRefusal` (shared by both apps), `FileListStore` (bookmarks in `UserDefaults`), `FolderBookmarks` (was `+AppKit`, now both platforms), `ScrollDocument+UIKit`, `DocumentSession+UIKit`, `DocumentViewController+UIKit` (also the iOS `ScrollEnvironment`), `HomeViewController+UIKit`, `TabsViewController+UIKit` (also `TabView` and `BrowserViewController`), `StripView+UIKit`, `ScrollStrings+UIKit`. `MarkdownViews`: `MarkdownView` hands first responder and its accessibility label to its text view; two fixes in `MarkdownUITextView` (below). Gate: `scripts/check-document-types.py`, `scripts/check-ios-coverage.py`, `scripts/ios-app-test.sh`, `just ios-app-test`; `ios-test.sh` now runs the `ScrollSupport` tests with coverage on the simulator; `check-coverage.py` leaves `*+UIKit.swift` to the iOS gate.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| The iOS document types match the Mac types. | `scripts/check-document-types.py` in `ios-app-test`: `CFBundleDocumentTypes` (without `NSDocumentClass`) and `UTImportedTypeDeclarations` of both plists are equal. |
+| The iPad tab shows the file name and the close control. | UI test `testIPadNewOpensATabWithItsCloseControl` (iPad Air 11-inch (M4)); `each tab shows the file name and a close control named for it`, `a renamed file renames its tab` |
+| The iPhone back button shows `Open Files`. | UI test `testIPhoneNewFileOpensUntitledAndGoesBackToOpenFiles` (iPhone 18 Pro); `the title and the back button say Open Files` |
+| New creates `Untitled.md` in the current folder. | iPhone: `a new file is Untitled, then Untitled 2, in the app's folder` and the iPhone UI test. iPad: `the browser's New makes an empty Untitled.md for it to move` and the iPad UI test (the browser's current folder). |
+| The iOS checkbox path saves immediately. | `a checkbox change saves at once, and a reload stays clean`; `an edit marks the document dirty and does not save` |
+| `performAccessibilityAudit()` passes on the document screen. | UI test `testTheDocumentScreenPassesTheAccessibilityAudit` on iPhone and iPad, with a heading, a link, and a checkbox. It ignores "Label not human-readable" only on an element whose label ends in `.md`: the title is the person's file name. |
+
+Also: the strips (`a deleted file shows its strip, and Close asks first`, `a failed save shows its strip, and Save As exports the text and opens the copy`, `a read-only file shows its strip, and Duplicate opens a copy in the app's folder`, and the document tests `a deleted file pauses the checkbox save and autosave, and keeps the text`, `a failed save marks the document failed and keeps the text`); the lists across a relaunch (`the lists come back after a relaunch`, `a file that is gone comes back missing at its old path`); the iPad shortcuts (`the tab shortcuts: Command-W, Shift-Command-brackets, Command-1 to 9`). The format bar docks above the keyboard through `MarkdownView`'s `inputAccessoryView` (plan 01).
+
+**Self-review (deep review, in session).**
+
+- Library bugs found by the accessibility audit, both from one cause: `UITextView(usingTextLayoutManager:)` does not run a Swift subclass's stored-property initializers, so `MarkdownUITextView`'s stored properties start as zero bits.
+  - Copy wrote to a null pasteboard: the stored `UIPasteboard` was a zero pointer, so Copy on iOS did nothing. The view now keeps an optional test pasteboard and falls back to `.general` (`copy with no test pasteboard writes the general pasteboard`).
+  - The checkbox accessibility elements were made new on each read, and accessibility holds elements weakly, so the audit found elements with no description. The view now keeps them in an optional dictionary (a non-optional one crashed on its zero storage).
+- Other bugs found by running the app: the empty text view had no accessibility label (now the file name); `MarkdownView` did not pass first responder to its text view, so New File had no keyboard; bookmarks resolve to `/private/var/…` where the picker gives `/var/…`, so the lists kept two rows for one file (`FileListStore.key`); a checkbox save through `autosave` hung once, so it now calls `save(to:for:)`.
+- Deep-review fixes, each with a test that failed first:
+  - Two quick taps on a row opened the file twice: both calls passed the screen check before the first `await`, and one `UIDocument` leaked. Opens of one file now share one task (`two quick opens of a file give one screen`).
+  - A row's swipe, VoiceOver, and menu action kept the index path, so after the list changed it acted on another file. It now keeps the file (`a row's action acts on its own file after the list changes`).
+  - A rename did not rename the iPad tab or its "Close {name}" label (screens §3.12). Each tab's screen now reports its updates to the tabs (`a renamed file renames its tab`).
+  - `DocumentSession.close` stopped the security scope on the URL it was given, not the one that started it; the session now keeps that URL (a file outside the sandbox cannot be picked in a unit test).
+  - A failed save showed nothing, a deleted file was written back by the next autosave or by Close, and a read-only file had no strip: the three strips (decision 5).
+  - The iOS-only strings sat in the shared `ScrollStrings` and failed the Mac coverage gate; they moved to `ScrollStrings+UIKit.swift`, which the iOS gate covers.
+- Saves pause while deleted at `save(to:for:completionHandler:)`, the one call every save passes through: `close()` writes without calling `autosave(completionHandler:)`, found by a test that saw the file come back after Close.
+- Concurrency: `UIDocument` is not main-actor isolated, so the file-presenter calls hop to main through `onMain(_:)` with a `nonisolated(unsafe)` local; an `@unchecked Sendable` conformance did not satisfy region isolation.
+- Mutations: one-clause mutants with `scratchpad/mutate.py` (macOS, `swift test`) and its iOS twin `ios-mutate.py` (`xcodebuild test` on iPhone 18 Pro, `-only-testing` per suite). Every mutant of the final code is caught.
+  - macOS run (12, `FileListStore`, `FileLists`, `copyName`): 10 caught. `missing.remove` in `removeRecent` survived and is deleted: the row is gone, and `remember` clears the flag on any later open. `missing.remove` in `remember` survived; a test now covers it (`a missing file that is back and opens is no longer missing`).
+  - iOS run 1 (32, the session, document, screens, tabs, browser, and the two `MarkdownViews` fixes): 23 caught (2 by a crash), 2 skipped (ambiguous pattern), 3 did not build (an unused value; warnings are errors), 4 survived:
+    - `show` re-pushed the screen on top: same stack, so a counting navigation controller now sees it (`showing the file on screen again keeps one screen of it`).
+    - Closing the selected tab always selected the first tab: `closing the selected tab selects the one after it, or else the last`.
+    - The `isDeleted` guard in `noteDeleted` and `finding = nil` after Find File did nothing a person sees; both are deleted.
+  - iOS run 2 (10: the skipped and non-building ones in valid forms, the survivors again, the tab rename, the open task): 7 caught, 1 did not build, 2 survived. Without `defer { opening[key] = nil }` a file reopened after Close got its closed screen back: `a closed file opens again on a new screen`. The selected-tab check before `showTitle()` was redundant and is deleted.
+  - iOS run 3 (2): both caught.
+- Known gaps (not 2d scope): the Open and Recent rows and the session's screen key still use the old path after a rename (2e owns outside changes); the checkbox VoiceOver value says "checked/unchecked" only from plan 03; the home screen's search field has a text-clipped audit issue (the home screen audit is not a 2d test); the format bar's `.tabBar` trait makes unlabeled container elements (the audit passes).
+- Lint fixes: 17 test names that began with a capital now begin lowercase; three test types over 250 lines lost tests to extension files (the strips, a missing Recent file, the hosted view); the browser's delegate conformance moved to an extension, because SwiftFormat wrapped its 122-column declaration and SwiftLint refused the brace on its own line; `check-document-types.py` writes to the streams instead of calling `print`.
+- Gate (2026-11-02): every step of `just check` but the two UI-test steps passed on the committed tree with 0 warnings: Swift Testing on macOS ran 318 MarkdownCore, 136 MarkdownViews, 135 ScrollSupport, and 17 FortkeepsCards tests; coverage 100% for the three gated modules and for the iOS-only `ScrollSupport` files; the iPhone 18 Pro simulator ran 263 MarkdownViews and ScrollSupport tests (1 skipped: the timing test, which runs only with `FORTKEEPS_TIMING`); lint and format clean. `mac-app-test` and `ios-app-test` did not run on this tree: the screen was locked, and Itay chose to commit without them. Their last run passed before the strips, the deep-review fixes, and the lint fixes (all 3 iOS UI tests on iPhone 18 Pro and iPad Air 11-inch (M4), 7 Mac UI tests). Run `just mac-app-test ios-app-test` first in 2e.
+
+
+### 2e — Outside changes and Resolve
+
+Branch `stage/2e-outside-changes` from the 2d tip (f01a6d6).
+
+**Decisions.** Itay answered five grill questions and gave one direction (design log 004 Round 5; the remember writes are held, see Handover):
+
+1. An outside change with no unsaved edits follows log 003: an undoable reload, `Reload` in the Undo menu, and the note `Updated with changes from another app.` with Undo. This replaces log 001's silent reload that clears Undo, so the first must-pass test changes (table below).
+2. The dialog and the compare view use log 003's copy. Log 001's Reload, Keep Mine, and Resolve… keep their behavior as Use Version on Disk, Keep My Changes, and Compare….
+3. 2e builds the core of the compare view (screens §3.11) with its keys and VoiceOver. Edit in a hunk, Use Both Theirs First, Use … for the Rest, the Changes rotor, the changed-again banner, and the ⌥⌘I toggle wait.
+4. Undo Reload and Redo Reload save by autosave, like a typed edit.
+5. The library adds `MarkdownView.reload(text:undoActionName:)` and `MarkdownView.replaceText(_:)`. Plan 01's `reload(text:)` still clears Undo.
+6. Direction (Itay, mid-stage): the compare view lives in the library so Fortkeeps can use it for its own conflicts: `ResolveModel` in `MarkdownCore`, and `ResolveView` (Mac and iOS, its keys, VoiceOver, and strings) in `MarkdownViews`. The host passes the column titles.
+7. Asked during the deep review: `MarkdownView.documentURL` is settable, and both apps set it when the file moves (the rename gap the 2c and 2d notes left to 2e).
+8. Asked during the deep review: `replaceText(_:undoActionName:)` takes an optional name; Scroll passes `Resolve`, so the menu reads Undo Resolve (screens §3.11).
+9. Asked during the deep review: DRAFT VoiceOver hints on the dialog's buttons (screens §3.10) until WAIT-3.
+10. Asked during the deep review: the screen was locked; Itay unlocks it, and 2e runs `just mac-app-test ios-app-test` before its commit.
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- `MarkdownView.undoManager` now returns the view's own undo manager on both platforms, so a host's own Undo button (the note's) reaches the view's groups. Additive public behavior; Fortkeeps gets it too.
+- A second outside change while the dialog is up updates the disk text the dialog acts on and does not ask again. While the compare view is up it does not refresh the view (the changed-again banner waits, decision 3), so Apply merges with the version the view showed.
+- The file presenter ignores bytes on disk that are the bytes it last read or wrote, and bytes whose text equals the open text (another app's CRLF rewrite). Bytes that are not UTF-8 are ignored; the next save writes over them.
+- The Mac status bar reads `Saved your changes over the other version.` from the save that follows Keep My Changes until the next edit; on iOS the title block's state line reads it once the document has no unsaved changes.
+- On the Mac the compare view takes the window's content in place of the text, under a `Compare versions of “name”` title; on iOS it is a full-screen navigation screen with that title.
+- The note stays while the pointer is over it: the Mac checks the pointer at each 4-second mark; iPad uses a hover recognizer.
+- The Mac dialog starts with focus on no button: NSAlert's panel gives its first button for a nil initial responder, so the content view is the initial responder. Without Full Keyboard Access macOS focuses no button anyway; with it on, this is not checked by a test.
+- iOS has no VoiceOver hints on the dialog: `UIAlertAction` has no hint API.
+- ⌘Z in the compare view takes back the last choice and the move that came with it (screens §3.11 keys): Edit › Undo on the Mac, a key command on iOS.
+- On iOS the compare view takes the keys when it joins a window, so the host does nothing for them; on the Mac the host makes it first responder.
+- Compare's counter sits in the bottom bar on both platforms, not in the toolbar (screens §3.11).
+
+**Files.** `MarkdownCore`: `ResolveModel.swift` (new: rows, choices, current change, ⌘Z), `LineDiff` (`mineLines` and `theirsLines` public), `Editing` (`UndoGrouping.Event.reload`), `FileLists.replace(_:with:)` (was `replaceRecent`; both lists). `MarkdownViews`: `MarkdownTextController+Reload.swift` (new: `reload(text:undoActionName:)`, `replaceText(_:undoActionName:)`, the changed span), `MarkdownTextController` (undo action names; `documentURL` settable), `MarkdownView+Shared` (the public methods, `documentURL`, `undoManager`), `ResolveController.swift` (new: behavior, keys, VoiceOver, `ResolveStrings`), `ResolveView+AppKit.swift` and `ResolveView+UIKit.swift` (new). `ScrollSupport`: `OutsideChange+AppKit.swift` and `OutsideChange+UIKit.swift` (new: the note, the dialog, the compare view), `ScrollDocument` and `ScrollDocument+UIKit` (the presenter, the disk bytes, paused saves; Mac `fileURL` follows a move; iOS `onMove`), `DocumentWindow+AppKit`, `DocumentHost+AppKit`, `DocumentViewController+UIKit`, `DocumentSession+UIKit` (a rename keeps the screen), `FileListStore.moved(_:to:)`, `StripView` (`.reloaded`), `ScrollStrings` (log 003 copy, the hints, `Resolve`). Log 004 Round 5 and its Outside changes section.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| An outside change with no edits reloads silently and clears Undo. Changed by Round 5 (log 003): one undo group named Reload, the note, and its Undo. | `an outside change with no edits reloads with the note, and its Undo restores the text` (Mac and iOS); `an undoable reload replaces only the changed span, keeps the caret, and reports reload`; `undo and redo of an undoable reload carry the reload group reason`; `the note goes after its time, but not while the pointer is over it` |
+| An outside change with edits shows the dialog. Esc and Return change nothing. | Mac `an outside change with edits shows the dialog; Return and Esc do nothing` (no key equivalents; the panel's `performKeyEquivalent` is false for Return and Esc; no button has the initial focus); iOS `an outside change with edits shows the dialog with no default and no cancel` |
+| Reload loads the disk text and clears Undo. (Use Version on Disk.) | `using the version on disk loads its text and clears Undo` (Mac and iOS) |
+| Keep Mine writes the local text on the next autosave. (Keep My Changes.) | `keeping my changes writes them on the next autosave, and the status says so` (Mac and iOS) |
+| Resolve Apply writes once. Undo restores the pre-resolve text. (Compare's Apply.) | `the compare view's Apply writes once, and its Undo restores the text from before` (Mac and iOS): one undo group named Resolve |
+| Resolve Cancel writes nothing and shows the dialog again. | `the compare view's Cancel writes nothing and shows the dialog again` (Mac and iOS) |
+| A checkbox click while the dialog is visible changes no byte. | `a checkbox click while the dialog is visible changes no byte` (Mac and iOS): the checkboxes are disabled, and a checkbox change that still reaches the document is not saved |
+
+Also: the compare view (`ResolveModelTests`, `ResolveControllerTests`, `ResolveViewMacTests`, `ResolveViewIOSTests`: rows, choices, the counter, collapsed runs, side by side or stacked, keys, ⌘Z, VoiceOver groups and announcements), renames (`a moved file moves the text's base`, `a renamed file keeps its screen and its row under the new name`, `a renamed file keeps its row, under the new path, after a relaunch`).
+
+**Self-review (deep review, in session).**
+
+- Bugs found and fixed, each with a test that failed first:
+  - The changed span cut surrogate pairs: `a😀b` reloaded as `a😁b` replaced one code unit and left a lone surrogate (`the changed span keeps whole characters`).
+  - New bytes with the same text (another app's CRLF rewrite) showed the note, and its Undo undid the person's last edit; with edits it asked for nothing (`new bytes with the same text show nothing…`).
+  - iOS: a save recorded its bytes as on disk before UIDocument wrote them, so a presenter call in between read the old file and asked again. The bytes now count once the save is done.
+  - iOS: the compare view asked for first responder before it was in a window, so its keys never worked.
+  - The Mac kept the URL resource values' cached modification date, so the autosave after Keep failed with "changed by another application".
+  - The Mac status for Keep read `isDocumentEdited`, which NSDocument clears after the save's completion; it now follows the save state.
+  - The Mac window copied `fileURL` before NSDocument set it on a move; the document now reports the change when `fileURL` is set.
+- Design items found by re-reading screens §3.10–3.11 and built: focus on no button, ⌘Z for a choice, the Mac compare title in the window title, Undo Resolve, the VoiceOver hints.
+- Dead code deleted after mutation: the undo action name copied to the inverse group (the undo manager keeps it), `|| outside.disk != nil` (the document stays edited while the dialog is up), the `showsNote` guard in the pointer check, the `reason != .reload` condition (a reload now also clears the Keep status), `openGroup = nil` before a reload (a reload is its own group), and the fallback index when inserting the compare view.
+- Mutation checks (one clause each, the suites that own the code):
+  - Mac run 1 (46): 29 caught, 17 survived. New tests caught most (the note's pointer check, Keep's status, the undo names, the Cancel title); the rest was dead code, deleted (above).
+  - Mac run 2 (27): 26 caught. The title refresh on Cancel survived; the Cancel test now checks the window title.
+  - Mac run 3 (11: the title, the hints, Undo Resolve, `documentURL`, the moves, the lists): 9 caught. The `fileURL` setter and the `onStateChange` in `noteMoved` each covered for the other; the `noteMoved` one is deleted (NSDocument sets `fileURL` after the presenter call), and the setter's mutant is then caught.
+  - iOS run 1 (32): 28 caught, 4 survived. New tests: the file as read is no change even with edits, the pointer hold with a 600 ms wait, the full key-modifier list, and Saved after Keep and an edit.
+  - iOS run 2 (7): 5 caught. The bytes recorded on read survived because the real file presenter sometimes called in before the edit and recorded them (a flaky catch); a document loaded without `open()` now checks it. The `saved` check in the save completion had no failed-save case; the failed-save test now checks it. Run again: 7 of 7 caught.
+- Lint and gate fixes: a `MarkdownTextController` body over 250 lines moved the reload into `+Reload`; the two `ResolveView` inits split out their lists; test names start lowercase; the compare view's ⌘Z history is a small struct, not a three-member tuple; the Mac `fileURL` setter hops to the main actor (NSDocument's setter is nonisolated: a Swift 6 warning); the iPad hover test waits 2 s, because the whole suite shares the main actor and 600 ms sometimes left the hold loop unrun (an iOS coverage miss).
+- Known gaps (not 2e scope, or waiting): the changed-again banner, Edit in a hunk, Theirs First, … for the Rest, the Changes rotor, and ⌥⌘I wait (Round 5); a change while the compare view is up updates the text the dialog acts on but not the view; Quit while the dialog is up keeps the disk version and loses the unsaved text (autosave is paused), not decided by the Design; iOS dialog hints (no API).
+- Gate (2026-11-02): every step of `just check` passed with 0 warnings: Swift Testing on macOS ran 327 MarkdownCore, 154 MarkdownViews, 162 ScrollSupport, and 17 FortkeepsCards tests; coverage 100% for the three gated modules and for the iOS-only `ScrollSupport` files; the iPhone 18 Pro simulator ran 303 MarkdownViews and ScrollSupport tests (1 skipped: the timing test, which runs only with `FORTKEEPS_TIMING`); lint and format clean; `mac-app-test` ran the 7 Mac UI tests and `ios-app-test` the 3 iOS UI tests on iPhone 18 Pro and iPad Air 11-inch (M4), all passing, the first UI-test run since 2c and 2d.
+
+### 2f — Sidebar, export, settings, relaunch
+
+Branch `stage/2f-sidebar-export` from the 2e tip (b9d0a9c).
+
+**Decisions.** Itay answered nine questions (design log 004 Round 6; the remember writes are held, see Handover):
+
+1. Line width: Narrow 560 pt, Medium 680 pt, Wide 840 pt.
+2. Each window's sidebar shows its document's folder once the app can read it. Open Folder… (⇧⌘O) picks a folder, keeps its access, and shows it in the front window's sidebar, or in a new Untitled window when none is open. The iPad works the same.
+3. iOS: ⋯ › Export holds Export PDF, Export HTML, Print, and Copy as rich text; the Share button is the system share sheet for the file itself.
+4. Export as HTML escapes raw HTML and shows it as source in a code block (screens §3.9 outcome A).
+5. The iPhone ☰ sheet has the Outline and, once folder access exists, the folder with New file, Rename, and Move to Trash.
+6. Large files: 2f builds the 5 MB progress only; the 20 MB note and lazy styling wait for a library change.
+7. The Mac sidebar is hidden at first; ⌃⌘S or the toolbar button shows it, and new windows follow the last choice. A restored window keeps its own state.
+8. Subfolders are a disclosure tree. New File goes into the selected folder, or the selected file's folder, or else the top folder.
+9. Asked mid-stage: iOS has no system Trash (`trashItem` fails: the volume has none). Move to Trash moves the file into a `Trash` folder in the app's own Files folder (On My iPhone › FK Scroll › Trash); Undo moves it back; the person empties it in Files.
+10. Asked during the deep review (Itay, 2026-11-03): the Outline parsed the whole text on every keystroke, against plan 01's rule that no editor path parses the whole text after open. It now loads only while the sidebar shows (when it appears, on open and reload, and 1 s after typing pauses), parsed off the main thread; a result for a text that changed since is dropped. A library heading scanner was weighed and not chosen.
+11. Asked during the gate (Itay, 2026-11-03): the iPhone status subtitle may truncate at larger Dynamic Type now that ☰ narrows the title block. Accepted as UIKit's own behavior; the document-screen audit skips only that clipped-text issue.
+
+Choices made in code, not asked (flag them in the step-wide review):
+
+- The Mac print and PDF use a TextKit 1 `NSTextView` of the printable text (`MarkdownView.printableText(width:image:)`, new public API): images are attachments scaled to the page width; a remote image shows only when it is already in the cache. iOS uses the same text in a TextKit 1 `UITextView`'s print formatter with 20 mm content insets; the PDF pages are US Letter where the region measures in inches (`Locale.measurementSystem == .us`), else A4. On iOS the print sheet's paper adds its own hardware margins to the 20 mm.
+- iOS export writes the file to a temporary folder and shows the Files export sheet; unlike Save As, the exported copy does not open. iOS has no export-failed alert: the export sheet reports its own errors.
+- The Settings word count is Mac-only: iOS has no status bar (screens §3.20 title block), so its sheet has line width, folders, and the cache.
+- The iOS sidebar is a `UICollectionView` list with sidebar appearance. Rename is an inline text field (Return or a tap away commits, Escape cancels). Undo of Move to Trash is the shared trash undo manager, reached from the sidebar (⌘Z, shake). A heading choice closes the iPhone sheet; the iPad sidebar is the split view's, with the system sidebar button (no ☰ on iPad).
+- Move to Trash writes an open document's unsaved text into the file before the move, so Undo brings it back, then closes the window or screen; Undo reopens it.
+- The folder list refreshes on the app's own changes (New File, Rename, Trash, Undo), not on changes made by other apps.
+- Relaunch: the Mac window encodes the anchor, Lock, and its sidebar state (`encodeRestorableState`); iOS keeps each open file's place and Lock in the open/recent list store, saved when a screen closes and when the scene goes to the background, and the iPad reopens the open files as tabs.
+- iOS large files: the screen shows before the read; the bar goes to 0.9 when the read ends (UIDocument reads in one piece), then the styling blocks the main thread, as on the Mac.
+- The Outline (decision 10): `MarkdownView.loadOutline()` (new public, async) replaces the synchronous `outline`; `currentOutlineIndex` reads only the model already built, so it is nil after an edit until the Outline loads again, and the scroll mark waits for that load. `MarkdownDocument.outline` is now built once with the document; it used to copy the whole rendered text on each call, which the scroll mark made once per scroll event.
+- Markers (Itay asked mid-review, "the alignment of the checkbox and the text"): on this SDK a TextKit 2 layout fragment starts at the text's indent, not at the container's edge, so the reading-mode markers and the quote bars were drawn over the text. They are now placed from the measured start of the first line, and each marker is centred on the capitals of its text. The editor's Hebrew checkbox was drawn at the left of the line: character locations count from the line's left edge, which right-to-left text moves. Library change (`MarkdownLayoutFragment`), tested in `MarkerLayoutTests`.
+- `firstOffset(atY:)` takes half a point of slack: a scroll to a block's top rounds to the screen's pixels and read one block early (the relaunch anchor). This exposed a 2-line drift of iOS mode switches that was there before; its test now allows 2 lines.
+
+**Files.** `MarkdownCore`: `HTMLExport.swift` (new), `MarkdownDocument` (`OutlineItem`, the stored `outline`, `outlineIndex`), `FileLists` (`DocumentFile.freeName`), `ParsedMarkdown` (node helpers). `MarkdownViews`: `MarkdownView+Shared` (`loadOutline`, `currentOutlineIndex`, `showOutlineItem`, `printableText`, line width), `MarkdownTextController` and `+Reload` (`loadDocument`, `keep`), `MarkdownViewDelegate+AppKit.swift` and `+UIKit.swift` (new: the system find interface, one undo group for Replace All), `MarkdownView+AppKit`/`+UIKit` (find, rich-text copy, line width), `MarkdownLayoutFragment` (markers, quote bars), `MarkdownNSTextView`, `MarkdownUITextView`. `ScrollSupport`: shared `SidebarRow.swift`, `FileTrash.swift`, `FolderFiles.swift`, `ScrollSettings.swift`, `ScrollStrings+2f.swift` (new); Mac `Sidebar+AppKit.swift`, `SidebarParts+AppKit.swift`, `DocumentWindowSidebar+AppKit.swift`, `Export+AppKit.swift`, `SettingsWindow+AppKit.swift`, `LargeFile+AppKit.swift` (new), `DocumentWindow+AppKit`, `DocumentHost+AppKit`, `MainMenu+AppKit`, `ScrollAppDelegate`, `OutsideChange+AppKit`; iOS `Sidebar+UIKit.swift`, `Export+UIKit.swift`, `SettingsSheet+UIKit.swift`, `LargeFile+UIKit.swift` (new), `DocumentViewController+UIKit`, `DocumentSession+UIKit`, `TabsViewController+UIKit`, `ScrollDocument+UIKit`, `ScrollStrings+UIKit`; `FileListStore` (`Place`), `FolderBookmarks` (`openFolder`, `grant`, `remove`), `ScrollDocument` (large files). Apps: `Apps/Mac/LiveEnvironment.swift`, `main.swift`; `Apps/iOS/LiveEnvironment.swift`, `SceneDelegate.swift`. Log 004 Round 6.
+
+**Must-pass tests.**
+
+| Must-pass test | Proof |
+|---|---|
+| Move to Trash moves the file to the Trash, and Undo restores it. | `moving to the Trash moves the file there, and Undo restores it` (the system Trash, Mac); `moving into the app's Trash folder keeps both files of one name, and Undo restores them` (iOS, decision 9); `moving to the Trash moves the file there and closes its tab, and Undo restores it` (Mac sidebar); `the Move to Trash item closes the open file; Undo puts it back and opens it again` (iOS sidebar) |
+| New File creates `Untitled.md`, then `Untitled 2.md`. | `a new file is Untitled.md, then Untitled 2.md`; `a new file is Untitled.md, then Untitled 2.md, and its rename starts` (Mac); `the New file item makes Untitled and starts its rename; Return commits the name` (iOS) |
+| HTML export contains no script, embeds a local image as data, and fetches nothing. | `the export has no script, embeds a local image as data, and fetches nothing` (`HTMLExport`); `exporting as HTML writes one page with no script, the local image as data, and fetches nothing` (Mac); `exporting HTML gives one page with no script, the local image as data, and fetches nothing` (iOS); also `a script destination of a link or an image is dropped` |
+| Replace All is one undo group. | `a replace-all is one undo group, and its undo restores every match`; `the Mac find bar's Replace All is one undo group`; `the iOS find panel's Replace All is one undo group` |
+| Relaunch restores two documents with their anchors and Lock. | `relaunch restores two documents with their anchors and Lock` (Mac, with each window's sidebar); `a relaunch restores two documents with their places and Lock` (iOS); `the iPad reopens the open files as tabs`; `a screen not yet laid out keeps the place it was given` |
+| A file larger than 64 KiB opens. A 6 MB file shows the progress indicator. | `a file larger than 64 KiB opens at once` and `a 6 MB file shows the progress, then its text, ready to edit` (Mac); the same two on iOS (`…shows the screen with its progress…`); `a window closed while its large file loads styles nothing` (Mac and iOS: `a screen closed…`) |
+
+**Self-review (deep review, in session).**
+
+- Bugs found and fixed, each with a test that failed first:
+  - The Outline parsed the whole text on every keystroke on both platforms, with the sidebar hidden too (decision 10). It also caused the Mac suite's timeouts: 8 tests with a 1-minute limit failed in 2 of 3 full runs, because the 6 MB test's parse held the main actor for about 12 s in a debug build. The suite now runs in about 48 s instead of 57–68 s.
+  - `MarkdownDocument.outline` copied the whole rendered text into an array on each call, and the scroll mark called it on each scroll event.
+  - Undo of Move to Trash ignored a failed move back: it reopened the file of that name (another file, if one took the name) and set up a Redo that would trash it. Now it beeps and stops.
+  - iOS: a screen not yet laid out (an iPad tab not shown since the relaunch, or a large file still loading) gave the top of the text as its place, so going to the background lost the kept place.
+  - A window or screen closed while its large file loaded still styled the whole text afterwards. On iOS the close also overlapped the document's open, which hung; the session now waits for the cancelled load before it closes the document.
+  - Mac: a folder change in any window reloaded every sidebar and dropped the marked heading.
+  - The markers, the quote bars, and the Hebrew editor checkbox (choices above).
+- Dead code deleted after mutation: the rename's same-name early return (the move of a file onto itself succeeds), the refresh's large-load guard (a refresh during a load parses the empty text), and the refresh after a large load (the reload of the text already refreshes the Outline).
+- Mutation checks (one clause each, the suites that own the code):
+  - Mac run 1 (55): 37 caught (2 by hanging: a print panel, and the 1 h pause the reload test uses to prove a reload does not wait), 2 did not build and were rewritten, 16 survived. New tests: a change of case alone renames, an H3 stays in the list, a `javascript:` destination is dropped, near-miss PNG and RIFF bytes, an `&nbsp;` heading title is trimmed, the scroll mark after a load, a real typing pause, a new window that shows its sidebar loads its Outline. Three survivors were dead code (above).
+  - Mac run 2 (15, the survivors and the selection fix): 11 caught. New tests: a restored window that shows its sidebar loads its Outline, a bookmark kept under `/private` is removed, the Outline after a large load. Run 3 (3): 2 caught; the third was dead code.
+  - Survivors kept, with reasons: `.withoutOverwriting` on New File (the name is already free; it guards a race); `item(at:didMoveTo:)` in the coordinated rename (Apple's contract for a coordinated move; NSDocument also follows the file by its ID, so no test sees it); the cancelled-refresh check after the parse (only a cancel during the off-main parse reaches it; it keeps an older Outline from showing for a moment); `row >= 0` in the kept selection (NSOutlineView ignores row -1, so `>= -1` behaves the same).
+  - iOS run 1 (13): 7 caught, 6 survived. New tests: a new file in a closed subfolder opens it, a reload refreshes the Outline at once, Move to Trash writes the unsaved text first, the PDF's paper size from an expectation of its own, and a line-width choice other than Wide. The sixth is the cancelled-refresh check (kept, as on the Mac). iOS run 2 (6: those five and the session's wait for a cancelled load): 6 caught.
+  - iOS coverage gate (the full `just check`): the sidebar's folder disclosure handler, the context menu's provider, the iOS no-op beep, the rename's refused-name branch, and the rename field's height had no test; `follow` had a `?? []` that never ran. The disclosure handler is now `toggler(_:)`; new tests: the disclosure opens and closes a subfolder, an empty name keeps the old one, Move to Trash of a file gone since the list moves nothing, the field is 36 pt; the menu helper runs the real provider. Run 3 (2): both caught. A second full gate found the note's pointer-over sleep uncovered when the main actor was busy past the test's 2 s; both platforms now sleep in one loop whose first pass always runs, so the line runs every time. A third found the Mac typing-pause test failing: its 500 ms pause passed while the 6 MB test held the main actor; it now uses a 1 h pause, then a 10 ms one to show the parse comes (no pause, no cancel: both caught). A fourth found the Mac app build broken: the live Export panel ran in a nonisolated async closure, so `chooseExportURL` is now `@MainActor`; and the CRLF UI test clicked the old checkbox spot, 24 pt left of where the alignment fix draws it. A fifth found the iPhone audit flagging the status subtitle as clippable (decision 11).
+- Lint and gate fixes: a `MarkdownTextController` body over 250 lines moved `loadDocument` to `+Reload`; `DocumentViewController+UIKit` over 400 lines moved `refreshOutline` to `Sidebar+UIKit`; the trash restore took six parameters (the reopen is now one closure); `MarkerLayoutTests` used a three-member tuple.
+- Known gaps (not 2f scope, or waiting): the 20 MB note and lazy styling (decision 6), so opening a 6 MB file blocks the main thread while it styles (about 14 s in a debug build); the folder list does not see changes made by other apps; New File and Rename are only in the sidebar's context menu on the Mac; the iOS word count (decision); the iOS print sheet adds the paper's hardware margins to the 20 mm; the iOS read progress jumps to 0.9 (UIDocument reads in one piece); the Mac restores a large file's place onto the empty text before it loads; iOS mode switches drift up to 2 lines (there before 2f); WAIT-3 strings.
+- Gate: full `just check` green (2026-11-03), no warnings: Mac `swift test` 338 MarkdownCore + 183 MarkdownViews + 216 ScrollSupport + 17 FortkeepsCards tests; coverage 100% for MarkdownCore, FortkeepsCards, and ScrollSupport; core modules load no UI framework; iOS simulator 369 passed, 1 skipped, iOS-only files 100%; the Mac app UI tests, and the iOS app UI tests on iPhone 18 Pro and iPad Air 11-inch (M4); SwiftLint strict and SwiftFormat clean. It took five runs: each earlier one found something fixed above.
+
+## Whole-plan Review Notes (2026-11-03)
+
+Whole-plan deep review of stages 2a–2f at caa4b58, in a clean worktree, with the simplicity, adversarial, and product-fit lenses. No stage of plan 02 had a second-opinion review (`decision:fortkeeps-markdown-plan02-flow-2026-10-31`), so this is the first outside pass. Commits ef116a3, a88e040, e32c05f, d62ec4e on `review/plan02` (from `stage/2f-sidebar-export`). Design log 004 Round 7 records Itay's answers: `decision:fortkeeps-markdown-plan02-whole-review-2026-11-03`. 33 of the 34 decision keys in `.claude/WHOLE_PLAN_REVIEW` are not in Remember (the coder held the writes); log 004 Rounds 3–6 hold their text, and this review read them there.
+
+**Does the code serve the product?** Mostly yes. Scroll is a sandboxed, Mac App Store Markdown editor that never fetches without consent: `image(for:)` never fetches, every redirect is re-checked, no cookies or cache leave the session, local images stay inside the document's folder, autosave and the immediate checkbox save follow log 004, outside changes follow log 003, and the compare view lives in the library so Fortkeeps can reuse it. Four places worked against the product and are fixed below: the document types, unreadable outside bytes, HTML export's image reads, and the status grammar. One stays against it: a file over 5 MB shows its progress and then freezes the window while it styles (about 14 s in a debug build); Round 6 deferred it to a library change.
+
+**Security (fixed, each with a test that a one-clause mutant turns red).**
+
+- The local image read resolved symlinks, checked the path, then opened the path again by name (lens 11): a component swapped to a symlink in between read outside the document folder, and a FIFO swapped in hung a thread. `DocumentImages.readLocal` opens once with `O_NONBLOCK` and checks the open file: `fstat` for a regular file, `F_GETPATH` for a place inside the folder.
+- HTML export read local images with `Data(contentsOf:)` on both platforms: a symlink in the document folder embedded a private image from elsewhere in the granted folder into a page meant for sharing, and a huge file was read whole. Export now takes exactly what the view draws (`exportData`: inside the folder, at most 5,000,000 bytes, through `ImageCheck`).
+
+**Product (fixed; Round 7).**
+
+- Both apps listed `public.plain-text` at rank Default, which claims every source file and log; Scroll could become their double-click app and then refuse them. Markdown keeps Default; `.txt` is a second type at Alternate (Mac: by extension; iOS: by `public.plain-text`).
+- Another app's bytes that are not UTF-8 were ignored (a `ponytail:` comment), and the next save wrote over them without a word. Saves and edits now pause with a strip; Keep My Changes saves over it, Close closes without saving.
+- The status bar read "1 words".
+- On the Mac, a window restored while its large file loaded put its place on the empty text, and a state saved during the load wrote that empty place back.
+- On the Mac, the reload note awaited its fade's completion handler, which a busy run loop can hold for good: the note stayed up, and under the full suite the note test hung to its limit in 2 of 2 runs. The note now goes once the fade's 0.25 s have passed (2 of 2 full runs then passed; a run with the await removed passed too, which is how the cause was found).
+
+**Simplify.** One `DiskWatch` replaces the two documents' disk rules; one `OutsideChangeHost` extension replaces the two copies of the outside-change flow (each app keeps its dialog, compare screen, announcement, and fade); one `DocumentFile.largeFileBytes`; one checked local read for the view and export; two equivalent empty-data checks removed. The iOS `ScrollEnvironment` has its own file. Sources: 437 lines added, 272 removed, mostly the new behavior. Not shrunk, noted: `ScrollStrings+2f.swift` is named after a stage, not a topic; the two `apply(_:)` save-action switches differ only in the platform's change-count API.
+
+**Tests.** The one-minute time limits are two: the suite's 6 MB loads hold the main actor, and tests waiting behind them timed out (the 2f notes saw 8 in 2 of 3 runs; this review's restore test tipped it over again). Mutations: 25 one-clause mutants over every change; survivors got tests (an image wider than 8192 px is not exported, the Close of the unreadable strip on iOS) or were equivalent and removed (two empty-data checks).
+
+**Gate.** Without the UI tests, `just check` passes on the final review commit: Mac tests, coverage 100% for MarkdownCore, FortkeepsCards, and ScrollSupport, the module trace, the iOS build, the iOS simulator tests with the iOS-only coverage gate. On Itay's OK (Round 7), the Mac app UI tests and the iOS app UI tests on iPhone 18 Pro and iPad Air 11-inch (M4) pass too, with the document-type parity check.
+
+**Open, for Itay or plan 03.**
+
+- The large-file freeze after the progress (Round 6) and lazy styling.
+- Plan 03 stage 3b: the HTML spike tests are not written, though its row says they are written now (a plan 01 gap).
+- Both documents read a changed file without file coordination, so a writer that edits in place can be read half-written; the next change notice corrects it.
+- `URLSessionTransport` reads the body a byte at a time and does not check `Content-Length` first, so a response over the limit downloads 5 MB before it is refused.
+- A cached image is not checked again when it is read; a file planted in the app's cache would skip the 8192-pixel rule.
+- Rename accepts a name that starts with `.` or changes the extension, and the file then leaves the sidebar without a word.
+- iOS mode switches drift up to 2 lines (plan 01's must-pass says one); the 2f notes list it.
+- WAIT-3 strings, WAIT-6 signing, and the held Remember writes of the plan 02 decisions.
+

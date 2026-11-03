@@ -14,9 +14,6 @@ public enum LinkTarget: Equatable, Sendable {
 }
 
 public enum LinkRules {
-    /// The accepted file extensions, compared without case.
-    public static let acceptedExtensions: Set = ["md", "markdown", "txt", "mdown", "mkd"]
-
     public static func classify(_ destination: String, documentURL: URL?) -> LinkTarget {
         if destination.hasPrefix("#") {
             return .fragment(String(destination.dropFirst()).removingPercentEncoding ?? String(destination.dropFirst()))
@@ -31,7 +28,7 @@ public enum LinkRules {
         }
         let path = String(destination.prefix { $0 != "?" && $0 != "#" })
         guard let file = FolderPath.resolve(path, in: documentURL),
-              acceptedExtensions.contains(file.pathExtension.lowercased())
+              DocumentFile.accepts(file)
         else { return .none }
         return .siblingFile(file)
     }

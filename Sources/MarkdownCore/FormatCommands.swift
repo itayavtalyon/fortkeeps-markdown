@@ -98,6 +98,8 @@ public enum FormatCommands {
     }
 
     private static func wrap(_ delimiter: String, in units: [UInt16], selection: Range<Int>) -> TextEdit {
+        // Select All ends after the last line break; the delimiters go before it.
+        let selection = units[selection].last == 10 ? selection.lowerBound ..< selection.upperBound - 1 : selection
         let lines = Lines(units, selection)
         if lines.count > 1 {
             return lines.edit { line in line.isEmpty ? line : delimiter + line + delimiter }

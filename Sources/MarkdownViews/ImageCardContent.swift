@@ -21,35 +21,33 @@ struct ImageCardContent: Equatable {
     let accessibilityHint: String?
     /// An image with an empty alt is hidden from VoiceOver.
     let isAccessibilityElement: Bool
-    /// 56 pt for one line under the title, 18 pt for each more line.
+    /// The line under a kept image after a failed reload.
+    let statusLine: String?
+    static let statusLineHeight: CGFloat = 18
+    /// A card has at most one line under its title.
     func cardSize(columnWidth: CGFloat) -> CGSize {
-        CGSize(width: min(columnWidth, 420), height: 38 + 18 * CGFloat(max(1, lines.count)))
+        CGSize(width: min(columnWidth, 420), height: 56)
     }
 
-    /// A card with a button sends `imageActivated(_:)` on a click.
+    /// A card with a button sends `activateImage(_:)` on a click.
     var activates: Bool {
         button != nil
     }
 
     /// No result yet draws the loading card. `.refused` with the `.link`
-    /// fallback draws the link. `isUntitled` gives a refused card its hint.
-    init(result: ImageResult?, alt: String, fallback: MarkdownPresentation.ImageFallback, isUntitled: Bool = false) {
+    /// fallback draws the link.
+    init(result: ImageResult?, alt: String, fallback: MarkdownPresentation.ImageFallback) {
         let name = alt.isEmpty ? Strings.noAlt : alt
-        // The failed and refused cards leave out an empty alt.
-        let altLine = alt.isEmpty ? [String]() : [alt]
         var title = name
         var lines: [String] = []
         var button: String?
         var label: String?
         var hint: String?
-        kind = switch (result, fallback) {
-        case let (.image(data)?, _): .image(data)
-        case (.refused?, .link): .link
-        default: .card
-        }
+        kind = Self.kind(of: result, fallback: fallback)
+        var statusLine: String?
         switch result {
-        case .image?:
-            break
+        case let .image(_, reloadFailure)?:
+            statusLine = reloadFailure.map(Strings.reloadFailed)
         case .loading?, nil:
             lines = [Strings.loading]
         case let .remoteNotLoaded(host)?:
@@ -60,27 +58,36 @@ struct ImageCardContent: Equatable {
         case .needsAccess?:
             lines = [Strings.needsAccess]
             button = Strings.allowAccess
+            hint = Strings.loadHintLocal
         case let .failed(reason)?:
             title = Strings.cannotShow
-            lines = altLine + [Strings.reason(reason)]
+            lines = [Strings.reason(reason)]
             button = [.timedOut, .network].contains(reason) ? Strings.retry : nil
-            label = title + ", " + Strings.reason(reason)
-        case .refused?:
-            title = kind == .link ? (alt.isEmpty ? Strings.noAlt : Strings.imageLink(alt)) : Strings.cannotShow
-            lines = kind == .link ? [] : altLine
-            label = ([title] + lines).joined(separator: ", ")
-            hint = kind == .card && isUntitled ? Strings.saveToShow : nil
+            label = Strings.cardLabel(reason: lines.first, alt: alt)
+        case let .refused(reason)?:
+            if kind == .link {
+                title = alt.isEmpty ? Strings.noAlt : Strings.imageLink(alt)
+            } else {
+                title = Strings.cannotShow
+                lines = reason.map { [$0] } ?? []
+                label = Strings.cardLabel(reason: reason, alt: alt)
+            }
         }
         self.title = title
         self.lines = lines
         self.button = button
+        self.statusLine = statusLine
         showsProgress = result == nil || result == .loading
-        accessibilityLabel = label ?? ([title] + lines.prefix(1)).joined(separator: ", ")
+        accessibilityLabel = label ?? ([title] + lines).joined(separator: ", ")
         accessibilityHint = hint
-        isAccessibilityElement = if case .image = kind {
-            !alt.isEmpty
-        } else {
-            true
+        isAccessibilityElement = kind == .card || kind == .link || !alt.isEmpty
+    }
+
+    private static func kind(of result: ImageResult?, fallback: MarkdownPresentation.ImageFallback) -> Kind {
+        switch (result, fallback) {
+        case let (.image(data, _)?, _): .image(data)
+        case (.refused?, .link): .link
+        default: .card
         }
     }
 }
@@ -133,7 +140,7 @@ enum Strings {
     }
 
     static var cannotShow: String {
-        String(localized: "img.cannotShow", defaultValue: "Image can’t be shown", bundle: resourceBundle)
+        String(localized: "img.refused.title", defaultValue: "Image can't be shown", bundle: resourceBundle)
     }
 
     static var retry: String {
@@ -144,12 +151,31 @@ enum Strings {
         #endif
     }
 
-    static var saveToShow: String {
+    static func reloadFailed(_ failure: ImageFailure) -> String {
         String(
-            localized: "img.untitled.hint",
-            defaultValue: "Save the file to show local images.",
+            localized: "img.reloadFailed",
+            defaultValue: "Couldn't reload this image. \(reason(failure))",
             bundle: resourceBundle
         )
+    }
+
+    static var loadHintLocal: String {
+        String(
+            localized: "img.load.hint.local",
+            defaultValue: "Shows the image from this file.",
+            bundle: resourceBundle
+        )
+    }
+
+    /// `Image can't be shown. {reason}`, then ` Alt text: {alt}` when there is alt text.
+    static func cardLabel(reason: String?, alt: String) -> String {
+        let card = String(
+            localized: "img.ax.card",
+            defaultValue: "\(cannotShow). \(reason ?? "")",
+            bundle: resourceBundle
+        )
+        let altText = String(localized: "img.ax.card.alt", defaultValue: " Alt text: \(alt)", bundle: resourceBundle)
+        return card.trimmingCharacters(in: .whitespaces) + (alt.isEmpty ? "" : altText)
     }
 
     static var play: String {
@@ -163,19 +189,19 @@ enum Strings {
     static func reason(_ reason: ImageFailure) -> String {
         switch reason {
         case .tooLarge:
-            String(localized: "img.reason.tooLarge", defaultValue: "It’s too large to show.", bundle: resourceBundle)
+            String(localized: "img.reason.tooLarge", defaultValue: "It's too large to show.", bundle: resourceBundle)
         case .timedOut:
             String(localized: "img.reason.timedOut", defaultValue: "It took too long to load.", bundle: resourceBundle)
         case .unsupported:
             String(
                 localized: "img.reason.unsupported",
-                defaultValue: "This image format isn’t supported.",
+                defaultValue: "This image format isn't supported.",
                 bundle: resourceBundle
             )
         case .network:
             String(
                 localized: "img.reason.network",
-                defaultValue: "Couldn’t reach it. Check your connection.",
+                defaultValue: "Couldn't reach it. Check your connection.",
                 bundle: resourceBundle
             )
         }

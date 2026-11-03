@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import MarkdownCore
 @testable import MarkdownViews
 import Testing
@@ -19,6 +20,20 @@ struct ImageCardContentTests {
         static let allow = "Allow access"
     #endif
 
+    /// A PNG of the given pixel size, on any platform.
+    static func givenPNG(width: Int, height: Int) throws -> Data {
+        let context = try #require(CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        let image = try #require(context.makeImage())
+        let data = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
+        return data as Data
+    }
+
     static func card(_ result: ImageResult?, alt: String = "Map", fallback: Fallback = .text) -> ImageCardContent {
         ImageCardContent(result: result, alt: alt, fallback: fallback)
     }
@@ -33,9 +48,47 @@ struct ImageCardContentTests {
     }
 
     @Test
-    func `a card is 56 points tall for one line and 18 more for each further line`() {
+    func `a failed reload keeps the image and adds the status line under it`() {
+        let card = Self.card(.image(Data([1]), reloadFailure: .network))
+
+        #expect(card.kind == .image(Data([1])))
+        #expect(card.statusLine == "Couldn't reload this image. Couldn't reach it. Check your connection.")
+        #expect(Self.card(.image(Data([1]))).statusLine == nil)
+    }
+
+    @Test
+    @MainActor
+    func `a kept image reserves the status line under it in rendered mode and the editor`() throws {
+        let png = try Self.givenPNG(width: 200, height: 100)
+        func attachment(_ result: ImageResult) -> ImageAttachment {
+            ImageAttachment(
+                index: 0,
+                destination: "a.png",
+                content: Self.card(result),
+                animating: false,
+                maxHeight: 1000,
+                owner: nil
+            )
+        }
+        func mark(_ result: ImageResult) -> EditorImageMark {
+            EditorImageMark(
+                destination: "a.png",
+                content: Self.card(result),
+                image: PlatformImage(data: png),
+                columnWidth: 600
+            )
+        }
+
+        #expect(attachment(.image(png, reloadFailure: .network)).size(lineWidth: 600).height
+            == attachment(.image(png)).size(lineWidth: 600).height + 18)
+        #expect(mark(.image(png, reloadFailure: .network)).size.height == mark(.image(png)).size.height + 18)
+    }
+
+    @Test
+    func `a card is 56 points tall and at most 420 wide`() {
         #expect(Self.card(.loading).cardSize(columnWidth: 600) == CGSize(width: 420, height: 56))
-        #expect(Self.card(.failed(reason: .tooLarge)).cardSize(columnWidth: 300) == CGSize(width: 300, height: 74))
+        #expect(Self.card(.refused(reason: "a")).cardSize(columnWidth: 300) == CGSize(width: 300, height: 56))
+        #expect(Self.card(.refused(reason: nil)).cardSize(columnWidth: 300) == CGSize(width: 300, height: 56))
     }
 
     @Test
@@ -68,62 +121,67 @@ struct ImageCardContentTests {
     }
 
     @Test
-    func `the folder-access card activates`() {
+    func `the folder-access card activates and shows the image from this file`() {
         let card = Self.card(.needsAccess)
 
         #expect(card.lines == ["Needs folder access"])
         #expect(card.button == Self.allow)
         #expect(card.accessibilityLabel == "Map, Needs folder access")
+        #expect(card.accessibilityHint == "Shows the image from this file.")
     }
 
     @Test(arguments: [
         (ImageFailure.timedOut, "It took too long to load.", true),
-        (.network, "Couldn’t reach it. Check your connection.", true),
-        (.tooLarge, "It’s too large to show.", false),
-        (.unsupported, "This image format isn’t supported.", false)
+        (.network, "Couldn't reach it. Check your connection.", true),
+        (.tooLarge, "It's too large to show.", false),
+        (.unsupported, "This image format isn't supported.", false)
     ])
-    func `a failed card reads the title, the alt, and the reason`(reason: ImageFailure, text: String, retries: Bool) {
+    func `a failed card shows the title and one reason line`(reason: ImageFailure, text: String, retries: Bool) {
         let card = Self.card(.failed(reason: reason))
 
-        #expect(card.title == "Image can’t be shown")
-        #expect(card.lines == ["Map", text])
+        #expect(card.title == "Image can't be shown")
+        #expect(card.lines == [text])
         #expect(card.button == (retries ? Self.retry : nil))
-        #expect(card.accessibilityLabel == "Image can’t be shown, " + text)
     }
 
     @Test
-    func `a failed or refused card leaves out an empty alt`() {
-        #expect(Self.card(.failed(reason: .tooLarge), alt: "").lines == ["It’s too large to show."])
-        #expect(Self.card(.refused, alt: "").lines.isEmpty)
+    func `a failed card label is the title and the reason, then the alt text`() {
+        #expect(Self.card(.failed(reason: .tooLarge)).accessibilityLabel
+            == "Image can't be shown. It's too large to show. Alt text: Map")
+        #expect(Self.card(.failed(reason: .tooLarge), alt: "").accessibilityLabel
+            == "Image can't be shown. It's too large to show.")
     }
 
     @Test
     func `a refused image draws the can't-be-shown card with no button`() {
-        let card = Self.card(.refused)
+        let card = Self.card(.refused(reason: nil))
 
         #expect(card.kind == .card)
-        #expect(card.title == "Image can’t be shown")
-        #expect(card.lines == ["Map"])
+        #expect(card.title == "Image can't be shown")
+        #expect(card.lines.isEmpty)
         #expect(card.button == nil)
-        #expect(card.accessibilityLabel == "Image can’t be shown, Map")
-        #expect(Self.card(.refused, alt: "").accessibilityLabel == "Image can’t be shown")
+        #expect(card.accessibilityLabel == "Image can't be shown. Alt text: Map")
+        #expect(Self.card(.refused(reason: nil), alt: "").accessibilityLabel == "Image can't be shown.")
     }
 
     @Test
-    func `a refused card in an untitled document asks to save`() {
-        let card = ImageCardContent(result: .refused, alt: "Map", fallback: .text, isUntitled: true)
+    func `a refused card shows the host's reason line`() {
+        let card = Self.card(.refused(reason: "Save the document to show local images."))
 
-        #expect(card.accessibilityHint == "Save the file to show local images.")
-        #expect(Self.card(.refused).accessibilityHint == nil)
+        #expect(card.lines == ["Save the document to show local images."])
+        #expect(card.accessibilityLabel
+            == "Image can't be shown. Save the document to show local images. Alt text: Map")
+        #expect(card.accessibilityHint == nil)
     }
 
     @Test
     func `a refused image with the link fallback draws the Image alt link`() {
-        let card = Self.card(.refused, fallback: .link)
+        let card = Self.card(.refused(reason: "Why"), fallback: .link)
 
         #expect(card.kind == .link)
         #expect(card.title == "Image: Map")
-        #expect(Self.card(.refused, alt: "", fallback: .link).title == "Image")
+        #expect(card.lines.isEmpty)
+        #expect(Self.card(.refused(reason: nil), alt: "", fallback: .link).title == "Image")
     }
 
     @Test

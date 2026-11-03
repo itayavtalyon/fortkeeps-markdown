@@ -136,4 +136,23 @@
             true
         }
     }
+
+    extension MarkdownView {
+        static func formatAction(for event: NSEvent) -> FormatAction? {
+            var modifiers: FormatShortcut.Modifiers = []
+            let flags = event.modifierFlags
+            if flags.contains(.command) {
+                modifiers.insert(.command)
+            }
+            if flags.contains(.shift) {
+                modifiers.insert(.shift)
+            }
+            if flags.contains(.option) {
+                modifiers.insert(.option)
+            }
+            // Shift-Command-8 arrives as `*`; the key without modifiers is `8`.
+            let keys = [event.charactersIgnoringModifiers, event.characters(byApplyingModifiers: [])].compactMap(\.self)
+            return keys.lazy.compactMap { FormatAction.matching(key: $0, modifiers: modifiers) }.first
+        }
+    }
 #endif

@@ -22,9 +22,9 @@ Stages 1a, 1b, 1c, and 1f can start now. Stage 1d can start except steps 5–6. 
 
 | # | Plan | Status |
 |---|------|--------|
-| 01 | [Library](01-library.md) | In review (1a–1f; deep review of the whole plan) |
-| 02 | [Apps](02-apps.md) | After 01 |
-| 03 | [Scroll decisions (log 002)](03-scroll-decisions.md) | Built inside the 01 and 02 stages it names |
+| 01 | [Library](01-library.md) | Done (merged, pull request #7) |
+| 02 | [Apps](02-apps.md) | Built; whole-plan review done (2026-11-03); pull request waits |
+| 03 | [Scroll decisions (log 002)](03-scroll-decisions.md) | Built inside the 01 and 02 stages it names, except 3b |
 
 ## Definition of done (every stage)
 

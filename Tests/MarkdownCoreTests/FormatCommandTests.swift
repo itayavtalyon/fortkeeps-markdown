@@ -45,6 +45,12 @@ struct FormatCommandTests {
     }
 
     @Test
+    func `a selection that ends with a line break wraps the text before it`() {
+        #expect(Self.run(.bold, "|word\n|") == "**|word|**\n")
+        #expect(Self.run(.italic, "|one\ntwo\n|") == "|*one*\n*two*|\n")
+    }
+
+    @Test
     func `code on two lines makes a fence`() {
         #expect(Self.run(.code, "x\n|a\nb|\ny") == "x\n|```\na\nb\n```|\ny")
     }

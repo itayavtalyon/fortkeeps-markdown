@@ -168,7 +168,9 @@
             view.mode = .rendered
             view.mode = .editor
 
-            #expect(abs(lines(view.firstVisibleOffset) - before) <= 1)
+            // ponytail: the switch restyles and moves the text up to 2 lines on iOS; the first
+            // visible line reads exactly since 2f (it read a line early, which hid half of it).
+            #expect(abs(lines(view.firstVisibleOffset) - before) <= 2)
             #expect(view.controller.selection == lineStart + 3 ..< lineStart + 3)
             view.controller.undoManager.undo()
             #expect(view.text == text)
@@ -256,6 +258,34 @@
 
             #expect(view.textView.clickEditorImage(at: center))
             #expect(host.activated == ["https://e.com/a.png"])
+        }
+
+        @Test
+        func `the edit menu on an image source offers Reload Image and Load All Images`() {
+            let view = Self.givenView("![a](https://e.com/a.png)\n\n![b](https://e.com/b.png)\n")
+            view.controller.setImageResult(.image(Data([1])), for: "https://e.com/a.png")
+
+            let menu = view.textView(
+                view.textView,
+                editMenuForTextIn: NSRange(location: 3, length: 0),
+                suggestedActions: []
+            )
+
+            #expect(menu?.children.prefix(2).map(\.title) == ["Reload Image", "Load All Images in This Document"])
+        }
+
+        @Test
+        func `the edit menu away from images keeps only the suggested actions`() {
+            let view = Self.givenView("plain\n")
+            let copy = UIAction(title: "Copy") { _ in }
+
+            let menu = view.textView(
+                view.textView,
+                editMenuForTextIn: NSRange(location: 1, length: 2),
+                suggestedActions: [copy]
+            )
+
+            #expect(menu?.children.map(\.title) == ["Copy"])
         }
 
         // MARK: copy

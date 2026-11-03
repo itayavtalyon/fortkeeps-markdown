@@ -24,4 +24,5 @@ xcuserdata/
 
 # Review handoff marker
 .claude/REVIEW_REQUEST
+.claude/WHOLE_PLAN_REVIEW
 .claude/settings.local.json

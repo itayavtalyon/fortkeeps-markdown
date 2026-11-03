@@ -55,6 +55,10 @@ line_length:
   ignores_comments: true
   ignores_urls: true
 
+# SwiftFormat writes `private nonisolated`; the default puts isolation before access.
+modifier_order:
+  preferred_modifier_order: [override, acl, setterACL, isolation, dynamic, mutators, lazy, final, required, convenience, typeMethods, owned]
+
 identifier_name:
   min_length: 2
   excluded: [id, db, x, y, to, of]

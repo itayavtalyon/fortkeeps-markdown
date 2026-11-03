@@ -75,12 +75,13 @@
         /// One page with no script; local images as data, remote ones as links.
         func exportHTML() async {
             guard let url = await environment.chooseExportURL(baseName + ".html", window) else { return }
+            let documentURL = scrollDocument?.fileURL
             let page = HTMLExport.page(
                 markdown: markdownView.text,
                 title: fileName,
-                documentURL: scrollDocument?.fileURL,
+                documentURL: documentURL,
                 features: MarkdownFeatures()
-            ) { try? Data(contentsOf: $0) }
+            ) { DocumentImages.exportData($0, documentURL: documentURL) }
             do {
                 try Data(page.utf8).write(to: url, options: .atomic)
             } catch {

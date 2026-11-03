@@ -52,7 +52,7 @@
                 title: document.fileName,
                 documentURL: document.fileURL,
                 features: MarkdownFeatures()
-            ) { try? Data(contentsOf: $0) }
+            ) { [documentURL = document.fileURL] in DocumentImages.exportData($0, documentURL: documentURL) }
             return export(Data(page.utf8), baseName + ".html")
         }
 

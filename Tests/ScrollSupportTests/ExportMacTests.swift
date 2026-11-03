@@ -13,6 +13,20 @@
         static let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA"
             + "60e6kgAAAABJRU5ErkJggg=="
 
+        /// A PNG 8193 pixels wide: one past the side the view draws.
+        static func wide() throws -> Data {
+            let context = try #require(CGContext(
+                data: nil, width: 8193, height: 1, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ))
+            let image = try #require(context.makeImage())
+            let data = NSMutableData()
+            let destination = try #require(CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil))
+            CGImageDestinationAddImage(destination, image, nil)
+            try #require(CGImageDestinationFinalize(destination))
+            return data as Data
+        }
+
         func open(_ text: String) throws -> DocumentWindowController {
             try base.open(base.given("a.md", text)).1
         }
@@ -35,6 +49,27 @@
             #expect(page.contains("data:image/png;base64,\(png.base64EncodedString())"))
             #expect(page.contains("<a href=\"https://e.com/far.png\">far</a>"))
             #expect(base.spy.transport.requests.isEmpty)
+        }
+
+        @Test
+        func `HTML export embeds only what the image rules let the view show`() async throws {
+            let png = try #require(Data(base64Encoded: Self.png))
+            let outside = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+            try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+            try png.write(to: outside.appending(path: "private.png"))
+            let controller = try open("![a](link.png) ![b](big.png) ![c](wide.png)\n")
+            try FileManager.default.createSymbolicLink(
+                at: base.folder.appending(path: "link.png"),
+                withDestinationURL: outside.appending(path: "private.png")
+            )
+            try (png + Data(count: 5_000_000)).write(to: base.folder.appending(path: "big.png"))
+            try Self.wide().write(to: base.folder.appending(path: "wide.png"))
+            base.spy.exportURL = base.folder.appending(path: "out.html")
+
+            await controller.exportHTML()
+
+            let page = try String(contentsOf: base.folder.appending(path: "out.html"), encoding: .utf8)
+            #expect(!page.contains("data:image"))
         }
 
         @Test

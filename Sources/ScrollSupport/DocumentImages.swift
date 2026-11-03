@@ -161,19 +161,38 @@ public final class DocumentImages {
     /// 5,000,000 bytes, in an allowed format.
     private nonisolated func local(_ file: URL, in folder: URL) -> ImageResult {
         guard access.canRead(folder) else { return .needsAccess }
-        let real = file.resolvingSymlinksInPath()
-        let base = folder.resolvingSymlinksInPath().pathComponents
-        // The folder itself is not a regular file. A FIFO or a device would block the read.
-        guard real.pathComponents.starts(with: base),
-              (try? real.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
-              let handle = try? FileHandle(forReadingFrom: real)
-        else { return .refused(reason: nil) }
-        defer { try? handle.close() }
-        // Reads one byte past the limit, so a large file is never read whole. An empty file reads nil.
-        guard let data = try? handle.read(upToCount: RemoteLoader.byteLimit + 1) else {
-            return .failed(reason: .unsupported)
+        switch Self.readLocal(file, in: folder) {
+        case nil: return .refused(reason: nil)
+        case let data? where data.count > RemoteLoader.byteLimit: return .failed(reason: .tooLarge)
+        case let data?: return ImageCheck.check(data).map { .failed(reason: $0) } ?? .image(data)
         }
-        guard data.count <= RemoteLoader.byteLimit else { return .failed(reason: .tooLarge) }
-        return ImageCheck.check(data).map { .failed(reason: $0) } ?? .image(data)
+    }
+
+    /// A local image for export: the bytes the view would draw, or nil.
+    public nonisolated static func exportData(_ file: URL, documentURL: URL?) -> Data? {
+        guard let folder = documentURL?.deletingLastPathComponent(), let data = readLocal(file, in: folder),
+              data.count <= RemoteLoader.byteLimit, ImageCheck.check(data) == nil
+        else { return nil }
+        return data
+    }
+
+    /// The bytes of a local image, up to one past 5,000,000, or nil when the
+    /// file is not a regular file inside `folder` after symlinks resolve.
+    /// The checks run on the opened file, so a path swapped after them (a
+    /// symlink, a FIFO) is never read. Export reads with it too.
+    public nonisolated static func readLocal(_ file: URL, in folder: URL) -> Data? {
+        // O_NONBLOCK: opening a FIFO does not wait for a writer.
+        let descriptor = open(file.path(percentEncoded: false), O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        guard descriptor >= 0 else { return nil }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        var status = stat()
+        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        guard fstat(descriptor, &status) == 0, status.st_mode & S_IFMT == S_IFREG,
+              fcntl(descriptor, F_GETPATH, &path) != -1, let name = String(utf8String: path)
+        else { return nil }
+        // Both sides drop a leading /private, as the folder's URL may.
+        let opened = URL(fileURLWithPath: name).resolvingSymlinksInPath().pathComponents
+        guard opened.starts(with: folder.resolvingSymlinksInPath().pathComponents) else { return nil }
+        return (try? handle.read(upToCount: RemoteLoader.byteLimit + 1)) ?? Data()
     }
 }

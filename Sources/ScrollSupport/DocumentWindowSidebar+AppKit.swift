@@ -56,7 +56,7 @@
         /// The place, Lock, and the sidebar; the system keeps them with the window.
         override func encodeRestorableState(with coder: NSCoder) {
             super.encodeRestorableState(with: coder)
-            coder.encode(try? JSONEncoder().encode(markdownView.anchor), forKey: "anchor")
+            coder.encode(try? JSONEncoder().encode(restoredAnchor ?? markdownView.anchor), forKey: "anchor")
             coder.encode(markdownView.mode == .editorLocked, forKey: "locked")
             coder.encode(!split.splitViewItems[0].isCollapsed, forKey: "showsSidebar")
         }
@@ -75,6 +75,11 @@
             guard let data = coder.decodeObject(of: NSData.self, forKey: "anchor") as Data?,
                   let anchor = try? JSONDecoder().decode(MarkdownAnchor.self, from: data)
             else { return }
+            // A large file still loading has no text to place it in yet.
+            guard largeLoad == nil else {
+                restoredAnchor = anchor
+                return
+            }
             markdownView.anchor = anchor
         }
     }

@@ -68,6 +68,11 @@
                 markdownView.isHidden = false
                 largeLoad = nil
                 update()
+                if let anchor = restoredAnchor {
+                    window?.layoutIfNeeded()
+                    markdownView.anchor = anchor
+                    restoredAnchor = nil
+                }
                 window?.makeFirstResponder(markdownView)
             }
         }

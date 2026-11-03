@@ -21,9 +21,35 @@
             return coder.encodedData
         }
 
+        /// The place a saved window state holds.
+        static func anchor(in data: Data) throws -> MarkdownAnchor? {
+            let coder = try NSKeyedUnarchiver(forReadingFrom: data)
+            let json = coder.decodeObject(of: NSData.self, forKey: "anchor") as Data?
+            return try json.map { try JSONDecoder().decode(MarkdownAnchor.self, from: $0) }
+        }
+
         static func restore(_ data: Data, _ controller: DocumentWindowController) throws {
             let coder = try NSKeyedUnarchiver(forReadingFrom: data)
             controller.restoreState(with: coder)
+        }
+
+        @Test(.timeLimit(.minutes(3)))
+        func `a large file restored while it loads gets its place once the text is in`() async throws {
+            let big = try base.given("big.md", LargeFileMacTests.text(bytes: 6_000_000))
+            let (document, window) = try base.open(big)
+            await window.largeLoadTask?.value
+            window.markdownView.select(3_000_000 ..< 3_000_004)
+            window.window?.layoutIfNeeded()
+            let anchor = window.markdownView.anchor
+            let saved = try Self.encode(window)
+            document.close()
+
+            let (_, again) = try base.open(big)
+            try Self.restore(saved, again)
+            #expect(try Self.anchor(in: Self.encode(again)) == anchor)
+            await again.largeLoadTask?.value
+
+            #expect(again.markdownView.anchor == anchor)
         }
 
         /// Must-pass (plan 02 › 2f).

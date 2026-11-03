@@ -28,6 +28,8 @@
         /// A large file loading (screens §3.14).
         var largeLoad: LargeLoad?
         var largeLoadTask: Task<Void, Never>?
+        /// A relaunch place that waits for the large file's text.
+        var restoredAnchor: MarkdownAnchor?
         /// The Outline loading off the main thread (log 004 Round 6).
         var outlineTask: Task<Void, Never>?
         /// Typing pauses this long before the Outline loads again.
